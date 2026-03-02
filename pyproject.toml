@@ -5,3 +5,13 @@ description = "A Simulation Environment for Supply Chain Security"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.4",
+    "tox-uv>=1.33.0",
+    "tox>=4.47.0",
+]
+
+[tool.ruff]
+line-length = 78
