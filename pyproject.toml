@@ -3,8 +3,10 @@ name = "provider-simenv"
 version = "0.1.0"
 description = "A Simulation Environment for Supply Chain Security"
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "Melodie>=0.6.0",
+]
 
 [dependency-groups]
 dev = [
@@ -15,3 +17,6 @@ dev = [
 
 [tool.ruff]
 line-length = 78
+
+[tool.setuptools.packages.find]
+where = ["src"]

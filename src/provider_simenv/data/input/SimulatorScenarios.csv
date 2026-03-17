@@ -1,0 +1,2 @@
+id,run_num,period_num,drought_severity,initial_soja_price,initial_feed_price,n_sa_farmers,n_wholesalers,n_transport_sa,n_transport_sea,n_transport_eu,n_processors,n_feed_manufacturers,n_feed_traders,n_eu_farmers
+0,1,52,0.0,400.0,300.0,10,3,2,2,2,3,3,3,10

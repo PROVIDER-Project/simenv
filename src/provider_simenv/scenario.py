@@ -1,0 +1,55 @@
+"""
+Simulation scenario parameters.
+
+A Scenario in Melodie holds all input parameters for one simulation run.
+"""
+
+from Melodie import Scenario
+
+class SupplyChainScenario(Scenario):
+    """
+    Defines one concrete run of the supply chain simulation.
+
+    All numeric fields are read by Melodie from the scenarios table.
+    """
+
+    # severity of the drought: 0.0 = no disruption, 1.0 = total failure
+    drought_severity: float = 0.0
+
+    # --- Agent population size ---
+    n_sa_farmers: int = 10          # South American Farmers
+    n_wholesalers: int = 3          # buys from farmers, aggregate them, sell internationally
+    n_transport_sa: int = 2         # land transport, South America
+    n_transport_sea: int = 2        # maritime transport
+    n_transport_eu: int = 2         # land transport, EU
+    n_processors: int = 3           # Crushers / Verschrotung
+    n_feed_manufacturers: int = 3
+    n_feed_traders: int = 3
+    n_eu_farmers: int = 10          # EU livestock farmers
+
+    # --- Fixed costs (€/step) ---
+    # Total operating cost an agent pays each step regardless of volume.
+    # the resulting price chain stays in a plausible EUR/ton range.
+    fixed_costs_sa_farmer: float = 36000.0          # farm labor, land, machinery
+    fixed_costs_eu_farmer: float = 5000.0           # livestock farm operating cost
+    fixed_costs_wholesaler: float = 15000.0         # aggregation, storage, logistics
+    fixed_costs_feed_trader: float = 8000.0         # distribution, warehousing
+    fixed_costs_transport_sa: float = 9000.0        # SA land freight
+    fixed_costs_transport_sea: float = 45000.0      # atlantic shipping
+    fixed_costs_transport_eu: float = 7000.0        # EU lang freight
+    fixed_costs_processor: float = 20000.0          # Crushing plant operation
+    fixed_costs_feed_manufacturer: float = 12000.0  # feed compounding plant
+
+    # --- Margins ---
+    # applied on top of total per unit cost at each chain node.
+    margin_sa_farmer: float = 0.10
+    margin_wholesaler: float = 0.10
+    margin_feed_trader: float = 0.08
+    margin_transport: float = 0.10          # shared across all transport roles
+    margin_processor: float = 0.12
+    margin_feed_manufacturer: float = 0.10
+
+    # Simulation length (Number of steps)
+    period_num: int = 52            # week in a year
+
+
