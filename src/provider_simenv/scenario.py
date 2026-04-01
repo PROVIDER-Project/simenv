@@ -13,8 +13,19 @@ class SupplyChainScenario(Scenario):
     All numeric fields are read by Melodie from the scenarios table.
     """
 
-    # severity of the drought: 0.0 = no disruption, 1.0 = total failure
-    drought_severity: float = 0.0
+    # --- KG shock coefficients ---
+    farm_capacity_bra: float = 1.0  # BRA soja farm output multiplier (0.7 = 30% drought loss)
+
+    port_capacity_sa: float = 1.0   # SA port throughput multiplier
+
+    fertilizer_price_factor: float = 1.0 # multiplier on SA farmer fixed costs (1.3 = + 30%)
+    energy_price_factor: float = 1.0    # multiplier on all transport fixed costs (1.5 = + 50%)
+
+    oil_mill_capacity: float = 1.0  # EU processor output multiplier (0.95 = slight soja shortage)
+    feed_mill_capacity: float = 1.0     # feed manufacturer output multiplier
+
+    shock_onset_setup: int = 0
+    shock_ramp_steps: int = 0
 
     # --- Agent population size ---
     n_sa_farmers: int = 10          # South American Farmers
