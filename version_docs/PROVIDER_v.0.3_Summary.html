@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROVIDER Simulation — v0.3 Feature Summary</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d2e;
+      --card:     #222538;
+      --border:   #2e3150;
+      --accent:   #6366f1;
+      --accent2:  #22d3ee;
+      --accent3:  #f59e0b;
+      --danger:   #ef4444;
+      --success:  #22c55e;
+      --text:     #e2e8f0;
+      --muted:    #8892a4;
+      --radius:   12px;
+      --gap:      24px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1a1d2e 0%, #0f1117 60%, #1a1025 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 0 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% -20%, rgba(99,102,241,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.35);
+      color: #a5b4fc;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+
+    .badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    h1 {
+      font-size: clamp(24px, 4vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 520px;
+      margin: 0 auto 28px;
+    }
+
+    .version-tags {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .tag-green  { background: rgba(34,197,94,0.15);  color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+    .tag-blue   { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+    .tag-amber  { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+    .tag-cyan   { background: rgba(34,211,238,0.15); color: #67e8f9; border: 1px solid rgba(34,211,238,0.3); }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      padding: 56px 0 0;
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 24px;
+    }
+
+    /* ── Cards ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .card-accent-top {
+      border-top: 3px solid var(--accent);
+    }
+
+    .card-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── Pipeline Diagram ── */
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 0 auto;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .pipeline-node {
+      flex: 1;
+      min-width: 100px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 16px 12px;
+      text-align: center;
+      position: relative;
+    }
+
+    .pipeline-node:first-child { border-radius: 12px 0 0 12px; }
+    .pipeline-node:last-child  { border-radius: 0 12px 12px 0; }
+
+    .pipeline-node::after {
+      content: '→';
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+      z-index: 2;
+    }
+
+    .pipeline-node:last-child::after { display: none; }
+
+    .pipeline-node .node-icon { font-size: 22px; margin-bottom: 6px; }
+    .pipeline-node .node-name { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; }
+    .pipeline-node .node-sub  { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+    .pipeline-node.highlight-node {
+      background: rgba(99,102,241,0.12);
+      border-color: rgba(99,102,241,0.4);
+    }
+
+    /* ── Shock Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(46,49,80,0.5);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .mono {
+      font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      background: rgba(99,102,241,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #c4b5fd;
+    }
+
+    /* ── Code Block ── */
+    .code-block {
+      background: #0d0f1a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    .code-comment { color: #4b5563; }
+    .code-keyword { color: #818cf8; }
+    .code-string  { color: #86efac; }
+    .code-number  { color: var(--accent3); }
+    .code-func    { color: var(--accent2); }
+    .code-var     { color: #f9a8d4; }
+
+    /* ── Status Grid ── */
+    .status-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(46,49,80,0.5);
+    }
+
+    .status-item:last-child { border-bottom: none; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .status-dot.done    { background: var(--success); }
+    .status-dot.todo    { background: var(--accent3); }
+    .status-dot.missing { background: var(--danger); }
+
+    .status-text { font-size: 13px; }
+    .status-text strong { font-weight: 600; }
+    .status-text small  { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    /* ── Lerp Diagram ── */
+    .lerp-viz {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 28px 20px;
+    }
+
+    .lerp-bar {
+      position: relative;
+      height: 12px;
+      border-radius: 100px;
+      background: linear-gradient(to right, #1a1d2e 0%, var(--accent) 100%);
+      margin: 20px 0 8px;
+      overflow: visible;
+    }
+
+    .lerp-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .lerp-markers {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 16px;
+      gap: 12px;
+    }
+
+    .lerp-marker {
+      flex: 1;
+      text-align: center;
+      padding: 10px 6px;
+      border-radius: 8px;
+      font-size: 11px;
+      border: 1px solid var(--border);
+    }
+
+    .lerp-marker strong { display: block; font-size: 18px; margin-bottom: 4px; }
+    .lerp-marker.m0 { background: rgba(34,197,94,0.08);  border-color: rgba(34,197,94,0.2);  color: #86efac; }
+    .lerp-marker.m1 { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fcd34d; }
+    .lerp-marker.m2 { background: rgba(99,102,241,0.1);  border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
+
+    /* ── Timeline ── */
+    .timeline {
+      position: relative;
+      padding-left: 28px;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .tl-item {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .tl-dot {
+      position: absolute;
+      left: -24px;
+      top: 4px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+    }
+
+    .tl-item h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .tl-item p  { font-size: 12px; color: var(--muted); }
+
+    /* ── Scenario Comparison ── */
+    .scenario-row {
+      display: grid;
+      grid-template-columns: 140px repeat(6, 1fr);
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .scenario-row:first-child { border-radius: 10px 10px 0 0; }
+    .scenario-row:last-child  { border-radius: 0 0 10px 10px; border-bottom: none; }
+
+    .sc-cell {
+      padding: 12px 10px;
+      font-size: 12px;
+      text-align: center;
+      border-right: 1px solid rgba(46,49,80,0.4);
+    }
+
+    .sc-cell:last-child { border-right: none; }
+    .sc-cell.label-cell { text-align: left; font-weight: 700; font-size: 12px; }
+
+    .scenario-row.header { background: rgba(46,49,80,0.4); }
+    .scenario-row.header .sc-cell { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+    .sc-baseline { background: rgba(34,197,94,0.04); }
+    .sc-mild     { background: rgba(245,158,11,0.04); }
+    .sc-severe   { background: rgba(239,68,68,0.04); }
+
+    .val-normal  { color: var(--text); }
+    .val-warn    { color: #fcd34d; }
+    .val-danger  { color: #fca5a5; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 80px;
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer strong { color: var(--text); }
+
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="container">
+    <div class="badge">
+      <span class="dot"></span>
+      BMBF-Funded · OFFIS e.V.
+    </div>
+    <h1>PROVIDER Simulation<br /><span>v0.3 — What's New</span></h1>
+    <p class="subtitle">
+      KG Shock Integration &amp; Time-Series Dynamics — from static parameters to evolving supply chain disruptions
+    </p>
+    <div class="version-tags">
+      <span class="tag tag-green">✓ Runs End-to-End</span>
+      <span class="tag tag-blue">KG Interface Layer</span>
+      <span class="tag tag-amber">Shock Timing</span>
+      <span class="tag tag-cyan">3-Scenario Batch</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUPPLY CHAIN PIPELINE ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2>Supply Chain Pipeline — 11 Steps per Tick</h2>
+    <div class="pipeline">
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">🌱</div>
+        <div class="node-name">SA Farmers</div>
+        <div class="node-sub">farm_capacity<br/>fertilizer_factor</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">🏪</div>
+        <div class="node-name">Wholesalers</div>
+        <div class="node-sub">aggregate + margin</div>
+      </div>
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">🚛</div>
+        <div class="node-name">SA Land</div>
+        <div class="node-sub">port_capacity<br/>energy_factor</div>
+      </div>
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">🚢</div>
+        <div class="node-name">Sea Transport</div>
+        <div class="node-sub">energy_factor</div>
+      </div>
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">🚚</div>
+        <div class="node-name">EU Land</div>
+        <div class="node-sub">energy_factor</div>
+      </div>
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">🏭</div>
+        <div class="node-name">Processors</div>
+        <div class="node-sub">oil_mill_capacity</div>
+      </div>
+      <div class="pipeline-node highlight-node">
+        <div class="node-icon">⚙️</div>
+        <div class="node-name">Feed Mfg.</div>
+        <div class="node-sub">feed_mill_capacity</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">📦</div>
+        <div class="node-name">Feed Traders</div>
+        <div class="node-sub">distribute</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">🐄</div>
+        <div class="node-name">EU Farmers</div>
+        <div class="node-sub">consume</div>
+      </div>
+    </div>
+    <p style="font-size: 12px; color: var(--muted); margin-top: 12px; text-align: center;">
+      <span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:rgba(99,102,241,0.3); border:1px solid rgba(99,102,241,0.5); vertical-align:middle; margin-right:6px;"></span>
+      Highlighted nodes have KG shock coefficients applied in v0.3
+    </p>
+  </div>
+</section>
+
+<!-- ══ KG COEFFICIENTS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">New in v0.3</div>
+    <h2>CoyPu KG Shock Coefficients — 6 of 14 Mapped</h2>
+    <div class="card">
+      <div class="scenario-row header">
+        <div class="sc-cell label-cell">KG Target ID</div>
+        <div class="sc-cell">Scenario Field</div>
+        <div class="sc-cell">KG Type</div>
+        <div class="sc-cell">Data Source</div>
+        <div class="sc-cell">Agent Affected</div>
+        <div class="sc-cell">Effect</div>
+        <div class="sc-cell">v0.3?</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">bra_soy_farm</span></div>
+        <div class="sc-cell"><span class="mono">farm_capacity_bra</span></div>
+        <div class="sc-cell">Typ 1</div>
+        <div class="sc-cell">EM-DAT + GTA</div>
+        <div class="sc-cell">SA Farmer</div>
+        <div class="sc-cell">Yield &amp; cost/unit</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">paranagua / rosario</span></div>
+        <div class="sc-cell"><span class="mono">port_capacity_sa</span></div>
+        <div class="sc-cell">Typ 2</div>
+        <div class="sc-cell">WPI</div>
+        <div class="sc-cell">SA Land Transport</div>
+        <div class="sc-cell">Throughput cap</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">fertilizer_input</span></div>
+        <div class="sc-cell"><span class="mono">fertilizer_price_factor</span></div>
+        <div class="sc-cell">Typ 3</div>
+        <div class="sc-cell">GTA Red</div>
+        <div class="sc-cell">SA Farmer</div>
+        <div class="sc-cell">Fixed cost +</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">energy_input</span></div>
+        <div class="sc-cell"><span class="mono">energy_price_factor</span></div>
+        <div class="sc-cell">Typ 3</div>
+        <div class="sc-cell">GTA Red</div>
+        <div class="sc-cell">All Transport</div>
+        <div class="sc-cell">Freight cost +</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">eu_oil_mills</span></div>
+        <div class="sc-cell"><span class="mono">oil_mill_capacity</span></div>
+        <div class="sc-cell">Typ 4</div>
+        <div class="sc-cell">EXIOBASE IO</div>
+        <div class="sc-cell">Processor</div>
+        <div class="sc-cell">Output quantity</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell"><span class="mono">feed_mills</span></div>
+        <div class="sc-cell"><span class="mono">feed_mill_capacity</span></div>
+        <div class="sc-cell">Typ 4</div>
+        <div class="sc-cell">EXIOBASE IO</div>
+        <div class="sc-cell">Feed Mfg.</div>
+        <div class="sc-cell">Output quantity</div>
+        <div class="sc-cell tag tag-green">✓ Done</div>
+      </div>
+      <div class="scenario-row sc-mild" style="border-top: 2px solid var(--border);">
+        <div class="sc-cell label-cell" style="color: var(--muted);"><span class="mono">arg_soy_farm</span></div>
+        <div class="sc-cell" style="color: var(--muted);">—</div>
+        <div class="sc-cell" style="color: var(--muted);">Typ 1</div>
+        <div class="sc-cell" style="color: var(--muted);">EM-DAT + GTA</div>
+        <div class="sc-cell" style="color: var(--muted);">No ARG agent</div>
+        <div class="sc-cell" style="color: var(--muted);">—</div>
+        <div class="sc-cell"><span class="tag" style="background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.2);font-size:10px;">Not yet</span></div>
+      </div>
+      <div class="scenario-row sc-mild">
+        <div class="sc-cell label-cell" style="color: var(--muted);"><span class="mono">usa_soy_farm</span></div>
+        <div class="sc-cell" style="color: var(--muted);">—</div>
+        <div class="sc-cell" style="color: var(--muted);">Typ 1</div>
+        <div class="sc-cell" style="color: var(--muted);">EM-DAT + GTA</div>
+        <div class="sc-cell" style="color: var(--muted);">No USA agents</div>
+        <div class="sc-cell" style="color: var(--muted);">—</div>
+        <div class="sc-cell"><span class="tag" style="background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.2);font-size:10px;">Not yet</span></div>
+      </div>
+      <div class="scenario-row sc-mild">
+        <div class="sc-cell label-cell" style="color: var(--muted);">+ 6 more…</div>
+        <div class="sc-cell" colspan="5" style="color: var(--muted); font-style: italic;">rotterdam_port, hamburg_port, us_gulf_ports, deu_soy_farm, santos_port</div>
+        <div class="sc-cell"><span class="tag" style="background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.2);font-size:10px;">Not yet</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ LERP PATTERN ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Core Mechanism</div>
+    <h2>Universal Lerp Pattern — How Shocks Are Applied</h2>
+    <div class="grid-2">
+      <div>
+        <div class="lerp-viz">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">shock_scale (computed by Environment)</p>
+          <div class="lerp-bar"></div>
+          <div class="lerp-labels">
+            <span>0.0 — Baseline (no shock)</span>
+            <span>1.0 — Full shock</span>
+          </div>
+          <div class="lerp-markers" style="margin-top: 24px;">
+            <div class="lerp-marker m0">
+              <strong>0.0</strong>
+              <div>Baseline</div>
+              <div style="font-size: 10px; margin-top: 4px;">effective = 1.0</div>
+            </div>
+            <div class="lerp-marker m1">
+              <strong>0.5</strong>
+              <div>Mid-ramp</div>
+              <div style="font-size: 10px; margin-top: 4px;">effective = avg</div>
+            </div>
+            <div class="lerp-marker m2">
+              <strong>1.0</strong>
+              <div>Full shock</div>
+              <div style="font-size: 10px; margin-top: 4px;">effective = target</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="code-block">
+<span class="code-comment"># Formula — same in every agent</span>
+<span class="code-var">effective</span> = <span class="code-number">1.0</span> + shock_scale × (target − <span class="code-number">1.0</span>)
+
+<span class="code-comment"># SA Farmer — yield + cost</span>
+<span class="code-var">farm_cap</span>  = lerp(<span class="code-var">farm_capacity_bra</span>)
+<span class="code-var">fert_fac</span>  = lerp(<span class="code-var">fertilizer_price_factor</span>)
+qty   = base_yield × farm_cap
+cost  = fixed_costs × fert_fac
+
+<span class="code-comment"># Transport — throughput + energy</span>
+<span class="code-var">eff_cap</span>  = capacity × lerp(<span class="code-var">port_capacity_sa</span>)
+<span class="code-var">eff_cost</span> = fixed_costs × lerp(<span class="code-var">energy_price_factor</span>)
+
+<span class="code-comment"># Process — output quantity</span>
+<span class="code-var">qty_out</span> = input × ratio × lerp(<span class="code-var">oil_mill_capacity</span>)
+        </div>
+        <p style="font-size: 12px; color: var(--muted); margin-top: 12px;">
+          When <strong style="color:var(--text);">shock_scale = 0</strong>, the formula always returns 1.0 — guaranteed baseline behavior regardless of scenario values.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SHOCK TIMING ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Temporal Dynamics</div>
+    <h2>Shock Onset &amp; Ramp — Prices Evolve Over Time</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-label" style="margin-bottom: 20px;">Timeline (52 weeks)</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-dot" style="background: var(--success);"></div>
+            <h4>Weeks 0–12 — Baseline</h4>
+            <p>shock_scale = 0.0 · All agents at full capacity · Prices at equilibrium level</p>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background: var(--accent3);"></div>
+            <h4>Week 13 — Shock Onset</h4>
+            <p>Drought begins · shock_scale starts ramping from 0 → 1 linearly over 13 steps</p>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background: var(--danger);"></div>
+            <h4>Week 26 — Full Shock</h4>
+            <p>shock_scale = 1.0 · All KG coefficient values fully active · Prices at shocked equilibrium</p>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="background: var(--muted);"></div>
+            <h4>Weeks 27–52 — Sustained</h4>
+            <p>Shock held at 1.0 · Downstream effects propagate and stabilise</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom: 16px;">Environment Formula</h3>
+        <div class="code-block" style="margin-bottom: 16px;">
+<span class="code-keyword">def</span> <span class="code-func">update_shock_scale</span>(self, period):
+    onset = self.scenario.shock_onset_step
+    ramp  = self.scenario.shock_ramp_steps
+
+    <span class="code-keyword">if</span> period &lt; onset:
+        self.shock_scale = <span class="code-number">0.0</span>
+    <span class="code-keyword">elif</span> ramp &lt;= <span class="code-number">0</span>:
+        self.shock_scale = <span class="code-number">1.0</span>
+    <span class="code-keyword">else</span>:
+        self.shock_scale = min(<span class="code-number">1.0</span>,
+            (period − onset) / ramp)
+
+    <span class="code-comment"># Derived output — not an input</span>
+    self.drought_severity = (
+        self.shock_scale ×
+        (<span class="code-number">1.0</span> − self.scenario.farm_capacity_bra)
+    )
+        </div>
+        <p style="font-size: 12px; color: var(--muted);">Called as the <strong style="color:var(--text);">first operation each tick</strong>, before any agent acts. All agents see the updated shock_scale immediately.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SCENARIOS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Scenario Catalog</div>
+    <h2>3-Scenario Batch — SimulatorScenarios.csv</h2>
+    <div class="card">
+      <div class="scenario-row header">
+        <div class="sc-cell label-cell">Scenario</div>
+        <div class="sc-cell">farm_cap_bra</div>
+        <div class="sc-cell">port_cap_sa</div>
+        <div class="sc-cell">fertilizer</div>
+        <div class="sc-cell">energy</div>
+        <div class="sc-cell">oil_mills</div>
+        <div class="sc-cell">onset / ramp</div>
+      </div>
+      <div class="scenario-row sc-baseline">
+        <div class="sc-cell label-cell">
+          <span class="tag tag-green" style="font-size:10px;">0</span>
+          &nbsp;Baseline
+        </div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-normal">0 / 0</div>
+      </div>
+      <div class="scenario-row sc-mild">
+        <div class="sc-cell label-cell">
+          <span class="tag tag-amber" style="font-size:10px;">1</span>
+          &nbsp;Mild drought
+        </div>
+        <div class="sc-cell val-warn">0.85</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-warn">1.15</div>
+        <div class="sc-cell val-warn">1.15</div>
+        <div class="sc-cell val-normal">1.00</div>
+        <div class="sc-cell val-warn">13 / 13</div>
+      </div>
+      <div class="scenario-row sc-severe">
+        <div class="sc-cell label-cell">
+          <span class="tag" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);font-size:10px;">2</span>
+          &nbsp;Severe (KG values)
+        </div>
+        <div class="sc-cell val-danger">0.70</div>
+        <div class="sc-cell val-warn">0.85</div>
+        <div class="sc-cell val-danger">1.30</div>
+        <div class="sc-cell val-danger">1.50</div>
+        <div class="sc-cell val-warn">0.95</div>
+        <div class="sc-cell val-warn">13 / 13</div>
+      </div>
+    </div>
+    <p style="font-size: 12px; color: var(--muted); margin-top: 12px;">
+      Scenario 2 values are the exact reference values from the CoyPu KG (<span class="mono">shocks_brazil_drought.json</span>). Onset=13, ramp=13 means the shock builds from week 13 to week 26.
+    </p>
+  </div>
+</section>
+
+<!-- ══ IMPLEMENTATION STATUS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Project State</div>
+    <h2>Implementation Status (end of v0.3)</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="margin-bottom: 16px; color: var(--success);">✓ Completed</h3>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>6 KG coefficients as scenario inputs</strong>
+            <small>scenario.py — all 4 coefficient types represented</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>shock_scale global (0→1)</strong>
+            <small>environment.py — computed first each tick</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>Shock onset + ramp timing</strong>
+            <small>shock_onset_step + shock_ramp_steps in CSV</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>Lerp pattern in all agent types</strong>
+            <small>farmer, transport, process — consistent formula</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>3-scenario batch CSV</strong>
+            <small>baseline, mild, severe (KG reference values)</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>Visualization (PNG export)</strong>
+            <small>visualize.py → price_curves.png, 2 subplots</small>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom: 16px; color: var(--accent3);">◑ Remaining Work</h3>
+        <div class="status-item">
+          <div class="status-dot todo"></div>
+          <div class="status-text">
+            <strong>Market clearing / bidding</strong>
+            <small>Equal-split is placeholder — prices too smooth</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot todo"></div>
+          <div class="status-text">
+            <strong>Agent heterogeneity</strong>
+            <small>Farm size tiers, different cost structures</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot todo"></div>
+          <div class="status-text">
+            <strong>8 unmapped KG coefficients</strong>
+            <small>ARG, USA farmers, EU ports — need new agent groups</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot missing"></div>
+          <div class="status-text">
+            <strong>palaestrAI integration</strong>
+            <small>Generator pattern for stepwise RL control — Eric input needed</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot missing"></div>
+          <div class="status-text">
+            <strong>Docker + OpenAPI</strong>
+            <small>AP 3.2 deliverable — reset/step/state/reward interface</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot todo"></div>
+          <div class="status-text">
+            <strong>Price calibration</strong>
+            <small>Compare against FAO/WFP commodity indices</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FILES CHANGED ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Diff Summary</div>
+    <h2>Files Changed in v0.3</h2>
+    <div class="grid-3">
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">✏️ Modified</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div><span class="mono">scenario.py</span><br /><small style="color:var(--muted);">+6 KG fields, +2 timing fields, −drought_severity</small></div>
+          <div><span class="mono">environment.py</span><br /><small style="color:var(--muted);">+shock_scale attr, +update_shock_scale(), drought_severity derived</small></div>
+          <div><span class="mono">model.py</span><br /><small style="color:var(--muted);">Call update_shock_scale first each tick; SA farmer call signature</small></div>
+          <div><span class="mono">agents/farmer.py</span><br /><small style="color:var(--muted);">_step_sa(): lerp for farm_capacity + fertilizer_factor</small></div>
+          <div><span class="mono">agents/transport.py</span><br /><small style="color:var(--muted);">_move(): capacity_factor param, lerp for port + energy</small></div>
+          <div><span class="mono">agents/process.py</span><br /><small style="color:var(--muted);">_process(): capacity_factor param, lerp for output</small></div>
+          <div><span class="mono">SimulatorScenarios.csv</span><br /><small style="color:var(--muted);">3 rows, new columns, removed old price/drought columns</small></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">🆕 New Files</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div><span class="mono">visualize.py</span><br /><small style="color:var(--muted);">Matplotlib PNG — soja + feed price per scenario</small></div>
+          <div><span class="mono">shocks/shocks_baseline.json</span><br /><small style="color:var(--muted);">Reference: 14 KG coefficients all at 1.0</small></div>
+          <div><span class="mono">shocks/shocks_brazil_drought.json</span><br /><small style="color:var(--muted);">Reference: KG values for BRA drought — used to manually fill CSV</small></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom: 12px;">🗑️ Removed / Deprecated</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div><span class="mono">drought_severity</span> (scenario field)<br /><small style="color:var(--muted);">Now derived output in environment — not a scenario input</small></div>
+          <div><span class="mono">initial_soja_price</span><br /><small style="color:var(--muted);">Removed from scenario.py and CSV (was removed in v0.2)</small></div>
+          <div><span class="mono">initial_feed_price</span><br /><small style="color:var(--muted);">Same as above</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ NEXT STEPS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label">Roadmap</div>
+    <h2>Next Steps — v0.4 Ideas</h2>
+    <div class="grid-3">
+
+      <div class="card card-accent-top" style="border-top-color: var(--accent);">
+        <div class="card-icon" style="background: rgba(99,102,241,0.15);">📡</div>
+        <h3>ShockLoader — Live KG Integration</h3>
+        <p style="margin-bottom: 14px;">
+          Currently, KG shock values are manually copied into <span class="mono">SimulatorScenarios.csv</span>.
+          The idea: build a <span class="mono">shock_loader.py</span> that reads the raw
+          <span class="mono">shocks.json</span> output from <span class="mono">coypu-kg-analyser parametrize-s1</span>
+          and automatically writes or patches a scenario row — either directly into the CSV or
+          by generating a new scenario object at runtime.
+        </p>
+        <div class="code-block" style="font-size: 12px; margin-bottom: 14px;">
+<span class="code-comment"># Option A — patch the CSV</span>
+loader.<span class="code-func">apply_to_csv</span>(<span class="code-string">"SimulatorScenarios.csv"</span>, row=<span class="code-number">2</span>)
+
+<span class="code-comment"># Option B — inject at runtime</span>
+scenario = loader.<span class="code-func">to_scenario_object</span>(SupplyChainScenario)
+        </div>
+        <p style="font-size: 12px; color: var(--muted);">
+          This closes the loop: a new KG run → one command → updated simulation scenarios.
+          No manual transcription of coefficient values.
+        </p>
+      </div>
+
+      <div class="card card-accent-top" style="border-top-color: var(--accent3);">
+        <div class="card-icon" style="background: rgba(245,158,11,0.15);">⚖️</div>
+        <h3>Market Clearing</h3>
+        <p style="margin-bottom: 12px;">
+          Replace the equal-split flow with price-sensitive allocation. Buyers compare
+          upstream prices and prefer cheaper suppliers; quantity is allocated proportionally.
+          This makes shocks produce non-linear, realistic cascades instead of smooth curves.
+        </p>
+        <p style="font-size: 12px; color: var(--muted);">
+          Even a simple merit-order clearing (rank by price, fill capacity in order) would
+          dramatically improve scientific credibility before showing results to project partners.
+        </p>
+      </div>
+
+      <div class="card card-accent-top" style="border-top-color: var(--accent2);">
+        <div class="card-icon" style="background: rgba(34,211,238,0.15);">🤖</div>
+        <h3>palaestrAI Integration</h3>
+        <p style="margin-bottom: 12px;">
+          Melodie's <span class="mono">run()</span> is a blocking loop — palaestrAI needs
+          step-by-step control. Solution: a generator-based
+          <span class="mono">run_stepwise()</span> wrapper that yields after each tick,
+          letting an RL agent observe state, pick an action, and step again.
+        </p>
+        <div class="code-block" style="font-size: 12px; margin-bottom: 12px;">
+<span class="code-keyword">def</span> <span class="code-func">run_stepwise</span>(self):
+    <span class="code-keyword">for</span> t <span class="code-keyword">in</span> range(self.scenario.period_num):
+        self._run_one_step(t)
+        <span class="code-keyword">yield</span> self.environment.get_state()
+        </div>
+        <p style="font-size: 12px; color: var(--muted);">
+          Estimated effort: 2–4h. Key open question for Eric: Python-native or
+          Docker + HTTP/OpenAPI interface?
+        </p>
+      </div>
+
+      <div class="card card-accent-top" style="border-top-color: var(--success);">
+        <div class="card-icon" style="background: rgba(34,197,94,0.12);">🗺️</div>
+        <h3>Expand to Remaining 8 KG Coefficients</h3>
+        <p style="margin-bottom: 12px;">
+          ARG and USA farm groups, Santos port, Rotterdam/Hamburg legs — each requires
+          a new agent group or a separate transport leg in the supply chain. Once added,
+          ShockLoader can map all 14 coefficients automatically.
+        </p>
+        <p style="font-size: 12px; color: var(--muted);">
+          Prerequisite for full AP 1.3 scenario coverage. Larger refactor — plan in a
+          dedicated session.
+        </p>
+      </div>
+
+      <div class="card card-accent-top" style="border-top-color: #f472b6;">
+        <div class="card-icon" style="background: rgba(244,114,182,0.12);">📊</div>
+        <h3>Price Calibration</h3>
+        <p style="margin-bottom: 12px;">
+          Compare emerged price levels (EUR/tonne soja, EUR/tonne feed) against FAO/WFP
+          commodity indices and MATIF soja futures. Adjust <span class="mono">fixed_costs</span>
+          and <span class="mono">margin</span> parameters until relative + absolute price
+          levels match historical baselines.
+        </p>
+        <p style="font-size: 12px; color: var(--muted);">
+          Needed before showing output to project partners or submitting AP 1.3 scenario results.
+        </p>
+      </div>
+
+      <div class="card card-accent-top" style="border-top-color: #a78bfa;">
+        <div class="card-icon" style="background: rgba(167,139,250,0.12);">🏗️</div>
+        <h3>Agent Heterogeneity</h3>
+        <p style="margin-bottom: 12px;">
+          Introduce farm size tiers (small / medium / large) with different
+          <span class="mono">base_yield</span>, <span class="mono">fixed_costs</span>,
+          and drought vulnerability coefficients. Large exporters dominate; smallholders
+          exit first under stress — a key dynamic missing from the current model.
+        </p>
+        <p style="font-size: 12px; color: var(--muted);">
+          Makes differential impact modelling possible and moves the simulation
+          closer to real supply chain structure.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ══ -->
+<div class="footer">
+  <div class="container">
+    <strong>PROVIDER Simulation — v0.3</strong> · OFFIS e.V. · Simulation generated with Melodie (ABM4ALL) ·
+    KG data from CoyPu Knowledge Graph · 2026-03-30
+  </div>
+</div>
+
+</body>
+</html>

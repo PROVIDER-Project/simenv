@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PROVIDER SimEnv — Supply Chain Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f1117; color: #e8eaf6; }
+
+  h1 { text-align: center; padding: 32px 0 6px; font-size: 22px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+  .subtitle { text-align: center; color: #90a4ae; font-size: 13px; margin-bottom: 32px; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 32px; }
+  .tab { padding: 8px 22px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+         border: 1.5px solid #37474f; color: #90a4ae; background: transparent; transition: all .2s; }
+  .tab.active { background: #283593; border-color: #3949ab; color: #fff; }
+  .tab:hover:not(.active) { border-color: #546e7a; color: #cfd8dc; }
+  .panel { display: none; padding: 0 24px 48px; max-width: 1100px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  /* ── CHAIN DIAGRAM ── */
+  .chain { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 12px 0 24px; }
+  .node { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .box {
+    border-radius: 10px; padding: 10px 14px; text-align: center; min-width: 110px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+    border: 2px solid transparent; cursor: default; transition: transform .15s;
+    position: relative;
+  }
+  .box:hover { transform: translateY(-3px); }
+  .box .step-badge {
+    position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    background: #263238; border: 1.5px solid #455a64; border-radius: 8px;
+    font-size: 10px; font-weight: 700; padding: 1px 7px; color: #b0bec5; white-space: nowrap;
+  }
+  .box .label { font-size: 11px; font-weight: 400; margin-top: 3px; color: rgba(255,255,255,0.7); }
+  .box .class-tag {
+    font-size: 9px; background: rgba(0,0,0,0.3); border-radius: 4px;
+    padding: 1px 5px; margin-top: 5px; display: inline-block;
+  }
+
+  /* color schemes per class */
+  .farmer  { background: #1b5e20; border-color: #43a047; }
+  .trader  { background: #1a237e; border-color: #3949ab; }
+  .transport { background: #4a148c; border-color: #7b1fa2; }
+  .process { background: #bf360c; border-color: #e64a19; }
+  .env     { background: #263238; border-color: #546e7a; }
+
+  /* arrows */
+  .arrow { display: flex; align-items: center; flex-shrink: 0; }
+  .arrow svg { width: 40px; height: 28px; }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+
+  /* ── INFO CARDS ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+  .card { background: #1a1e2a; border-radius: 10px; padding: 16px 18px; border: 1px solid #2a3040; }
+  .card h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+  .card h3 .dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .card p, .card li { font-size: 12px; color: #b0bec5; line-height: 1.6; }
+  .card ul { padding-left: 16px; }
+  .card code { background: #263238; border-radius: 4px; padding: 1px 5px; font-size: 11px; color: #80cbc4; font-family: monospace; }
+
+  /* ── PRICE FORMULA SECTION ── */
+  .formula-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 8px; }
+  .formula-card { background: #1a1e2a; border-radius: 10px; padding: 16px 18px; border: 1px solid #2a3040; }
+  .formula-card h3 { font-size: 12px; font-weight: 700; color: #80cbc4; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .formula-card .step-num { font-size: 10px; color: #546e7a; margin-bottom: 8px; }
+  .formula-box { background: #0d1117; border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 12px; color: #a5d6a7; line-height: 1.8; border-left: 3px solid #2e7d32; }
+  .formula-box .comment { color: #546e7a; }
+  .formula-box .var { color: #fff176; }
+  .formula-box .op { color: #ef9a9a; }
+  .formula-box .num { color: #b39ddb; }
+
+  /* ── TASK DIFF ── */
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+  .diff-card { background: #1a1e2a; border-radius: 10px; padding: 16px 18px; border: 1px solid #2a3040; }
+  .diff-card h3 { font-size: 12px; font-weight: 700; margin-bottom: 12px; }
+  .diff-card h3.old { color: #ef9a9a; }
+  .diff-card h3.new { color: #a5d6a7; }
+  .diff-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; font-size: 12px; color: #b0bec5; }
+  .diff-row .icon { flex-shrink: 0; font-size: 13px; line-height: 1.3; }
+  .section-title { font-size: 14px; font-weight: 700; color: #cfd8dc; margin: 24px 0 12px; border-bottom: 1px solid #263238; padding-bottom: 6px; }
+
+  /* ── STEP ORDER TABLE ── */
+  .step-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  .step-table th { background: #1e2635; padding: 8px 12px; text-align: left; color: #78909c; font-weight: 600; border-bottom: 1px solid #2a3040; }
+  .step-table td { padding: 8px 12px; border-bottom: 1px solid #1e2635; }
+  .step-table tr:last-child td { border-bottom: none; }
+  .step-table .step-n { font-weight: 700; color: #546e7a; }
+  .pill { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+  .pill-farmer   { background: #1b5e20; color: #a5d6a7; }
+  .pill-trader   { background: #1a237e; color: #9fa8da; }
+  .pill-transport{ background: #4a148c; color: #ce93d8; }
+  .pill-process  { background: #bf360c; color: #ffccbc; }
+  .pill-env      { background: #263238; color: #b0bec5; }
+
+  /* responsive */
+  @media (max-width: 640px) {
+    .diff-grid { grid-template-columns: 1fr; }
+    .chain { gap: 0; }
+    .box { min-width: 90px; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PROVIDER SimEnv — Supply Chain Architecture</h1>
+<div class="subtitle">Tasks 1 &amp; 2 — Agent Refactoring + Cost-Plus Price Logic</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="show('flow')">Chain Flow</div>
+  <div class="tab" onclick="show('pricing')">Price Formulas</div>
+  <div class="tab" onclick="show('tasks')">What Changed</div>
+  <div class="tab" onclick="show('steps')">Step Order</div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     TAB 1: CHAIN FLOW
+     ════════════════════════════════════════════════ -->
+<div id="flow" class="panel active">
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div> Farmer class</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3949ab"></div> Trader class</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7b1fa2"></div> Transport class</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e64a19"></div> Process class</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#546e7a"></div> Environment</div>
+  </div>
+
+  <div class="chain">
+
+    <!-- SA Farmer -->
+    <div class="node">
+      <div class="box farmer">
+        <div class="step-badge">Step 1</div>
+        SA Farmer<br>
+        <span class="label">×2 agents</span>
+        <div class="class-tag">Farmer(role="sa")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#43a047"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#43a047" stroke-width="2" marker-end="url(#ah)"/><text x="20" y="10" fill="#546e7a" font-size="8" text-anchor="middle">soja</text></svg></div>
+
+    <!-- Wholesaler -->
+    <div class="node">
+      <div class="box trader">
+        <div class="step-badge">Step 2</div>
+        Wholesaler<br>
+        <span class="label">×2 agents</span>
+        <div class="class-tag">Trader(role="wholesaler")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7b1fa2"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#7b1fa2" stroke-width="2" marker-end="url(#ah2)"/></svg></div>
+
+    <!-- SA Land Transport -->
+    <div class="node">
+      <div class="box transport">
+        <div class="step-badge">Step 3</div>
+        SA Land<br>
+        <span class="label">×1 agent</span>
+        <div class="class-tag">Transport(role="sa_land")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah3" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7b1fa2"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#7b1fa2" stroke-width="2" marker-end="url(#ah3)"/></svg></div>
+
+    <!-- Sea Transport -->
+    <div class="node">
+      <div class="box transport">
+        <div class="step-badge">Step 4</div>
+        Sea Ship<br>
+        <span class="label">×1 agent</span>
+        <div class="class-tag">Transport(role="sea")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah4" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7b1fa2"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#7b1fa2" stroke-width="2" marker-end="url(#ah4)"/></svg></div>
+
+    <!-- EU Land Transport -->
+    <div class="node">
+      <div class="box transport">
+        <div class="step-badge">Step 5</div>
+        EU Land<br>
+        <span class="label">×1 agent</span>
+        <div class="class-tag">Transport(role="eu_land")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah5" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#e64a19"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#e64a19" stroke-width="2" marker-end="url(#ah5)"/></svg></div>
+
+    <!-- Processor -->
+    <div class="node">
+      <div class="box process">
+        <div class="step-badge">Step 6</div>
+        Processor<br>
+        <span class="label">×2 agents</span>
+        <div class="class-tag">Process(role="processor")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah6" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#e64a19"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#e64a19" stroke-width="2" marker-end="url(#ah6)"/><text x="20" y="10" fill="#546e7a" font-size="8" text-anchor="middle">×0.8</text></svg></div>
+
+    <!-- Feed Manufacturer -->
+    <div class="node">
+      <div class="box process">
+        <div class="step-badge">Step 7</div>
+        Feed Mfg.<br>
+        <span class="label">×2 agents</span>
+        <div class="class-tag">Process(role="feed_mfg")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah7" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3949ab"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#3949ab" stroke-width="2" marker-end="url(#ah7)"/><text x="20" y="10" fill="#546e7a" font-size="8" text-anchor="middle">feed</text></svg></div>
+
+    <!-- Feed Trader -->
+    <div class="node">
+      <div class="box trader">
+        <div class="step-badge">Step 8</div>
+        Feed Trader<br>
+        <span class="label">×2 agents</span>
+        <div class="class-tag">Trader(role="feed_trader")</div>
+      </div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 40 28"><defs><marker id="ah8" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#43a047"/></marker></defs><line x1="4" y1="14" x2="32" y2="14" stroke="#43a047" stroke-width="2" marker-end="url(#ah8)"/></svg></div>
+
+    <!-- EU Farmer -->
+    <div class="node">
+      <div class="box farmer">
+        <div class="step-badge">Step 9</div>
+        EU Farmer<br>
+        <span class="label">×3 agents</span>
+        <div class="class-tag">Farmer(role="eu")</div>
+      </div>
+    </div>
+
+  </div><!-- /chain -->
+
+  <!-- Environment + DataCollector below -->
+  <div style="display:flex; gap:16px; margin-top:8px;">
+    <div style="background:#1a1e2a;border:1px solid #2a3040;border-radius:10px;padding:12px 18px;font-size:12px;flex:1;">
+      <span style="color:#546e7a;font-weight:700;">Step 10 — Environment.step()</span>
+      <p style="color:#90a4ae;margin-top:4px;">Aggregates: total_soja_supply | soja_price (wholesalers) | feed_price (feed traders) | transport_utilisation</p>
+    </div>
+    <div style="background:#1a1e2a;border:1px solid #2a3040;border-radius:10px;padding:12px 18px;font-size:12px;flex:1;">
+      <span style="color:#546e7a;font-weight:700;">Step 11 — DataCollector.collect(t)</span>
+      <p style="color:#90a4ae;margin-top:4px;">Snapshots all agent &amp; environment state into the database for analysis.</p>
+    </div>
+  </div>
+
+  <div class="section-title">4 classes → 9 named AgentLists</div>
+  <div class="cards">
+    <div class="card">
+      <h3><div class="dot" style="background:#43a047"></div>Farmer</h3>
+      <ul>
+        <li><code>role="sa"</code> → SA Farmers (×2)</li>
+        <li><code>role="eu"</code> → EU Farmers (×3)</li>
+      </ul>
+      <p style="margin-top:8px;">SA produces soja; EU consumes feed and produces livestock output.</p>
+    </div>
+    <div class="card">
+      <h3><div class="dot" style="background:#3949ab"></div>Trader</h3>
+      <ul>
+        <li><code>role="wholesaler"</code> → Wholesalers (×2)</li>
+        <li><code>role="feed_trader"</code> → Feed Traders (×2)</li>
+      </ul>
+      <p style="margin-top:8px;">Pure intermediary — buys from upstream, sells to downstream, no transformation.</p>
+    </div>
+    <div class="card">
+      <h3><div class="dot" style="background:#7b1fa2"></div>Transport</h3>
+      <ul>
+        <li><code>role="sa_land"</code> → SA Land (×1)</li>
+        <li><code>role="sea"</code> → Sea Transport (×1)</li>
+        <li><code>role="eu_land"</code> → EU Land (×1)</li>
+      </ul>
+      <p style="margin-top:8px;">Capacity-constrained; passes commodity price through + freight fee.</p>
+    </div>
+    <div class="card">
+      <h3><div class="dot" style="background:#e64a19"></div>Process</h3>
+      <ul>
+        <li><code>role="processor"</code> → Processors (×2)</li>
+        <li><code>role="feed_manufacturer"</code> → Feed Mfg. (×2)</li>
+      </ul>
+      <p style="margin-top:8px;">Converts commodity; Processor applies 0.8 yield ratio (20% soja lost as waste).</p>
+    </div>
+  </div>
+</div><!-- /panel flow -->
+
+
+<!-- ════════════════════════════════════════════════
+     TAB 2: PRICE FORMULAS
+     ════════════════════════════════════════════════ -->
+<div id="pricing" class="panel">
+  <p style="font-size:13px;color:#78909c;margin-bottom:20px;">
+    Every agent computes its own <code style="color:#80cbc4;background:#1e2635;padding:1px 5px;border-radius:3px;font-size:12px;">unit_price</code>
+    at the end of its step using a <strong style="color:#cfd8dc;">cost-plus rule</strong>:
+    cover your fixed costs per unit sold, then add your profit margin on top.
+    Prices cascade downstream — each agent's output price becomes the next agent's input cost.
+  </p>
+
+  <div class="formula-grid">
+
+    <div class="formula-card">
+      <h3>SA Farmer</h3>
+      <div class="step-num">Step 1 &nbsp;·&nbsp; Farmer(role="sa")</div>
+      <div class="formula-box">
+<span class="comment"># Drought reduces yield → raises unit cost</span>
+<span class="var">qty</span> = base_yield <span class="op">×</span> (<span class="num">1</span> <span class="op">−</span> drought_severity)
+
+<span class="var">unit_price</span> = (fixed_costs <span class="op">/</span> qty)
+           <span class="op">×</span> (<span class="num">1</span> <span class="op">+</span> margin)
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">e.g. fixed_costs=36000, qty=100t, margin=0.10 → price=396 €/t</p>
+    </div>
+
+    <div class="formula-card">
+      <h3>Wholesaler / Feed Trader</h3>
+      <div class="step-num">Steps 2 &amp; 8 &nbsp;·&nbsp; Trader</div>
+      <div class="formula-box">
+<span class="comment"># Buy from upstream (equal share across peers)</span>
+<span class="var">stock</span> = total_upstream_qty <span class="op">/</span> n_active_peers
+<span class="var">avg_buy_price</span> = weighted_avg(upstream prices)
+
+<span class="var">unit_price</span> = (avg_buy_price
+           <span class="op">+</span> fixed_costs <span class="op">/</span> stock)
+           <span class="op">×</span> (<span class="num">1</span> <span class="op">+</span> margin)
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">Pass-through: carries upstream commodity cost + own overhead per unit.</p>
+    </div>
+
+    <div class="formula-card">
+      <h3>Transport (all three roles)</h3>
+      <div class="step-num">Steps 3–5 &nbsp;·&nbsp; Transport</div>
+      <div class="formula-box">
+<span class="comment"># Freight fee on top of commodity price</span>
+<span class="var">qty_moved</span> = min(upstream_share, capacity)
+<span class="var">upstream_price</span> = weighted_avg(upstream prices)
+
+<span class="var">freight_fee</span> = (fixed_costs <span class="op">/</span> qty_moved)
+             <span class="op">×</span> (<span class="num">1</span> <span class="op">+</span> margin_transport)
+
+<span class="var">unit_price</span> = upstream_price <span class="op">+</span> freight_fee
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">Transport is a SERVICE. The soja price passes through; the freight fee is added on top.</p>
+    </div>
+
+    <div class="formula-card">
+      <h3>Processor</h3>
+      <div class="step-num">Step 6 &nbsp;·&nbsp; Process(role="processor")</div>
+      <div class="formula-box">
+<span class="comment"># Yield loss: 1 tonne soja → 0.8 tonne meal</span>
+<span class="var">ratio</span> = <span class="num">0.8</span>
+<span class="var">qty_out</span> = input_received <span class="op">×</span> ratio
+
+<span class="comment"># Need 1/ratio input units to produce 1 output unit</span>
+<span class="var">input_cost_per_output</span> = avg_input_price <span class="op">/</span> ratio
+
+<span class="var">unit_price</span> = (input_cost_per_output
+           <span class="op">+</span> fixed_costs <span class="op">/</span> qty_out)
+           <span class="op">×</span> (<span class="num">1</span> <span class="op">+</span> margin)
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">The 20% loss is priced in: it costs more input to produce each unit of output.</p>
+    </div>
+
+    <div class="formula-card">
+      <h3>Feed Manufacturer</h3>
+      <div class="step-num">Step 7 &nbsp;·&nbsp; Process(role="feed_manufacturer")</div>
+      <div class="formula-box">
+<span class="comment"># ratio=1.0 — no yield loss in compounding</span>
+<span class="var">ratio</span> = <span class="num">1.0</span>
+<span class="var">qty_out</span> = input_received <span class="op">×</span> ratio
+
+<span class="var">unit_price</span> = (avg_input_price <span class="op">/</span> ratio
+           <span class="op">+</span> fixed_costs <span class="op">/</span> qty_out)
+           <span class="op">×</span> (<span class="num">1</span> <span class="op">+</span> margin)
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">Same formula as Processor, just ratio=1.0 so no input-cost amplification.</p>
+    </div>
+
+    <div class="formula-card">
+      <h3>EU Farmer (end consumer)</h3>
+      <div class="step-num">Step 9 &nbsp;·&nbsp; Farmer(role="eu")</div>
+      <div class="formula-box">
+<span class="comment"># Receives equal share of all feed trader output</span>
+<span class="var">total_feed</span> = sum(feed_trader.qty_available)
+<span class="var">feed_received</span> = total_feed <span class="op">/</span> n_active_eu_farmers
+
+<span class="comment"># Livestock output scales with feed received</span>
+<span class="var">livestock_output</span> = feed_received
+
+<span class="comment"># Bankruptcy if no feed for 3 steps in a row</span>
+if steps_without_input <span class="op">≥</span> <span class="num">3</span>:
+    active = <span class="num">False</span>
+      </div>
+      <p style="font-size:11px;color:#546e7a;margin-top:8px;">EU farmers are pure consumers; they don't set a price, they set livestock_output.</p>
+    </div>
+
+  </div><!-- /formula-grid -->
+
+  <div class="section-title" style="margin-top:32px;">Price Propagation Example (no drought)</div>
+  <div style="background:#1a1e2a;border-radius:10px;padding:18px 20px;border:1px solid #2a3040;font-size:12px;font-family:monospace;color:#b0bec5;line-height:2;">
+    SA Farmer &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">396 €/t</span> soja
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; Wholesaler overhead &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~490 €/t</span>
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; SA Land freight &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~500 €/t</span>
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; Sea freight &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~555 €/t</span>
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; EU Land freight &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~563 €/t</span>
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">×</span>&nbsp; Processor (÷0.8) &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~800 €/t</span> meal
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; Feed Mfg. overhead &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~1000 €/t</span> feed
+    &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">+</span>&nbsp; Feed Trader overhead &nbsp;&nbsp;&nbsp;<span style="color:#a5d6a7">→</span>&nbsp;&nbsp; <span style="color:#fff176">~1200 €/t</span> delivered feed
+  </div>
+  <p style="font-size:11px;color:#546e7a;margin-top:10px;">
+    These are approximate illustrations. The big jump at the Processor comes from the 0.8 conversion ratio:
+    you need 1.25 tonnes of raw soja to produce 1 tonne of meal, so the input cost per output unit jumps by 25%.
+  </p>
+</div><!-- /panel pricing -->
+
+
+<!-- ════════════════════════════════════════════════
+     TAB 3: WHAT CHANGED
+     ════════════════════════════════════════════════ -->
+<div id="tasks" class="panel">
+
+  <div class="section-title">Task 1 — Agent Class Reduction (9 classes → 4)</div>
+  <div class="diff-grid">
+    <div class="diff-card">
+      <h3 class="old">❌ Before: 9 separate classes</h3>
+      <div class="diff-row"><span class="icon">📄</span> SouthAmericanFarmer.py</div>
+      <div class="diff-row"><span class="icon">📄</span> EuropeanFarmer.py</div>
+      <div class="diff-row"><span class="icon">📄</span> Wholesaler.py</div>
+      <div class="diff-row"><span class="icon">📄</span> FeedTrader.py</div>
+      <div class="diff-row"><span class="icon">📄</span> TransportOperatorSA.py</div>
+      <div class="diff-row"><span class="icon">📄</span> SeaTransport.py</div>
+      <div class="diff-row"><span class="icon">📄</span> TransportOperatorEU.py</div>
+      <div class="diff-row"><span class="icon">📄</span> Processor.py</div>
+      <div class="diff-row"><span class="icon">📄</span> FeedManufacturer.py</div>
+      <p style="margin-top:12px;color:#78909c;font-size:11px;">Each behavioural variant was its own class. Adding a new variant = new file, new import, new AgentList type.</p>
+    </div>
+    <div class="diff-card">
+      <h3 class="new">✅ After: 4 classes with role parameter</h3>
+      <div class="diff-row"><span class="icon">📄</span> farmer.py &nbsp;<code style="background:#1e2635;padding:1px 5px;border-radius:3px;font-size:10px;color:#a5d6a7">Farmer(role="sa"|"eu")</code></div>
+      <div class="diff-row"><span class="icon">📄</span> trader.py &nbsp;<code style="background:#1e2635;padding:1px 5px;border-radius:3px;font-size:10px;color:#a5d6a7">Trader(role="wholesaler"|"feed_trader")</code></div>
+      <div class="diff-row"><span class="icon">📄</span> transport.py &nbsp;<code style="background:#1e2635;padding:1px 5px;border-radius:3px;font-size:10px;color:#a5d6a7">Transport(role="sa_land"|"sea"|"eu_land")</code></div>
+      <div class="diff-row"><span class="icon">📄</span> process.py &nbsp;<code style="background:#1e2635;padding:1px 5px;border-radius:3px;font-size:10px;color:#a5d6a7">Process(role="processor"|"feed_mfg")</code></div>
+      <p style="margin-top:12px;color:#78909c;font-size:11px;">Role is set by the model after setup. Two-phase init needed because Melodie calls <code style="color:#80cbc4">setup()</code> before role is known.</p>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:28px;">Task 1 — Two-Phase Initialisation (why it's needed)</div>
+  <div style="background:#1a1e2a;border-radius:10px;padding:18px 20px;border:1px solid #2a3040;font-size:12px;line-height:1.8;color:#b0bec5;">
+    Melodie's <code style="color:#80cbc4">AgentList.setup_agents(n)</code> creates agents and calls <code style="color:#80cbc4">agent.setup()</code> internally — <em>before</em> any parameters are applied.
+    That means the role is not known yet when <code style="color:#80cbc4">setup()</code> runs. Solution:<br><br>
+    <strong style="color:#cfd8dc;">Phase 1 — setup()</strong>: zero-initialise every field so Melodie can serialise/record the agent safely.<br>
+    <strong style="color:#cfd8dc;">Phase 2 — post_setup()</strong>: model sets <code style="color:#80cbc4">agent.role</code>, then calls <code style="color:#80cbc4">agent.post_setup()</code> for role-specific initialisation (reads scenario params, sets capacity, computes initial price).
+  </div>
+
+  <div class="section-title" style="margin-top:28px;">Task 2 — Price Logic (budget removed → cost-plus)</div>
+  <div class="diff-grid">
+    <div class="diff-card">
+      <h3 class="old">❌ Before: budget-based</h3>
+      <div class="diff-row"><span class="icon">🗑</span> Agents had a <code style="color:#ef9a9a">budget</code> field</div>
+      <div class="diff-row"><span class="icon">🗑</span> EU Farmer bid with budget to buy feed</div>
+      <div class="diff-row"><span class="icon">🗑</span> <code style="color:#ef9a9a">initial_soja_price</code> &amp; <code style="color:#ef9a9a">initial_feed_price</code> hard-coded in scenario</div>
+      <div class="diff-row"><span class="icon">🗑</span> Prices were inputs, not computed</div>
+    </div>
+    <div class="diff-card">
+      <h3 class="new">✅ After: cost-plus pricing</h3>
+      <div class="diff-row"><span class="icon">✅</span> Each agent has <code style="color:#a5d6a7">fixed_costs</code> (Fixkosten, EUR/step)</div>
+      <div class="diff-row"><span class="icon">✅</span> Each agent has <code style="color:#a5d6a7">margin</code> (profit ratio)</div>
+      <div class="diff-row"><span class="icon">✅</span> Prices <em>emerge</em> from cost + overhead + margin</div>
+      <div class="diff-row"><span class="icon">✅</span> Deterministic equal-split flow (no bidding)</div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:28px;">Scenario Parameters Added (scenario.py)</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
+    <div style="background:#1a1e2a;border-radius:10px;padding:14px 18px;border:1px solid #2a3040;font-size:12px;font-family:monospace;color:#b0bec5;line-height:2;">
+      <span style="color:#546e7a"># Fixed costs (EUR/step)</span><br>
+      <span style="color:#fff176">fixed_costs_sa_farmer</span> = 36000<br>
+      <span style="color:#fff176">fixed_costs_eu_farmer</span> = 5000<br>
+      <span style="color:#fff176">fixed_costs_wholesaler</span> = 15000<br>
+      <span style="color:#fff176">fixed_costs_feed_trader</span> = 8000<br>
+      <span style="color:#fff176">fixed_costs_transport_sa</span> = 9000<br>
+      <span style="color:#fff176">fixed_costs_transport_sea</span> = 45000<br>
+      <span style="color:#fff176">fixed_costs_transport_eu</span> = 7000<br>
+      <span style="color:#fff176">fixed_costs_processor</span> = 20000<br>
+      <span style="color:#fff176">fixed_costs_feed_manufacturer</span> = 12000
+    </div>
+    <div style="background:#1a1e2a;border-radius:10px;padding:14px 18px;border:1px solid #2a3040;font-size:12px;font-family:monospace;color:#b0bec5;line-height:2;">
+      <span style="color:#546e7a"># Profit margins</span><br>
+      <span style="color:#fff176">margin_sa_farmer</span> = 0.10<br>
+      <span style="color:#fff176">margin_wholesaler</span> = 0.10<br>
+      <span style="color:#fff176">margin_feed_trader</span> = 0.08<br>
+      <span style="color:#fff176">margin_transport</span> = 0.10<br>
+      <span style="color:#fff176">margin_processor</span> = 0.12<br>
+      <span style="color:#fff176">margin_feed_manufacturer</span> = 0.10<br>
+      <br>
+      <span style="color:#ef9a9a">❌ removed: initial_soja_price</span><br>
+      <span style="color:#ef9a9a">❌ removed: initial_feed_price</span>
+    </div>
+  </div>
+
+</div><!-- /panel tasks -->
+
+
+<!-- ════════════════════════════════════════════════
+     TAB 4: STEP ORDER
+     ════════════════════════════════════════════════ -->
+<div id="steps" class="panel">
+  <p style="font-size:13px;color:#78909c;margin-bottom:20px;">
+    Every simulation tick runs these 11 operations in strict order. Order matters — each actor must run
+    <em>after</em> its upstream provider has produced output for that tick.
+  </p>
+  <table class="step-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Actor</th>
+        <th>Class (role)</th>
+        <th>What it does this tick</th>
+        <th>Reads from</th>
+        <th>Writes to</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="step-n">1</td>
+        <td>SA Farmers</td>
+        <td><span class="pill pill-farmer">Farmer "sa"</span></td>
+        <td>Compute soja yield (drought applied), compute unit_price</td>
+        <td>scenario.drought_severity</td>
+        <td>quantity_available, unit_price</td>
+      </tr>
+      <tr>
+        <td class="step-n">2</td>
+        <td>Wholesalers</td>
+        <td><span class="pill pill-trader">Trader "wholesaler"</span></td>
+        <td>Aggregate SA farmer output, compute margin-based sell price</td>
+        <td>model.sa_farmers</td>
+        <td>stock, quantity_available, unit_price</td>
+      </tr>
+      <tr>
+        <td class="step-n">3</td>
+        <td>SA Land Transport</td>
+        <td><span class="pill pill-transport">Transport "sa_land"</span></td>
+        <td>Move soja from wholesalers to SA port, add freight fee</td>
+        <td>model.wholesalers</td>
+        <td>quantity_available, unit_price, utilisation</td>
+      </tr>
+      <tr>
+        <td class="step-n">4</td>
+        <td>Sea Transport</td>
+        <td><span class="pill pill-transport">Transport "sea"</span></td>
+        <td>Ship soja across the Atlantic, add freight fee</td>
+        <td>model.transport_sa</td>
+        <td>quantity_available, unit_price, utilisation</td>
+      </tr>
+      <tr>
+        <td class="step-n">5</td>
+        <td>EU Land Transport</td>
+        <td><span class="pill pill-transport">Transport "eu_land"</span></td>
+        <td>Deliver soja to processing plants, add freight fee</td>
+        <td>model.sea_transport</td>
+        <td>quantity_available, unit_price, utilisation</td>
+      </tr>
+      <tr>
+        <td class="step-n">6</td>
+        <td>Processors</td>
+        <td><span class="pill pill-process">Process "processor"</span></td>
+        <td>Crush soja → meal (ratio 0.8), price adjusted for yield loss</td>
+        <td>model.transport_eu</td>
+        <td>input_received, quantity_available, unit_price</td>
+      </tr>
+      <tr>
+        <td class="step-n">7</td>
+        <td>Feed Manufacturers</td>
+        <td><span class="pill pill-process">Process "feed_mfg"</span></td>
+        <td>Compound meal → animal feed (ratio 1.0), add margin</td>
+        <td>model.processors</td>
+        <td>input_received, quantity_available, unit_price</td>
+      </tr>
+      <tr>
+        <td class="step-n">8</td>
+        <td>Feed Traders</td>
+        <td><span class="pill pill-trader">Trader "feed_trader"</span></td>
+        <td>Collect feed from manufacturers, distribute to EU farmers</td>
+        <td>model.feed_manufacturers</td>
+        <td>stock, quantity_available, unit_price</td>
+      </tr>
+      <tr>
+        <td class="step-n">9</td>
+        <td>EU Farmers</td>
+        <td><span class="pill pill-farmer">Farmer "eu"</span></td>
+        <td>Receive equal feed share, compute livestock output; go bankrupt if 3 steps with no feed</td>
+        <td>model.feed_traders</td>
+        <td>feed_received, livestock_output, active</td>
+      </tr>
+      <tr>
+        <td class="step-n">10</td>
+        <td>Environment</td>
+        <td><span class="pill pill-env">SupplyChainEnvironment</span></td>
+        <td>Aggregate macro stats: total supply, soja price, feed price, transport util.</td>
+        <td>all AgentLists</td>
+        <td>total_soja_supply, soja_price, feed_price, transport_utilisation</td>
+      </tr>
+      <tr>
+        <td class="step-n">11</td>
+        <td>DataCollector</td>
+        <td><span class="pill pill-env">SupplyChainDataCollector</span></td>
+        <td>Snapshot all agent &amp; environment state into the results database</td>
+        <td>all AgentLists + Environment</td>
+        <td>SQLite DB (results/)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title" style="margin-top:28px;">Key Design Rule: Equal-Split Deterministic Flow</div>
+  <div style="background:#1a1e2a;border-radius:10px;padding:16px 20px;border:1px solid #2a3040;font-size:12px;line-height:1.9;color:#b0bec5;">
+    There is no bidding, no market clearing, and no price negotiation in this first implementation.
+    Every agent simply takes <strong style="color:#cfd8dc;">total upstream output ÷ number of active peers</strong>.<br>
+    Example: 2 SA Farmers produce 100 t each (total 200 t). 2 Wholesalers are active → each Wholesaler gets 100 t.<br><br>
+    This keeps the simulation fully deterministic and easy to trace. The equal-split can later be replaced
+    with a proper market mechanism (bidding, capacity constraints, contracts) once the base flow is validated.
+  </div>
+</div><!-- /panel steps -->
+
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>
