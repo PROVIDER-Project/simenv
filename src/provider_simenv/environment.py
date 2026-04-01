@@ -26,8 +26,10 @@ class SupplyChainEnvironment(Environment):
     # current price of precessed animal feed
     feed_price: float = 0.0
 
+    # global shock intensity for the current step (0.0 = baseline, 1.0 = full shock)
+    shock_scale: float = 0.0
+
     # drought severity this step
-    # currently, copied from scenario
     drought_severity: float = 0.0
 
     # total soja quantity available in the chain this step
@@ -43,13 +45,31 @@ class SupplyChainEnvironment(Environment):
         """
         Initialise environment state form the scenario parameters.
         """
-        self.soja_price = self.scenario.initial_soja_price
-        self.feed_price = self.scenario.initial_feed_price
-        self.drought_severity = self.scenario.drought_severity
+        self.soja_price = 0.0
+        self.feed_price = 0.0
+        self.shock_scale = 0.0
+        self.drought_severity = 0.0
         self.total_soja_supply = 0.0
         self.transport_utilisation = 0.0
         self.current_step = 0
 
+    def update_shock_scale(self, period: int):
+        """
+        update the current global shock intensity for the given period.
+        the model interpolates from baseline factor 1.0 to the target scenario
+        factor over shock_ramp_steps after shock_onset_setup
+        """
+        onset = self.scenario.shock_onset_step
+        ramp_steps = self.scenario.shock_ramp_steps
+
+        if period < onset:
+            self.shock_scale = 0.0
+        elif ramp_steps <= 0:
+            self.shock_scale = 1.0
+        else:
+            self.shock_scale = min(1.0, max(0.0, (period - onset) / ramp_steps))
+
+        self.drought_severity = self.shock_scale * (1.0 - self.scenario.farm_capacity_bra)
 
     def step(self):
         """

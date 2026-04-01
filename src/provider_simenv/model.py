@@ -98,8 +98,9 @@ class SupplyChainModel(Model):
         """
 
         for t in self.iterator(self.scenario.period_num):
+            self.environment.update_shock_scale(t)
             # Production
-            self.sa_farmers.method_foreach('step', (self.environment.drought_severity,))
+            self.sa_farmers.method_foreach('step', ())
             self.wholesalers.method_foreach('step', ())
 
             # Transport
