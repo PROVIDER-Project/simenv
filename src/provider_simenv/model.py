@@ -88,6 +88,46 @@ class SupplyChainModel(Model):
         self._setup_with_role(self.processors, self.scenario.n_processors, ROLE_PROCESSOR)
         self._setup_with_role(self.feed_manufacturers, self.scenario.n_feed_manufacturers, ROLE_FEED_MANUFACTURER)
 
+    def _do_step(self, t: int) -> None:
+        """
+        Execute one simulation step at period t. Shared by run() and run_stepwise().
+        """
+        self.environment.update_shock_scale(t)
+
+        # Production
+        self.sa_farmers.method_foreach('step', ())
+        self.wholesalers.method_foreach('step', ())
+
+        # Transport
+        self.transport_sa.method_foreach('step', ())
+        self.sea_transport.method_foreach('step', ())
+        self.transport_eu.method_foreach('step', ())
+
+        # Processing & distribution
+        self.processors.method_foreach('step', ())
+        self.feed_manufacturers.method_foreach('step', ())
+        self.feed_traders.method_foreach('step', ())
+
+        # End consumption
+        self.eu_farmers.method_foreach('step', ())
+
+        # Global state update
+        self.environment.step()
+
+        # Terminal output
+        n_sa_active = sum(1 for a in self.sa_farmers.agents if a.active)
+        n_eu_active = sum(1 for a in self.eu_farmers.agents if a.active)
+        print(
+            f"[s{self.scenario.id} t{t:03d}] "
+            f"shock={self.environment.shock_scale:.2f} | "
+            f"soja={self.environment.soja_price:8.2f} EUR/t | "
+            f"feed={self.environment.feed_price:8.2f} EUR/t | "
+            f"supply={self.environment.total_soja_supply:8.2f} EUR/t | "
+            f"farms SA={n_sa_active} EU={n_eu_active}"
+        )
+
+        # Record snapshot
+        self.data_collector.collect(t)
 
     def run(self):
         """
@@ -98,28 +138,26 @@ class SupplyChainModel(Model):
         """
 
         for t in self.iterator(self.scenario.period_num):
-            self.environment.update_shock_scale(t)
-            # Production
-            self.sa_farmers.method_foreach('step', ())
-            self.wholesalers.method_foreach('step', ())
-
-            # Transport
-            self.transport_sa.method_foreach('step', ())
-            self.sea_transport.method_foreach('step', ())
-            self.transport_eu.method_foreach('step', ())
-
-            # Processing and distribution
-            self.processors.method_foreach('step', ())
-            self.feed_manufacturers.method_foreach('step', ())
-            self.feed_traders.method_foreach('step', ())
-
-            # end consumption
-            self.eu_farmers.method_foreach('step', ())
-
-            # global state update
-            self.environment.step()
-
-            # record snapshot
-            self.data_collector.collect(t)
-
+            self._do_step(t)
         self.data_collector.save()
+
+        def run_stepwise(self):
+            """
+            Generator variant for external step-by-step control (e.g. RL agents)
+
+            Yields a state snapshot dict after every step. The caller drives the loop:
+
+                for state in model.run_stepwise():
+                    print(state['soja_price'])
+                    # TODO: RL actions here
+            """
+            for t in range(self.scenario.period_num):
+                self._do_step(t)
+                yield {
+                    "step": t,
+                    "shock_scale": self.environment.shock_scale,
+                    "soja_price": self.environment.soja_price,
+                    "feed_price": self.environment.feed_price,
+                    "total_soja_supply": self.environment.total_soja_supply,
+                    "transport_utilisation": self.environment.transport_utilisation,
+                }

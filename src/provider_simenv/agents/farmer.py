@@ -10,6 +10,7 @@ Lifecycle:
   2. agent.role = …    → Model assigns the role.
   3. agent.post_setup() → Reads fixed_costs/margin from scenario.
 """
+import numpy as np
 
 from .base import SupplyChainAgent
 
@@ -52,12 +53,38 @@ class Farmer(SupplyChainAgent):
         self.feed_received: float = 0.0
         self.livestock_output: float = 0.0
 
+        # size heterogeneity
+        self. size_factor: float = 1.0
+
+    def _sample_size_factor(self, sigma: float) -> float:
+        """
+        sample a log-normal size factor for this agent.
+
+        sigma = 0.0 -> always 1.0 (all agents identical)
+        sigma > 0.0 -> log-normal draw centered at 1.0
+
+        seed is agent specific so each agent gets a unique
+        but reproducible draw independent of iteration order.
+        """
+        if sigma == 0.0:
+            return 1.0
+        rng = np.random.default_rng(self.scenario.farm_size_seed + self.id)
+        return float(rng.lognormal(mean=0.0, sigma=sigma))
+
     def post_setup(self):
         """Role-specific initialisation after role is assigned by model."""
         if self.role == ROLE_SA:
             self.fixed_costs = self.scenario.fixed_costs_sa_farmer
             self.margin = self.scenario.margin_sa_farmer
             self.base_yield = 100.0     # Placeholder
+
+            # scale by size factor
+            # baseline unit_price is size-independent (for now)
+            # Heterogeneity emerges under shock: small farms lose output faster and exit the market
+            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_sa)
+            self.base_yield *= self.size_factor
+            self.fixed_costs *= self.size_factor
+
             # Initial price: cost-based at full yield, no disruption
             self.quantity_available = self.base_yield
             if self.quantity_available > 0:
@@ -67,6 +94,8 @@ class Farmer(SupplyChainAgent):
 
         elif self.role == ROLE_EU:
             self.fixed_costs = self.scenario.fixed_costs_eu_farmer
+            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_eu)
+            self.fixed_costs *= self.size_factor
             self.feed_received = 0.0
             self.livestock_output = 0.0
             self.unit_price = 0.0       # EU farmers are buyers

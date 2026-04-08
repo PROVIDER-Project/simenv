@@ -63,4 +63,11 @@ class SupplyChainScenario(Scenario):
     # Simulation length (Number of steps)
     period_num: int = 52            # week in a year
 
+    # Farm size heterogeneity
+    # log-normal size distribution for SA and EU farmers.
+    # sigma = 0.0 -> all farms identical
+    # sigma = 0.4 -> realistic spread (most farms near mean, few very large/small)
+    farm_size_sigma_sa: float = 0.0
+    farm_size_sigma_eu: float = 0.0
+    farm_size_seed: int = 42
 

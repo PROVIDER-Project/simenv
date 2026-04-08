@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROVIDER Simulation — v0.4.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Orano-inspired deep palette (vault: Dark Tech Color Palette) */
+      --bg:            #05070F;
+      --bg-2:          #080a15;
+      --surface:       #0c0e1a;
+      --card:          #101320;
+      --card-hover:    #141829;
+      --border:        #1a1e35;
+      --border-bright: #252a46;
+
+      /* Accents */
+      --accent:        #6366f1;
+      --accent-dim:    rgba(99,102,241,0.12);
+      --accent-glow:   rgba(99,102,241,0.28);
+      --gold:          #f59e0b;
+      --gold-dim:      rgba(245,158,11,0.1);
+      --cyan:          #22d3ee;
+      --cyan-dim:      rgba(34,211,238,0.1);
+      --danger:        #ef4444;
+      --success:       #22c55e;
+
+      /* Text */
+      --text:          #dde3f0;
+      --text-mid:      #8896b0;
+      --muted:         #4a5470;
+
+      /* Type (vault: Barlow Condensed as Blender Pro substitute + Inter as body) */
+      --font-display:  'Barlow Condensed', sans-serif;
+      --font-body:     'Inter', system-ui, sans-serif;
+
+      --radius:    14px;
+      --radius-sm:  8px;
+      --gap:       24px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scroll-triggered entrance (Premium: per-section character) ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(22px);
+      transition: opacity 620ms ease, transform 620ms ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: 80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ══ HEADER ══ */
+    .header {
+      position: relative;
+      padding: 80px 0 64px;
+      text-align: center;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Ambient glow — Orano-inspired radial layers */
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 75% 55% at 50% -5%,  rgba(99,102,241,0.20) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 35% at 85% 110%, rgba(245,158,11,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 30% 30% at 10% 110%, rgba(34,211,238,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Subtle grid texture (vault: technical/industrial aesthetic) */
+    .header::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      pointer-events: none;
+      mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 100%);
+    }
+
+    .header .container { position: relative; z-index: 1; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.28);
+      color: #a5b4fc;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 32px;
+    }
+
+    .badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1;   box-shadow: 0 0 8px var(--accent); }
+      50%       { opacity: 0.3; box-shadow: 0 0 2px var(--accent); }
+    }
+
+    /* Vault: Barlow Condensed at fluid scale (Awsmd clamp pattern) */
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 6.5vw, 76px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.05;
+      margin-bottom: 18px;
+    }
+
+    .header h1 .version {
+      display: block;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .subtitle {
+      color: var(--text-mid);
+      font-size: 15px;
+      font-weight: 400;
+      max-width: 580px;
+      margin: 0 auto 40px;
+      line-height: 1.75;
+    }
+
+    .version-tags {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .tag-green  { background: rgba(34,197,94,0.09);   color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .tag-indigo { background: rgba(99,102,241,0.10);  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.28); }
+    .tag-amber  { background: rgba(245,158,11,0.09);  color: #fcd34d; border: 1px solid rgba(245,158,11,0.22); }
+    .tag-cyan   { background: rgba(34,211,238,0.09);  color: #67e8f9; border: 1px solid rgba(34,211,238,0.22); }
+    .tag-red    { background: rgba(239,68,68,0.09);   color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ══ LAYOUT ══ */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    section { padding: 72px 0 0; }
+
+    /* Section label — Active Theory → prefix style (vault) */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-body);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .section-label::before { content: '→ '; letter-spacing: 0; }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--border-bright) 0%, transparent 100%);
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 28px;
+      line-height: 1.15;
+    }
+
+    /* ══ GRIDS ══ */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+
+    @media (max-width: 860px)  { .grid-2 { grid-template-columns: 1fr; } }
+    @media (max-width: 700px)  { .grid-3 { grid-template-columns: 1fr; } }
+
+    /* ══ STAT CARDS — premium gradient-border + ambient halo (21st.dev pattern adapted) ══ */
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 860px) { .stat-cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .stat-cards { grid-template-columns: 1fr; } }
+
+    .stat-card {
+      position: relative;
+      border-radius: var(--radius);
+      padding: 1px;
+      background: linear-gradient(135deg, var(--border-bright) 0%, rgba(26,30,53,0.3) 60%);
+      transition: background 450ms ease, box-shadow 450ms ease;
+    }
+
+    .stat-card:hover {
+      background: linear-gradient(135deg, var(--accent-glow) 0%, rgba(26,30,53,0) 60%);
+      box-shadow: 0 0 28px rgba(99,102,241,0.12);
+    }
+
+    .stat-card-inner {
+      background: var(--card);
+      border-radius: calc(var(--radius) - 1px);
+      padding: 26px 22px;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Ambient halo — adapted from 21st.dev Stat Card moving halo */
+    .stat-card-inner::before {
+      content: '';
+      position: absolute;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.05;
+      filter: blur(22px);
+      animation: halo 9s linear infinite;
+      pointer-events: none;
+    }
+
+    .stat-card:nth-child(2) .stat-card-inner::before { animation-delay: -2.25s; }
+    .stat-card:nth-child(3) .stat-card-inner::before { animation-delay: -4.5s; }
+    .stat-card:nth-child(4) .stat-card-inner::before { animation-delay: -6.75s; }
+
+    @keyframes halo {
+      0%   { top: 10%; left: 10%; }
+      25%  { top: 10%; left: 72%; }
+      50%  { top: 68%; left: 72%; }
+      75%  { top: 68%; left: 10%; }
+      100% { top: 10%; left: 10%; }
+    }
+
+    /* Thin top accent line */
+    .stat-card-inner::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, var(--accent-glow), transparent);
+      opacity: 0;
+      transition: opacity 400ms ease;
+    }
+
+    .stat-card:hover .stat-card-inner::after { opacity: 1; }
+
+    /* Vault: Barlow Condensed for large numbers */
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 0%, var(--text-mid) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stat-sub {
+      font-size: 11.5px;
+      color: var(--text-mid);
+      margin-top: 10px;
+      line-height: 1.55;
+    }
+
+    /* ══ CARDS ══ */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color 300ms ease;
+    }
+
+    .card:hover { border-color: var(--border-bright); }
+
+    .card-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      letter-spacing: 0.01em;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: var(--text-mid);
+      line-height: 1.8;
+    }
+
+    /* ══ CODE BLOCK ══ */
+    .code-block {
+      background: #02040c;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 22px 26px;
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12.5px;
+      line-height: 1.9;
+      overflow-x: auto;
+      position: relative;
+    }
+
+    /* Vault: accent glow top line (technical/industrial) */
+    .code-block::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, var(--accent-glow) 0%, transparent 70%);
+    }
+
+    .code-comment  { color: #2e3e5a; }
+    .code-keyword  { color: #818cf8; }
+    .code-string   { color: #86efac; }
+    .code-number   { color: #f59e0b; }
+    .code-func     { color: #22d3ee; }
+    .code-var      { color: #f9a8d4; }
+    .code-class    { color: #c4b5fd; }
+    .code-param    { color: #fbbf24; }
+    .code-type     { color: #67e8f9; }
+
+    /* ══ INLINE MONO ══ */
+    .mono {
+      font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+      font-size: 11.5px;
+      background: rgba(99,102,241,0.09);
+      border: 1px solid rgba(99,102,241,0.2);
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: #c4b5fd;
+    }
+
+    /* ══ PIPELINE ══ */
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      gap: 0;
+    }
+
+    .pipeline-node {
+      flex: 1;
+      min-width: 96px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 16px 10px;
+      text-align: center;
+      position: relative;
+    }
+
+    .pipeline-node:first-child { border-radius: 12px 0 0 12px; }
+    .pipeline-node:last-child  { border-radius: 0 12px 12px 0; }
+
+    .pipeline-node.new-node {
+      background: rgba(99,102,241,0.07);
+      border-color: rgba(99,102,241,0.32);
+    }
+
+    .pipeline-node::after {
+      content: '→';
+      position: absolute;
+      right: -10px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 2;
+      background: var(--bg);
+      padding: 0 2px;
+    }
+
+    .pipeline-node:last-child::after { display: none; }
+
+    .pipeline-node .node-icon { font-size: 20px; margin-bottom: 6px; }
+    .pipeline-node .node-name {
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .pipeline-node .node-sub {
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* ══ CALL CHAIN DIAGRAM ══ */
+    .call-chain {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .chain-node {
+      flex-shrink: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      text-align: center;
+      min-width: 130px;
+    }
+
+    .chain-node.highlight {
+      background: rgba(99,102,241,0.08);
+      border-color: rgba(99,102,241,0.38);
+    }
+
+    .chain-node .cn-label {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .chain-node .cn-sub {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 5px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Vault: expo ease arrow — cubic-bezier(0.19, 1, 0.22, 1) at 750ms */
+    .chain-arrow {
+      color: var(--accent);
+      font-size: 20px;
+      padding: 0 10px;
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    /* ══ STATUS ITEMS ══ */
+    .status-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 15px 0;
+      border-bottom: 1px solid rgba(26,30,53,0.8);
+    }
+
+    .status-item:last-child { border-bottom: none; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .status-dot.done    { background: var(--success); box-shadow: 0 0 7px rgba(34,197,94,0.45); }
+    .status-dot.pending { background: var(--gold); }
+    .status-dot.later   { background: var(--muted); }
+
+    .status-text { font-size: 13px; line-height: 1.65; }
+    .status-text strong { font-weight: 600; color: var(--text); }
+    .status-text small  { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+
+    /* ══ SCENARIO TABLE ══ */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    th.new-col { color: var(--accent); }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(26,30,53,0.7);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .td-new { background: rgba(99,102,241,0.04); }
+
+    /* ══ KG TABLE ══ */
+    .scenario-row {
+      display: grid;
+      grid-template-columns: 150px repeat(6, 1fr);
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .scenario-row:last-child { border-bottom: none; }
+
+    .sc-cell {
+      padding: 11px 10px;
+      font-size: 11.5px;
+      text-align: center;
+      border-right: 1px solid rgba(26,30,53,0.6);
+    }
+
+    .sc-cell:last-child { border-right: none; }
+    .sc-cell.label-cell { text-align: left; font-weight: 600; }
+
+    .scenario-row.header { background: rgba(26,30,53,0.6); }
+    .scenario-row.header .sc-cell {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .sc-done  { background: rgba(34,197,94,0.03); }
+    .sc-later { background: rgba(239,68,68,0.025); }
+
+    /* ══ DISTRIBUTION VIZ ══ */
+    .dist-viz {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dist-viz::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 80% at 50% 110%, rgba(99,102,241,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ══ TIMELINE ══ */
+    .timeline {
+      position: relative;
+      padding-left: 30px;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent) 0%, var(--border) 100%);
+    }
+
+    .tl-item {
+      position: relative;
+      margin-bottom: 26px;
+    }
+
+    .tl-dot {
+      position: absolute;
+      left: -26px; top: 4px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+    }
+
+    .tl-item h4 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .tl-item p { font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+
+    /* ══ DIVIDER ══ */
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent 0%, var(--border) 30%, var(--border) 70%, transparent 100%);
+      margin-top: 80px;
+    }
+
+    /* ══ FOOTER ══ */
+    .footer {
+      padding: 40px 0 52px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer strong { color: var(--text-mid); }
+
+    /* ══ ARROW LINK — expo ease (vault: cubic-bezier(0.19, 1, 0.22, 1) 750ms) ══ */
+    .arrow-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+
+    .arrow-link .arrow-icon {
+      display: inline-block;
+      transition: transform 750ms cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    .arrow-link:hover .arrow-icon { transform: translateX(7px); }
+
+    /* ══ LERP VIZ ══ */
+    .lerp-viz {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    .lerp-bar {
+      position: relative;
+      height: 10px;
+      border-radius: 100px;
+      background: linear-gradient(to right, var(--surface) 0%, var(--accent) 100%);
+      margin: 18px 0 8px;
+    }
+
+    .lerp-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .lerp-markers {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .lerp-marker {
+      flex: 1;
+      text-align: center;
+      padding: 12px 6px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      border: 1px solid;
+    }
+
+    .lerp-marker strong { display: block; font-size: 20px; margin-bottom: 4px; font-family: var(--font-display); }
+    .lerp-marker.m0 { background: rgba(34,197,94,0.06);  border-color: rgba(34,197,94,0.18);  color: #86efac; }
+    .lerp-marker.m1 { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.18); color: #fcd34d; }
+    .lerp-marker.m2 { background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.25); color: #a5b4fc; }
+
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<div class="header">
+  <div class="container">
+
+    <div class="badge reveal">
+      <span class="dot"></span>
+      BMBF-Funded · OFFIS e.V. · PROVIDER
+    </div>
+
+    <h1 class="reveal reveal-delay-1">
+      PROVIDER Simulation
+      <span class="version">v0.4.0 — What's New</span>
+    </h1>
+
+    <p class="subtitle reveal reveal-delay-2">
+      Heterogeneous Farm Sizes &amp; Stepwise Execution — from uniform agent populations
+      to distributed farm sizes and generator-based simulation control
+    </p>
+
+    <div class="version-tags reveal reveal-delay-3">
+      <span class="tag tag-green">✓ Runs End-to-End</span>
+      <span class="tag tag-indigo">Log-Normal Farm Sizes</span>
+      <span class="tag tag-amber">run_stepwise() Generator</span>
+      <span class="tag tag-cyan">Per-tick Terminal Output</span>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     AT A GLANCE — STAT CARDS
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Release Stats</div>
+
+    <div class="stat-cards">
+      <div class="stat-card reveal reveal-delay-1">
+        <div class="stat-card-inner">
+          <div class="stat-value">2</div>
+          <div class="stat-label">New Features</div>
+          <div class="stat-sub">Farm heterogeneity &amp; stepwise execution</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-2">
+        <div class="stat-card-inner">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Files Changed</div>
+          <div class="stat-sub">scenario · farmer · model · CSV</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-3">
+        <div class="stat-card-inner">
+          <div class="stat-value">3</div>
+          <div class="stat-label">New Scenario Params</div>
+          <div class="stat-sub">sigma_sa · sigma_eu · seed</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-4">
+        <div class="stat-card-inner">
+          <div class="stat-value" style="font-size:36px;">σ=0.4</div>
+          <div class="stat-label">Farm Size Spread</div>
+          <div class="stat-sub">Log-normal sigma for shock scenarios 1 &amp; 2</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     FARM SIZE HETEROGENEITY
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">New in v0.4</div>
+    <h2 class="reveal">Heterogeneous Farm Sizes — Log-Normal Distribution</h2>
+
+    <div class="grid-2" style="margin-bottom: 20px;">
+
+      <!-- Log-normal curve visualization -->
+      <div class="dist-viz reveal">
+        <p style="font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:20px;">size_factor distribution (σ = 0.4)</p>
+
+        <svg viewBox="0 0 400 170" width="100%" style="display:block; overflow:visible;">
+          <defs>
+            <linearGradient id="distFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#6366f1" stop-opacity="0.32"/>
+              <stop offset="100%" stop-color="#6366f1" stop-opacity="0.02"/>
+            </linearGradient>
+            <linearGradient id="distFill2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#22d3ee" stop-opacity="0.12"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.00"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Axes -->
+          <line x1="38" y1="145" x2="390" y2="145" stroke="#1a1e35" stroke-width="1"/>
+          <line x1="38" y1="22"  x2="38"  y2="145" stroke="#1a1e35" stroke-width="1"/>
+
+          <!-- X axis ticks + labels -->
+          <text x="38"  y="160" fill="#4a5470" font-size="9" text-anchor="middle" font-family="monospace">0.2</text>
+          <text x="110" y="160" fill="#4a5470" font-size="9" text-anchor="middle" font-family="monospace">0.5</text>
+          <text x="185" y="160" fill="#4a5470" font-size="9" text-anchor="middle" font-family="monospace">1.0</text>
+          <text x="265" y="160" fill="#4a5470" font-size="9" text-anchor="middle" font-family="monospace">1.5</text>
+          <text x="345" y="160" fill="#4a5470" font-size="9" text-anchor="middle" font-family="monospace">2.0+</text>
+
+          <!-- Log-normal curve fill (σ=0.4, μ=0) — approximated SVG path -->
+          <path
+            d="M38,145 C50,145 65,138 82,110 C96,86 108,55 122,37
+               C133,24 144,20 156,22 C168,25 178,36 192,58
+               C208,82 224,110 248,130 C268,144 300,145 390,145 Z"
+            fill="url(#distFill)"/>
+          <path
+            d="M38,145 C50,145 65,138 82,110 C96,86 108,55 122,37
+               C133,24 144,20 156,22 C168,25 178,36 192,58
+               C208,82 224,110 248,130 C268,144 300,145 390,145"
+            fill="none" stroke="#6366f1" stroke-width="1.8"/>
+
+          <!-- Mean line: σ=0.4 → mean = e^(σ²/2) ≈ 1.083, shown at ≈x=196 -->
+          <line x1="196" y1="24" x2="196" y2="145" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.7"/>
+          <text x="200" y="20" fill="#f59e0b" font-size="8.5" font-family="monospace">mean≈1.08</text>
+
+          <!-- Zone: small farms (left tail) -->
+          <rect x="42" y="88" width="58" height="17" rx="3"
+                fill="rgba(34,197,94,0.07)" stroke="rgba(34,197,94,0.2)" stroke-width="1"/>
+          <text x="71" y="99" fill="#86efac" font-size="8" text-anchor="middle" font-family="monospace">small farms</text>
+
+          <!-- Zone: large farms (right tail) -->
+          <rect x="258" y="128" width="68" height="17" rx="3"
+                fill="rgba(245,158,11,0.07)" stroke="rgba(245,158,11,0.18)" stroke-width="1"/>
+          <text x="292" y="139" fill="#fcd34d" font-size="8" text-anchor="middle" font-family="monospace">large farms</text>
+
+          <!-- Sigma annotation -->
+          <text x="130" y="14" fill="#818cf8" font-size="9" font-family="monospace">σ = 0.0 (baseline)</text>
+          <line x1="185" y1="70" x2="165" y2="18" stroke="#818cf8" stroke-width="0.8" opacity="0.4" stroke-dasharray="3 3"/>
+        </svg>
+
+        <p style="font-size:11.5px; color:var(--muted); margin-top:14px; line-height:1.65;">
+          Right-skewed: many farms cluster near the mean, few are very large.
+          At <span class="mono">σ=0.0</span> (baseline), all farms are identical — exact backward compatibility.
+        </p>
+      </div>
+
+      <!-- Design rationale cards -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card reveal reveal-delay-1">
+          <div class="card-icon" style="background:rgba(99,102,241,0.1);">🎲</div>
+          <h3>Why Log-Normal?</h3>
+          <p>Real farm size distributions are heavily skewed — a few large farms produce most output, many small ones produce a little each. Log-normal captures this naturally: always positive, right-skewed, long tail. At <span class="mono">σ=0.4</span> most agents sit within ±50% of the mean with realistic outliers on both ends.</p>
+        </div>
+        <div class="card reveal reveal-delay-2">
+          <div class="card-icon" style="background:rgba(34,197,94,0.1);">⚖️</div>
+          <h3>Price-Neutral Scaling</h3>
+          <p>Both <span class="mono">base_yield</span> and <span class="mono">fixed_costs</span> scale by the same <span class="mono">size_factor</span> — so it cancels in the price formula at baseline. Prices are identical across all farm sizes. The effect only appears under shock, when small farms lose output faster. Visible once SA farmer bankruptcy is added in v0.5.</p>
+        </div>
+        <div class="card reveal reveal-delay-3">
+          <div class="card-icon" style="background:rgba(245,158,11,0.1);">🔑</div>
+          <h3>Reproducible Per-Agent Seeds</h3>
+          <p>Each agent uses <span class="mono">farm_size_seed + agent.id</span> as its private RNG seed. Same seed → same size distribution every run. Change <span class="mono">farm_size_seed</span> in the CSV to explore different population realizations as a scenario parameter.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Code block -->
+    <div class="code-block reveal">
+<span class="code-comment"># agents/farmer.py — _sample_size_factor() + post_setup() application</span>
+<br/>
+<span class="code-keyword">def</span> <span class="code-func">_sample_size_factor</span>(<span class="code-var">self</span>, <span class="code-param">sigma</span>: <span class="code-type">float</span>) -&gt; <span class="code-type">float</span>:
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">if</span> <span class="code-param">sigma</span> == <span class="code-number">0.0</span>:
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> <span class="code-number">1.0</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># fast path — all agents identical (backward compat)</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-var">rng</span> = np.<span class="code-func">random</span>.<span class="code-func">default_rng</span>(<span class="code-var">self</span>.scenario.<span class="code-var">farm_size_seed</span> + <span class="code-var">self</span>.id)
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> <span class="code-type">float</span>(<span class="code-var">rng</span>.<span class="code-func">lognormal</span>(mean=<span class="code-number">0.0</span>, sigma=<span class="code-param">sigma</span>))
+<br/><br/>
+<span class="code-comment"># Applied in post_setup() — scales both fields so price formula cancels at baseline:</span>
+<br/>
+<span class="code-var">self</span>.<span class="code-var">size_factor</span> = <span class="code-var">self</span>.<span class="code-func">_sample_size_factor</span>(<span class="code-var">self</span>.scenario.<span class="code-var">farm_size_sigma_sa</span>)
+<br/>
+<span class="code-var">self</span>.<span class="code-var">base_yield</span>  *= <span class="code-var">self</span>.<span class="code-var">size_factor</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># effective = base_yield × size_factor</span>
+<br/>
+<span class="code-var">self</span>.<span class="code-var">fixed_costs</span> *= <span class="code-var">self</span>.<span class="code-var">size_factor</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># price = (costs×sf / yield×sf) × (1+margin) — sf cancels</span>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     RUN_STEPWISE GENERATOR
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">New in v0.4</div>
+    <h2 class="reveal">run_stepwise() — Generator-Based Execution</h2>
+
+    <!-- Call chain -->
+    <div class="card reveal" style="margin-bottom:24px;">
+      <p style="font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:18px;">Call Chain — Normal Melodie Run</p>
+      <div class="call-chain">
+        <div class="chain-node">
+          <div class="cn-label">Melodie Simulator</div>
+          <div class="cn-sub">simulator.run()</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node">
+          <div class="cn-label">SupplyChainModel</div>
+          <div class="cn-sub">model.run()</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node highlight">
+          <div class="cn-label">run_stepwise()</div>
+          <div class="cn-sub">generator / new</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node highlight">
+          <div class="cn-label">_do_step(t)</div>
+          <div class="cn-sub">shared core / new</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-node">
+          <div class="cn-label">yield state</div>
+          <div class="cn-sub">dict per tick</div>
+        </div>
+      </div>
+      <p style="font-size:12.5px; color:var(--muted); margin-top:18px; line-height:1.7;">
+        Melodie always calls <span class="mono">run()</span>. <span class="mono">run()</span> now delegates entirely to <span class="mono">run_stepwise()</span>.
+        An external RL agent (future) can drive <span class="mono">run_stepwise()</span> directly — stepping one tick at a time and injecting actions between yields — without touching Melodie's Simulator.
+      </p>
+    </div>
+
+    <div class="grid-2">
+
+      <!-- Generator code -->
+      <div class="code-block reveal">
+<span class="code-comment"># model.py — generator yields state dict after each tick</span>
+<br/>
+<span class="code-keyword">def</span> <span class="code-func">run_stepwise</span>(<span class="code-var">self</span>):
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">for</span> <span class="code-var">t</span> <span class="code-keyword">in</span> <span class="code-func">range</span>(<span class="code-var">self</span>.scenario.<span class="code-var">period_num</span>):
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-var">self</span>.<span class="code-func">_do_step</span>(<span class="code-var">t</span>)
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">yield</span> {
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"step"</span>:                 <span class="code-var">t</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"shock_scale"</span>:          <span class="code-var">self</span>.environment.<span class="code-var">shock_scale</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"soja_price"</span>:           <span class="code-var">self</span>.environment.<span class="code-var">soja_price</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"feed_price"</span>:           <span class="code-var">self</span>.environment.<span class="code-var">feed_price</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"total_soja_supply"</span>:    <span class="code-var">self</span>.environment.<span class="code-var">total_soja_supply</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">"transport_utilisation"</span>: <span class="code-var">self</span>.environment.<span class="code-var">transport_utilisation</span>,
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}
+<br/><br/>
+<span class="code-keyword">def</span> <span class="code-func">run</span>(<span class="code-var">self</span>):&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># called by Melodie</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">for</span> <span class="code-var">_</span> <span class="code-keyword">in</span> <span class="code-var">self</span>.<span class="code-func">run_stepwise</span>(): <span class="code-keyword">pass</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># exhausts generator, discards state</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-var">self</span>.data_collector.<span class="code-func">save</span>()
+      </div>
+
+      <!-- Terminal output -->
+      <div class="code-block reveal reveal-delay-1">
+<span class="code-comment"># Per-tick terminal output — fires in _do_step() every step</span>
+<br/>
+<span class="code-comment"># n_sa / n_eu = count of active (non-bankrupt) agents</span>
+<br/><br/>
+<span class="code-func">print</span>(
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"[s<span style="color:#f9a8d4">{self.scenario.id}</span> t<span style="color:#f9a8d4">{t:03d}</span>] "</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"shock=<span style="color:#f9a8d4">{env.shock_scale:.2f}</span> | "</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"soja=<span style="color:#f9a8d4">{env.soja_price:8.2f}</span> EUR/t | "</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"feed=<span style="color:#f9a8d4">{env.feed_price:8.2f}</span> EUR/t | "</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"supply=<span style="color:#f9a8d4">{env.total_soja_supply:7.1f}</span> t | "</span>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="code-string">f"farms SA=<span style="color:#f9a8d4">{n_sa}</span> EU=<span style="color:#f9a8d4">{n_eu}</span>"</span>
+<br/>
+)
+<br/><br/>
+<span class="code-comment"># Example — scenario 2, step 026 (full shock):</span>
+<br/>
+<span class="code-string">[s2 t026] shock=1.00 | soja=  521.40 EUR/t |</span>
+<br/>
+<span class="code-string">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;feed=  782.60 EUR/t | supply=   700.0 t | farms SA=10 EU=8</span>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     UPDATED SCENARIOS CSV
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Updated</div>
+    <h2 class="reveal">SimulatorScenarios.csv — 3 New Columns</h2>
+
+    <div class="card reveal">
+      <table>
+        <thead>
+          <tr>
+            <th>id</th>
+            <th>Label</th>
+            <th>farm_capacity_bra</th>
+            <th>shock onset / ramp</th>
+            <th class="new-col">farm_size_sigma_sa ✦</th>
+            <th class="new-col">farm_size_sigma_eu ✦</th>
+            <th class="new-col">farm_size_seed ✦</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0</td>
+            <td>Baseline</td>
+            <td>1.00</td>
+            <td>0 / 0</td>
+            <td class="td-new"><span class="mono">0.0</span> — identical</td>
+            <td class="td-new"><span class="mono">0.0</span> — identical</td>
+            <td class="td-new"><span class="mono">42</span></td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Mild drought</td>
+            <td>0.85</td>
+            <td>13 / 13</td>
+            <td class="td-new"><span class="mono">0.4</span> — spread</td>
+            <td class="td-new"><span class="mono">0.4</span> — spread</td>
+            <td class="td-new"><span class="mono">42</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Severe — BRA (KG)</td>
+            <td>0.70</td>
+            <td>13 / 13</td>
+            <td class="td-new"><span class="mono">0.4</span> — spread</td>
+            <td class="td-new"><span class="mono">0.4</span> — spread</td>
+            <td class="td-new"><span class="mono">42</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:11.5px; color:var(--muted); margin-top:16px; line-height:1.65;">
+        <span style="color:var(--accent);">✦</span>&nbsp;New columns.
+        Baseline keeps <span class="mono">σ=0.0</span> — exact backward compatibility with v0.3 output.
+        Shock scenarios use <span class="mono">σ=0.4</span> for realistic farm size spread.
+        Change <span class="mono">farm_size_seed</span> to explore different population realizations as a scenario variable.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     IMPLEMENTATION STATUS
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">v0.4 Status</div>
+    <h2 class="reveal">Implementation Status</h2>
+
+    <div class="grid-2">
+
+      <div class="card reveal">
+        <h3 style="font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--success); margin-bottom:18px;">✓ Done in v0.4</h3>
+
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>farm_size_sigma_sa/eu, farm_size_seed in scenario.py</strong>
+            <small>3 new params — backward compatible, σ=0.0 default</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>_sample_size_factor() in farmer.py</strong>
+            <small>Log-normal distribution, per-agent seed, σ=0 fast path</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>size_factor field + post_setup() application</strong>
+            <small>Scales base_yield + fixed_costs — price formula unchanged</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>_do_step() refactored out of run()</strong>
+            <small>Single shared execution core for both run paths</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>run_stepwise() generator</strong>
+            <small>Yields state dict per tick — RL hook ready</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>run() delegates to run_stepwise()</strong>
+            <small>Melodie integration unchanged; both paths unified</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot done"></div>
+          <div class="status-text">
+            <strong>Per-tick terminal print in _do_step()</strong>
+            <small>shock · prices · supply · active farm counts per step</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card reveal reveal-delay-1">
+        <h3 style="font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--gold); margin-bottom:18px;">→ Deferred</h3>
+
+        <div class="status-item">
+          <div class="status-dot pending"></div>
+          <div class="status-text">
+            <strong>SA farmer bankruptcy</strong>
+            <small>Needed before size heterogeneity is visible in plots — small farms exit under severe shock</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot pending"></div>
+          <div class="status-text">
+            <strong>Option A: yield-only size scaling</strong>
+            <small>Don't scale fixed_costs → immediate price heterogeneity. Deferred pending design decision</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot pending"></div>
+          <div class="status-text">
+            <strong>8 unmapped KG coefficients</strong>
+            <small>arg/usa/deu farms, santos/rotterdam/hamburg ports — needs new agent structure</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>Bidding / market clearing</strong>
+            <small>Equal-split placeholder — complex, explicitly deferred</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>palaestrAI RL integration</strong>
+            <small>Interface decision pending (Python-native vs HTTP/OpenAPI) — waiting on Eric</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>Docker + OpenAPI spec</strong>
+            <small>AP 3.2 deliverable — after palaestrAI decision</small>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     VERSION TIMELINE
+══════════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">History</div>
+    <h2 class="reveal">Version Timeline</h2>
+
+    <div class="card reveal">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.1 — Project Init + 9 Actors</h4>
+          <p>Scaffold running with 9 separate agent classes, budget-based fields. ~0.032s end-to-end.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.2 — 4-Class Refactor + Cost-Plus Pricing</h4>
+          <p>9 classes → 4 role-based classes. Full cost-plus price cascade. Equal-split flow. Budget fields removed.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.3 — KG Shock Integration + Time-Series Dynamics</h4>
+          <p>6 of 14 CoyPu KG coefficients wired. Universal lerp pattern. Shock onset + ramp timing. ShockLoader. 3-scenario CSV. PNG visualization.</p>
+        </div>
+        <div class="tl-item" style="margin-bottom:0;">
+          <div class="tl-dot" style="background:var(--accent); box-shadow:0 0 10px var(--accent);"></div>
+          <h4 style="color:var(--accent);">v0.4 — Heterogeneous Farm Sizes + Stepwise Execution &nbsp;← current</h4>
+          <p>Log-normal size_factor distribution. run_stepwise() generator. _do_step() shared core. Per-tick terminal output.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══ FOOTER ══ -->
+<div class="divider"></div>
+<div class="footer">
+  <div class="container">
+    <strong>PROVIDER Simulation v0.4.0</strong> · OFFIS e.V. · BMBF-funded<br/>
+    <span style="margin-top:8px; display:block;">
+      Tech stack: Python · Melodie (ABM4ALL) · NumPy · palaestrAI (planned)
+    </span>
+  </div>
+</div>
+
+
+<script>
+  // ── Scroll-triggered reveal (Intersection Observer, no external dep) ──
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.10 });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  // Trigger immediately for above-fold elements
+  document.querySelectorAll('.reveal').forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight) el.classList.add('visible');
+  });
+</script>
+
+</body>
+</html>
