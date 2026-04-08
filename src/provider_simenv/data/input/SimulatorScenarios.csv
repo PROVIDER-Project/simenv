@@ -1,4 +1,4 @@
-id,run_num,period_num,n_sa_farmers,n_wholesalers,n_transport_sa,n_transport_sea,n_transport_eu,n_processors,n_feed_manufacturers,n_feed_traders,n_eu_farmers,farm_capacity_bra,port_capacity_sa,fertilizer_price_factor,energy_price_factor,oil_mill_capacity,feed_mill_capacity,shock_onset_step,shock_ramp_steps
-0,1,52,10,3,2,2,2,3,3,3,10,1.00,1.00,1.00,1.00,1.00,1.00,0,0
-1,1,52,10,3,2,2,2,3,3,3,10,0.85,1.00,1.15,1.15,1.00,1.00,13,13
-2,1,52,10,3,2,2,2,3,3,3,10,0.70,0.85,1.30,1.50,0.95,1.00,6,25
+id,run_num,period_num,n_sa_farmers,n_wholesalers,n_transport_sa,n_transport_sea,n_transport_eu,n_processors,n_feed_manufacturers,n_feed_traders,n_eu_farmers,farm_capacity_bra,port_capacity_sa,fertilizer_price_factor,energy_price_factor,oil_mill_capacity,feed_mill_capacity,shock_onset_step,shock_ramp_steps,farm_size_sigma_sa,farm_size_sigma_eu,farm_size_seed
+0,1,52,10,3,2,2,2,3,3,3,10,1.00,1.00,1.00,1.00,1.00,1.00,0,0,0.0,0.0,42
+1,1,52,10,3,2,2,2,3,3,3,10,0.85,1.00,1.15,1.15,1.00,1.00,13,13,0.4,0.4,42
+2,1,52,10,3,2,2,2,3,3,3,10,0.70,0.85,1.30,1.50,0.95,1.00,13,13,0.4,0.4,42
