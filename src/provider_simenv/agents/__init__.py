@@ -13,7 +13,7 @@ Four classes, each parameterised by a 'role' attribute:
 """
 
 from .base import SupplyChainAgent
-from .farmer import Farmer, ROLE_SA, ROLE_EU
+from .farmer import Farmer, ROLE_BRA, ROLE_USA, ROLE_EU
 from .trader import Trader, ROLE_WHOLESALER, ROLE_FEED_TRADER
 from .transport import Transport, ROLE_SA_LAND, ROLE_SEA, ROLE_EU_LAND
 from .process import Process, ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER
@@ -27,7 +27,8 @@ __all__ = [
     "Transport",
     "Process",
     # Role constants — import these to avoid magic strings in model.py
-    "ROLE_SA",
+    "ROLE_BRA",
+    "ROLE_USA",
     "ROLE_EU",
     "ROLE_WHOLESALER",
     "ROLE_FEED_TRADER",

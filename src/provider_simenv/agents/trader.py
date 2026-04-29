@@ -1,7 +1,7 @@
 """
 agents/trader.py — Pure intermediary / trading actors.
 
-  role="wholesaler"   Aggregates soja from SA farmers, sells internationally.
+  role="wholesaler"   Aggregates soja from BRA + USA farmers (greedy cheapest first)
                       price = (input_cost + fixed_costs/stock) * (1 + margin)
 
   role="feed_trader"  Distributes feed to EU livestock farmers.
@@ -38,15 +38,25 @@ class Trader(SupplyChainAgent):
         self.margin: float = 0.0
         self.stock: float = 0.0
 
+        # volume sourced from each origin this step
+        self.bra_volume: float = 0.0
+        self.usa_volume: float = 0.0
+
+        # storage capacity and utilisation (wholesaler only)
+        self.storage_capacity: float = 0.0
+        self.storage_utilization: float = 0.0   # stock / storage_capacity
+
     def post_setup(self):
         """Role-specific initialisation."""
         if self.role == ROLE_WHOLESALER:
             self.fixed_costs = self.scenario.fixed_costs_wholesaler
             self.margin = self.scenario.margin_wholesaler
             self.markup = self.margin
+            self.storage_capacity = self.scenario.wholesaler_storage_capacity
             self.stock = 0.0
             self.quantity_available = 0.0
             self.unit_price = 0.0
+            self.storage_utilization = 0.0
 
         elif self.role == ROLE_FEED_TRADER:
             self.fixed_costs = self.scenario.fixed_costs_feed_trader
@@ -65,32 +75,79 @@ class Trader(SupplyChainAgent):
             self._step_feed_trader()
 
     # ------------------------------------------------------------------
-    # Wholesaler: aggregate soja from SA farmers, price and sell on
+    # Wholesaler: greedy cheapest first across BRA + USA farmers
     # ------------------------------------------------------------------
 
     def _step_wholesaler(self):
         """
-        Collect an equal share of all SA farmer output.
-        Price = (weighted avg input price + fixed_costs/stock) * (1 + margin).
+        Pool BRA + USA farmer output and fill this wholesaler's stock
+        allocation greedily from the cheapest source first.
+
+        Workflow:
+            1. Pool all active BRA + USA farmers into one list.
+            2. Each wholesaler's stock = total_supply / n_wholesalers
+                (push model - all supply flows forward)
+            3. Sort pooled farmers by unit_price ascending.
+            4. Walk cheapest-first: take each farmer's share
+                (farmer.quantity_available / n_wholesalers) until
+                this wholesaler's allocation is filled.
+            5. avg_input_price = quantity-weighted cost of what was taken.
+
+        Emergent switching:
+        Under a BRA shock, BRA unit_price rises above USA unit_price ->
+        USA sorts to the front ->
+        wholesaler fills from USA first ->
+        lower average input cost propagates downstream automatically.
         """
-        sa_farmers = self.model.sa_farmers.filter(lambda f: f.active)
+
+        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
+        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
+        all_farmers = active_bra + active_usa
         n_wholesalers = len(self.model.wholesalers.filter(lambda w: w.active))
 
-        if not sa_farmers or n_wholesalers == 0:
+        if not all_farmers or n_wholesalers == 0:
             self.stock = 0.0
             self.quantity_available = 0.0
+            self.unit_price = 0.0
+            self.bra_volume = 0.0
+            self.usa_volume = 0.0
             return
 
-        total_soja = sum(f.quantity_available for f in sa_farmers)
+        # Demand target: based on unshocked ccapacity, not current disrupted supply
+        # Under no shock: demand == old push share
+        # Under BRA shock: demand stays the same -> wholesaler actively pulls more from USA
+        normal_capacity = ( sum(f.base_yield for f in active_bra) + sum(f.base_yield for f in active_usa))
+        my_demand = min(normal_capacity / n_wholesalers, self.storage_capacity)
 
-        # equal share for now
-        self.stock = total_soja / n_wholesalers
+        # Greedy fill: pull from cheapest source first, up to each farmer's
+        # available allocation (farmer.quantity_available / n_wholesalers)
+        # USA farmers expose surplus capacity via quantity_available > base_yield,
+        # so wholesalers can pull more from USA when BRA is expensive.
+        sorted_farmers = sorted(all_farmers, key=lambda f: f.unit_price)
+        remaining = my_demand
+        total_cost = 0.0
+        bra_taken = 0.0
+        usa_taken = 0.0
+        for farmer in sorted_farmers:
+            if remaining <= 0.0:
+                break
+            farmer_alloc = farmer.quantity_available / n_wholesalers
+            taken = min(farmer_alloc, remaining)
+            total_cost += taken * farmer.unit_price
+            remaining -= taken
+            if farmer.role == "bra":
+                bra_taken += taken
+            else:
+                usa_taken += taken
 
-        # Weighted average price paid to farmers
-        total_value = sum(f.unit_price * f.quantity_available for f in sa_farmers)
-        avg_input_price = (total_value / total_soja) if total_soja > 0 else 0.0
+        actual_taken = bra_taken + usa_taken
+        self.bra_volume = bra_taken
+        self.usa_volume = usa_taken
+        self.stock = actual_taken
+        self.quantity_available = actual_taken
+        self.storage_utilization = (actual_taken / self.storage_capacity if self.storage_capacity > 0 else 0.0)
 
-        self.quantity_available = self.stock
+        avg_input_price = total_cost / actual_taken if actual_taken > 0 else 0.0
 
         if self.stock > 0:
             cost_per_unit = avg_input_price + self.fixed_costs / self.stock

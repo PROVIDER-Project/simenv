@@ -1,93 +1,228 @@
-# Simulation Environment
+# provider-simenv
 
+Agent-based supply chain simulation for the **PROVIDER** research project (BMBF-funded, OFFIS e.V.).
 
+Models the global soya supply chain from Brazilian/US farms through wholesalers, sea transport,
+EU processors, and feed manufacturers to EU livestock farms. Scenarios apply KG-derived shock
+parameters (drought, port capacity, input price shocks) and observe emergent price and sourcing
+behaviour across the chain.
 
-## Getting started
+Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Project Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/provider8530010/simenv.git
-git branch -M main
-git push -uf origin main
+simenv/
+├── pyproject.toml
+└── src/
+    └── provider_simenv/
+        ├── main.py               ← entry point
+        ├── model.py              ← simulation orchestrator
+        ├── scenario.py           ← all scenario parameters
+        ├── environment.py        ← global state + price aggregation
+        ├── data_collector.py     ← Melodie output registration
+        ├── tick_writer.py        ← per-tick PostgreSQL writer
+        ├── db_config.py          ← PostgreSQL connection config
+        ├── visualize_sql.py      ← plots from SQLite (post-run)
+        ├── visualize_csv.py      ← plots from CSV (fallback)
+        ├── agents/
+        │   ├── farmer.py         ← BRA / USA / EU farmers
+        │   ├── trader.py         ← wholesalers + feed traders
+        │   ├── transport.py      ← land + sea transport operators
+        │   └── process.py        ← processors + feed manufacturers
+        └── data/
+            ├── input/
+            │   └── SimulatorScenarios.csv   ← scenario definitions
+            └── output/                      ← generated at runtime
+                ├── Result_Simulator_*.csv
+                ├── provider-simenv.sqlite
+                ├── price_curves.png
+                └── volume_flow.png
 ```
 
-## Integrate with your tools
+---
 
-* [Set up project integrations](https://gitlab.com/provider8530010/simenv/-/settings/integrations)
+## Dependencies
 
-## Collaborate with your team
+**Python:** 3.10 or higher
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+**Required:**
 
-## Test and Deploy
+```
+Melodie>=0.6.0
+pandas
+numpy
+matplotlib
+```
 
-Use the built-in continuous integration in GitLab.
+**Optional — only needed for PostgreSQL output:**
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```
+sqlalchemy
+psycopg2-binary
+```
 
-***
+If `sqlalchemy` / `psycopg2-binary` are not installed, the tick writer disables itself
+silently and the simulation continues normally. CSV and SQLite outputs are unaffected.
 
-# Editing this README
+### Install
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+# Create and activate a virtual environment
+python -m venv .venv
 
-## Suggestions for a good README
+# Windows
+.venv\Scripts\activate
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# macOS / Linux
+source .venv/bin/activate
 
-## Name
-Choose a self-explaining name for your project.
+# Install core dependencies
+pip install "Melodie>=0.6.0" pandas numpy matplotlib
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Optional: PostgreSQL support
+pip install sqlalchemy psycopg2-binary
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+---
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Running the Simulation
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+# Navigate to the simulation package — Melodie resolves data/ paths from here
+cd src/provider_simenv
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Run
+python main.py
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+The simulation reads scenarios from `data/input/SimulatorScenarios.csv`, runs all scenarios
+in sequence, and writes output to `data/output/`.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+**What runs automatically:**
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+1. Simulation loop — all scenarios, 52 steps each, per-tick stdout
+2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
+3. Post-run: CSV → SQLite merge → `provider-simenv.sqlite`
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### Generate Plots (after a run)
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```bash
+# From src/provider_simenv/
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+# Recommended: plots from SQLite — price curves + BRA/USA volume flow
+python visualize_sql.py
 
-## License
-For open source projects, say how it is licensed.
+# Fallback: plots from CSV
+python visualize_csv.py
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Output PNGs are saved to `data/output/`.
+
+---
+
+## Scenarios
+
+Scenarios are defined in `data/input/SimulatorScenarios.csv`. Each row is one scenario run.
+
+| Parameter | Effect |
+|---|---|
+| `farm_capacity_bra` | BRA farm output multiplier — `1.0` = normal, `0.7` = 30% drought loss |
+| `port_capacity_sa` | SA export port throughput multiplier |
+| `fertilizer_price_factor` | Multiplier on BRA farmer fixed costs (GTA Red interventions) |
+| `energy_price_factor` | Multiplier on all transport fixed costs |
+| `oil_mill_capacity` | EU processor output multiplier |
+| `feed_mill_capacity` | Feed manufacturer output multiplier |
+| `shock_onset_step` | Step at which shock starts ramping in |
+| `shock_ramp_steps` | Steps to ramp from baseline to full shock value |
+| `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default: 20 000 t) |
+| `usa_surplus_factor` | USA idle capacity multiplier — `1.5` = 50% reserve above base yield |
+| `period_num` | Number of simulation steps (default: 52) |
+
+---
+
+## PostgreSQL Setup (Optional)
+
+PostgreSQL enables live data access during the simulation — required for future palaestrAI
+integration. Without it, everything works via CSV + SQLite.
+
+### Start a local instance with Docker
+
+```bash
+docker run --name provider-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=provider_simenv -p 5432:5432 -d postgres:16
+```
+
+These credentials match the defaults in `db_config.py`. No further configuration needed.
+
+To persist data across container restarts, add a volume:
+
+```bash
+docker run --name provider-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=provider_simenv -p 5432:5432 -v pgdata:/var/lib/postgresql/data -d postgres:16
+```
+
+### Connection defaults (`db_config.py`)
+
+| Field | Default |
+|---|---|
+| host | `localhost` |
+| port | `5432` |
+| dbname | `provider_simenv` |
+| user | `postgres` |
+| password | `postgres` |
+
+Override by constructing `PostgresDBConfig` with different values or passing env vars at runtime.
+
+### Verify data after a run
+
+```sql
+-- Should return 3 rows, each COUNT = 52 (for a 3-scenario, 52-step run)
+SELECT id_scenario, COUNT(*)
+FROM "Result_Simulator_Environment"
+GROUP BY id_scenario
+ORDER BY id_scenario;
+```
+
+### Tables written by tick_writer
+
+```
+Result_Simulator_Environment
+Result_Simulator_BraFarmers
+Result_Simulator_UsaFarmers
+Result_Simulator_Wholesalers
+Result_Simulator_Processors
+Result_Simulator_FeedManufacturers
+Result_Simulator_FeedTraders
+Result_Simulator_EuFarmers
+```
+
+Tables are dropped and recreated at the start of each full simulation run (first scenario only).
+Subsequent scenarios within the same run append to the existing tables.
+
+---
+
+## Output Files
+
+| File | Description |
+|---|---|
+| `data/output/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
+| `data/output/provider-simenv.sqlite` | All CSVs merged into one SQLite database (post-run) |
+| `data/output/price_curves.png` | Soja + feed price development across all scenarios |
+| `data/output/volume_flow.png` | BRA vs USA sourcing volumes per scenario |
+
+---
+
+## Known Issues / Notes
+
+- **Run from `src/provider_simenv/`** — Melodie resolves `data/` paths relative to the working directory. Running from the repo root will fail to find input files.
+- **Melodie SQLite mode is disabled** — `data_output_type="sqlite"` silently drops all rows due to a missing `conn.commit()` in SQLAlchemy 2.0. The `csv_to_sqlite()` function in `main.py` is used instead and called automatically.
+- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soja_price, feed_price, ...}` after every simulation step.
+
+---
+
+## Project
+
+PROVIDER — AI-based supply chain resilience simulation  
+OFFIS e.V. – Institut für Informatik, Oldenburg  
+BMBF-funded

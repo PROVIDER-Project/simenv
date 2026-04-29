@@ -1,6 +1,11 @@
 """
-  role="sa"  South American soja producer. First actor in the chain.
+  role="bra"  Brazilian soja producer. First actor in the chain.
              Produces soja; price = (fixed_costs / qty) * (1 + margin).
+
+  role="usa" US soja producer. Alternative supplier to BRA.
+             Same price formula as BRA but not affected by BRA/SA shock.
+             Higher fixed_costs -> higher baseline price than BRA.
+             base_yield acts as a hard capacity ceiling.
 
   role="eu"  European livestock farmer. End consumer of the chain.
              Receives feed from feed traders; produces livestock output.
@@ -14,7 +19,8 @@ import numpy as np
 
 from .base import SupplyChainAgent
 
-ROLE_SA = "sa"
+ROLE_BRA = "bra"
+ROLE_USA = "usa"
 ROLE_EU = "eu"
 
 
@@ -73,19 +79,37 @@ class Farmer(SupplyChainAgent):
 
     def post_setup(self):
         """Role-specific initialisation after role is assigned by model."""
-        if self.role == ROLE_SA:
-            self.fixed_costs = self.scenario.fixed_costs_sa_farmer
-            self.margin = self.scenario.margin_sa_farmer
+        if self.role == ROLE_BRA:
+            self.fixed_costs = self.scenario.fixed_costs_bra_farmer
+            self.margin = self.scenario.margin_bra_farmer
             self.base_yield = 100.0     # Placeholder
 
             # scale by size factor
             # baseline unit_price is size-independent (for now)
             # Heterogeneity emerges under shock: small farms lose output faster and exit the market
-            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_sa)
+            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_bra)
             self.base_yield *= self.size_factor
             self.fixed_costs *= self.size_factor
 
             # Initial price: cost-based at full yield, no disruption
+            self.quantity_available = self.base_yield
+            if self.quantity_available > 0:
+                self.unit_price = (
+                    self.fixed_costs / self.quantity_available
+                ) * (1.0 + self.margin)
+
+        elif self.role == ROLE_USA:
+            self.fixed_costs = self.scenario.fixed_costs_usa_farmer
+            self.margin = self.scenario.margin_usa_farmer
+            self.base_yield = 100.0
+
+            # same size-factor mechanism as BRA
+            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_usa)
+            self.base_yield *= self.size_factor
+            self.fixed_costs *= self.size_factor
+
+            # initial price: cost-based at full yield, no disruption
+            # higher fixed_costs than BRA -> higher unit_price at baseline
             self.quantity_available = self.base_yield
             if self.quantity_available > 0:
                 self.unit_price = (
@@ -104,8 +128,10 @@ class Farmer(SupplyChainAgent):
     def step(self, drought_severity: float = 0.0):
         if not self.active:
             return
-        if self.role == ROLE_SA:
-            self._step_sa()
+        if self.role == ROLE_BRA:
+            self._step_bra()
+        elif self.role == ROLE_USA:
+            self._step_usa()
         elif self.role == ROLE_EU:
             self._step_eu()
 
@@ -113,7 +139,7 @@ class Farmer(SupplyChainAgent):
     # SA farmer: produce soja, price from fixed costs
     # -------------------------------------------------
 
-    def _step_sa(self):
+    def _step_bra(self):
         """
         Produce soja this step. Drought reduces output; lower output
         raises per-unit cost, which raises unit_price automatically.
@@ -129,6 +155,31 @@ class Farmer(SupplyChainAgent):
         else:
             # total crop failure - price undefined, agent cannot trade
             self.unit_price = 0.0
+
+    # --------------------------------------------------
+    # USA farmer: produce soja, price from fixed costs - no shock
+    # --------------------------------------------------
+
+    def _step_usa(self):
+        """
+        Produce soja this step.
+
+        USA farmers are not affected by the BRA shock - supply is stable.
+        base_yield acts as a hard capacity ceiling.
+        There is no mechanism to scale output above it.
+
+        Higher fixed_costs than BRA -> higher baseline unit_price.
+        EU wholesalers prefer BRA under normal conditions and switch to USA
+        only when BRA prices rise above USA prices under shock.
+        """
+        surplus_factor = self.scenario.usa_surplus_factor
+        self.quantity_available = self.base_yield * surplus_factor  # now offers 150t
+
+        if self.base_yield > 0:
+            self.unit_price = (self.fixed_costs / self.base_yield) * (1.0 + self.margin)  # still priced at 100t
+        else:
+            self.unit_price = 0.0
+
 
     # --------------------------------------------------
     # EU farmer: receive feed, compute livestock output

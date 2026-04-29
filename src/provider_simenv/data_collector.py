@@ -15,14 +15,26 @@ class SupplyChainDataCollector(DataCollector):
     environment properties: lit of attribute names to record for each environment type
     """
 
+    @property
+    def status(self) -> bool:
+        # Melodie default check broken in normal Simulator.run() path
+        return True
+
     def setup(self):
         # Agent-level variables to record each step
-        self.add_agent_property("sa_farmers", "quantity_available")
-        self.add_agent_property("sa_farmers", "unit_price")
-        self.add_agent_property("sa_farmers", "active")
+        self.add_agent_property("bra_farmers", "quantity_available")
+        self.add_agent_property("bra_farmers", "unit_price")
+        self.add_agent_property("bra_farmers", "active")
+
+        self.add_agent_property("usa_farmers", "quantity_available")
+        self.add_agent_property("usa_farmers", "unit_price")
+        self.add_agent_property("usa_farmers", "active")
 
         self.add_agent_property("wholesalers", "quantity_available")
         self.add_agent_property("wholesalers", "unit_price")
+        self.add_agent_property("wholesalers", "bra_volume")
+        self.add_agent_property("wholesalers", "usa_volume")
+        self.add_agent_property("wholesalers", "storage_utilization")
 
         self.add_agent_property("processors", "quantity_available")
         self.add_agent_property("processors", "unit_price")

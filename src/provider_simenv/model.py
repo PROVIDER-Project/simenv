@@ -21,11 +21,11 @@ Step order each timestep:
     10. Environment         aggregate global state and update prices
     11. DataCollector       record snapshot
 """
-
+import fontTools.misc.arrayTools
 from Melodie import Model
 from agents import (
     Farmer, Trader, Transport, Process,
-    ROLE_SA, ROLE_EU,
+    ROLE_BRA, ROLE_USA, ROLE_EU,
     ROLE_WHOLESALER, ROLE_FEED_TRADER,
     ROLE_SA_LAND, ROLE_SEA, ROLE_EU_LAND,
     ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER,
@@ -48,7 +48,8 @@ class SupplyChainModel(Model):
         self.environment = self.create_environment(SupplyChainEnvironment)
         self.data_collector = self.create_data_collector(SupplyChainDataCollector)
 
-        self.sa_farmers = self.create_agent_list(Farmer)
+        self.bra_farmers = self.create_agent_list(Farmer)
+        self.usa_farmers = self.create_agent_list(Farmer)
         self.eu_farmers = self.create_agent_list(Farmer)
 
         self.wholesalers = self.create_agent_list(Trader)
@@ -78,7 +79,8 @@ class SupplyChainModel(Model):
 
         Uses _setup_with_role() so the pattern is written once, not repeated nine times.
         """
-        self._setup_with_role(self.sa_farmers, self.scenario.n_sa_farmers, ROLE_SA)
+        self._setup_with_role(self.bra_farmers, self.scenario.n_bra_farmers, ROLE_BRA)
+        self._setup_with_role(self.usa_farmers, self.scenario.n_usa_farmers, ROLE_USA)
         self._setup_with_role(self.eu_farmers, self.scenario.n_eu_farmers, ROLE_EU)
         self._setup_with_role(self.wholesalers, self.scenario.n_wholesalers, ROLE_WHOLESALER)
         self._setup_with_role(self.feed_traders, self.scenario.n_feed_traders, ROLE_FEED_TRADER)
@@ -95,7 +97,8 @@ class SupplyChainModel(Model):
         self.environment.update_shock_scale(t)
 
         # Production
-        self.sa_farmers.method_foreach('step', ())
+        self.bra_farmers.method_foreach('step', ())
+        self.usa_farmers.method_foreach('step', ())
         self.wholesalers.method_foreach('step', ())
 
         # Transport
@@ -115,15 +118,37 @@ class SupplyChainModel(Model):
         self.environment.step()
 
         # Terminal output
-        n_sa_active = sum(1 for a in self.sa_farmers.agents if a.active)
+        n_bra_active = sum(1 for a in self.bra_farmers.agents if a.active)
+        n_usa_active = sum(1 for a in self.usa_farmers.agents if a.active)
         n_eu_active = sum(1 for a in self.eu_farmers.agents if a.active)
+
+        # BRA / USA spot prices
+        active_bra = self.bra_farmers.filter(lambda f: f.active)
+        active_usa = self.usa_farmers.filter(lambda f: f.active)
+        bra_vol = sum(f.quantity_available for f in active_bra)
+        usa_vol = sum(f.quantity_available for f in active_usa)
+        bra_px = (
+            sum(f.unit_price * f.quantity_available for f in active_bra) / bra_vol
+            if bra_vol > 0 else 0.0
+        )
+        usa_px = (
+            sum(f.unit_price * f.quantity_available for f in active_usa) / usa_vol
+            if usa_vol > 0 else 0.0
+        )
+
+        # wholesaler sourcing totals across all active wholesalers
+        active_w = self.wholesalers.filter(lambda w: w.active)
+        w_bra_total = sum(w.bra_volume for w in active_w)
+        w_usa_total = sum(w.usa_volume for w in active_w)
+        cheaper = "BRA" if bra_px <= usa_px else "USA"
+
         print(
             f"[s{self.scenario.id} t{t:03d}] "
             f"shock={self.environment.shock_scale:.2f} | "
-            f"soja={self.environment.soja_price:8.2f} EUR/t | "
-            f"feed={self.environment.feed_price:8.2f} EUR/t | "
-            f"supply={self.environment.total_soja_supply:8.2f} EUR/t | "
-            f"farms SA={n_sa_active} EU={n_eu_active}"
+            f"px: BRA={bra_px:6.1f} USA={usa_px:6.1f} EUR/t [{cheaper}] | "
+            f"soja={self.environment.soja_price:7.1f} feed={self.environment.feed_price:7.1f} EUR/t | "
+            f"W<-BRA={w_bra_total:6.1f}t USA={w_usa_total:6.1f}t | "
+            f"farms BRA={n_bra_active} USA={n_usa_active} EU={n_eu_active}"
         )
 
         # Record snapshot
@@ -141,7 +166,7 @@ class SupplyChainModel(Model):
             self._do_step(t)
         self.data_collector.save()
 
-        def run_stepwise(self):
+    def run_stepwise(self):
             """
             Generator variant for external step-by-step control (e.g. RL agents)
 
@@ -151,8 +176,15 @@ class SupplyChainModel(Model):
                     print(state['soja_price'])
                     # TODO: RL actions here
             """
+            from db_config import PostgresDBConfig
+            from tick_writer import TickWriter
+
+            id_scenario = getattr(self.scenario, "id", 0)
+            tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
+
             for t in range(self.scenario.period_num):
                 self._do_step(t)
+                tick_writer.write_tick(self, id_scenario=id_scenario, id_run=0, t=t)
                 yield {
                     "step": t,
                     "shock_scale": self.environment.shock_scale,
