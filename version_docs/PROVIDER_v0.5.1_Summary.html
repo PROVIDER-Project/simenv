@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROVIDER simenv — v0.5.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@200;300;400;600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   DESIGN TOKENS — LIGHT MODE
+   ================================================================ */
+:root {
+  --page:             #f5f3ef;
+  --surface:          #ffffff;
+  --surface-elevated: #ede9e3;
+  --surface-inset:    #f0ede8;
+
+  --accent:           #9a7a28;
+  --accent-bright:    #b8922e;
+  --accent-dim:       rgba(154,122,40,0.08);
+  --accent-glow:      rgba(154,122,40,0.18);
+
+  --text-primary:     #1a1814;
+  --text-secondary:   #4d4840;
+  --text-tertiary:    #9a9088;
+
+  --grid-line:        rgba(0,0,0,0.055);
+  --grid-line-bright: rgba(0,0,0,0.10);
+  --wire:             rgba(0,0,0,0.18);
+  --wire-bright:      rgba(0,0,0,0.30);
+
+  --green:            #1a7a50;
+  --blue:             #1a50a0;
+  --red:              #a02020;
+
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+
+  --ease-heavy: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out:   cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* ================================================================
+   RESET + BASE
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ================================================================
+   CANVAS BACKGROUND
+   ================================================================ */
+#animus-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.18;
+}
+
+/* ================================================================
+   GRID OVERLAY
+   ================================================================ */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+/* ================================================================
+   SCAN LINE
+   ================================================================ */
+.scan-line {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+  opacity: 0.25;
+  z-index: 100;
+  animation: scanDown 10s linear infinite;
+}
+@keyframes scanDown {
+  0%   { top: 0; opacity: 0; }
+  5%   { opacity: 0.25; }
+  95%  { opacity: 0.25; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ================================================================
+   HUD CORNERS
+   ================================================================ */
+.hud-corners {
+  position: fixed;
+  inset: 20px;
+  pointer-events: none;
+  z-index: 100;
+}
+.hud-corners::before, .hud-corners::after,
+.hud-corners > .hud-br, .hud-corners > .hud-bl {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  opacity: 0.35;
+}
+.hud-corners::before  { top: 0;    left: 0;  border-top: 1px solid var(--accent); border-left:  1px solid var(--accent); }
+.hud-corners::after   { top: 0;    right: 0; border-top: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+.hud-corners > .hud-br { bottom: 0; right: 0; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+.hud-corners > .hud-bl { bottom: 0; left: 0;  border-bottom: 1px solid var(--accent); border-left:  1px solid var(--accent); }
+
+/* ================================================================
+   LAYOUT
+   ================================================================ */
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 40px;
+  position: relative;
+  z-index: 10;
+}
+
+/* ================================================================
+   NAV
+   ================================================================ */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 90;
+  padding: 18px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(20px);
+  background: rgba(245,243,239,0.80);
+  border-bottom: 1px solid var(--grid-line-bright);
+}
+.nav-brand {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.nav-brand span { color: var(--accent); }
+.nav-version {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
+  padding: 4px 12px;
+  border: 1px solid var(--grid-line-bright);
+}
+
+/* ================================================================
+   HERO
+   ================================================================ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 120px 0 80px;
+}
+.hero-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.hero-eyebrow::before {
+  content: '';
+  width: 32px; height: 1px;
+  background: var(--wire);
+}
+.hero-title {
+  font-family: var(--sans);
+  font-size: clamp(48px, 8vw, 92px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: var(--text-primary);
+  margin-bottom: 28px;
+}
+.hero-title .accent { color: var(--accent); }
+.hero-subtitle {
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  max-width: 540px;
+  line-height: 1.75;
+  margin-bottom: 64px;
+}
+.hero-meta {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+}
+.hero-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hero-meta-item .label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.hero-meta-item .value {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.hero-meta-item .value.highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ================================================================
+   SECTION LABELS
+   ================================================================ */
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 48px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.section-label::before {
+  content: '';
+  width: 32px; height: 1px;
+  background: var(--wire);
+}
+.section-label .num { color: var(--accent); }
+
+/* ================================================================
+   SECTION GENERIC
+   ================================================================ */
+section { padding: 120px 0; position: relative; }
+section + section { border-top: 1px solid var(--grid-line-bright); }
+
+.section-headline {
+  font-family: var(--sans);
+  font-size: clamp(24px, 3.2vw, 40px);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  max-width: 700px;
+  margin-bottom: 64px;
+  line-height: 1.3;
+}
+.section-headline em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+/* ================================================================
+   CHANGE CARDS
+   ================================================================ */
+.changes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  margin-bottom: 40px;
+}
+.change-cell {
+  background: var(--surface);
+  border: 1px solid var(--grid-line-bright);
+  padding: 36px 32px;
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+}
+.change-cell.visible { opacity: 1; transform: translateY(0); }
+.change-cell::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.2s var(--ease-heavy);
+}
+.change-cell.visible::after { transform: scaleX(1); }
+.change-cell:hover {
+  background: var(--surface-inset);
+  border-color: var(--wire);
+}
+.change-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  display: block;
+}
+.change-tag.tag-new     { color: var(--green); }
+.change-tag.tag-fix     { color: var(--red); }
+.change-tag.tag-enhance { color: var(--accent); }
+.change-tag.tag-workaround { color: var(--blue); }
+
+.change-cell h3 {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+.change-cell p {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+.change-cell code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 6px;
+}
+
+/* ================================================================
+   PROBLEM / FIX BLOCK
+   ================================================================ */
+.problem-fix {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 40px;
+}
+.pf-problem {
+  border: 1px dashed var(--wire);
+  background: rgba(160,32,32,0.04);
+  padding: 40px;
+}
+.pf-fix {
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 40px var(--accent-glow);
+  padding: 40px;
+}
+.pf-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--accent);
+}
+.pf-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+.pf-list {
+  list-style: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 2.2;
+}
+.pf-problem .pf-list li::before {
+  content: '✕';
+  margin-right: 10px;
+  color: var(--red);
+  font-size: 11px;
+}
+.pf-fix .pf-list li::before {
+  content: '✓';
+  margin-right: 10px;
+  color: var(--green);
+  font-size: 11px;
+}
+.pf-list code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 5px;
+}
+
+/* ================================================================
+   ALGO / PIPELINE STEPS
+   ================================================================ */
+.algo-block {
+  background: var(--surface);
+  border: 1px solid var(--grid-line-bright);
+  padding: 48px;
+  position: relative;
+  margin-bottom: 40px;
+}
+.algo-block::before {
+  content: 'PIPELINE';
+  position: absolute;
+  top: -1px; left: 32px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+  background: var(--surface);
+  padding: 0 8px;
+  transform: translateY(-50%);
+}
+.algo-steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.algo-steps::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--wire), var(--accent), var(--wire));
+}
+.algo-step {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 24px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--grid-line);
+  opacity: 0;
+  transform: translateX(-16px);
+  transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+}
+.algo-step:last-child { border-bottom: none; }
+.algo-step.visible { opacity: 1; transform: translateX(0); }
+.algo-dot {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+.algo-dot span {
+  width: 8px; height: 8px;
+  border: 1px solid var(--wire-bright);
+  background: var(--page);
+  display: block;
+  transition: all 0.4s var(--ease-out);
+}
+.algo-step.visible .algo-dot span {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.algo-step-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.algo-step-text {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.algo-step-text strong { color: var(--text-primary); font-weight: 500; }
+.algo-step-text code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 5px;
+}
+
+/* ================================================================
+   TERMINAL BLOCK
+   ================================================================ */
+.terminal {
+  background: #1e1c18;
+  border: 1px solid var(--grid-line-bright);
+  padding: 32px;
+  position: relative;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 2;
+  margin: 40px 0;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.terminal::before {
+  content: 'STDOUT  //  main.py';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 8px 16px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.3);
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.terminal-inner { margin-top: 28px; }
+.t-dim    { color: rgba(255,255,255,0.25); }
+.t-normal { color: rgba(255,255,255,0.60); }
+.t-accent { color: #d4a84c; font-weight: 600; }
+.t-green  { color: #6ee7b7; font-weight: 600; }
+.t-blue   { color: #93c5fd; }
+.t-red    { color: #fca5a5; }
+
+/* ================================================================
+   POSTGRES INFO BOX
+   ================================================================ */
+.info-box {
+  background: var(--surface);
+  border: 1px solid var(--grid-line-bright);
+  border-left: 3px solid var(--accent);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+}
+.info-box.warn {
+  border-left-color: var(--red);
+  background: rgba(160,32,32,0.03);
+}
+.info-box.ok {
+  border-left-color: var(--green);
+  background: rgba(26,122,80,0.03);
+}
+.info-box-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: block;
+}
+.info-box-label.warn  { color: var(--red); }
+.info-box-label.ok    { color: var(--green); }
+.info-box-label.note  { color: var(--accent); }
+.info-box p {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+.info-box code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 5px;
+}
+
+/* ================================================================
+   PLOT SECTION
+   ================================================================ */
+.plot-wrap {
+  margin-bottom: 48px;
+}
+.plot-wrap img {
+  width: 100%;
+  border: 1px solid var(--grid-line-bright);
+  display: block;
+}
+.plot-caption {
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--grid-line-bright);
+  border-top: none;
+}
+.plot-caption-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.plot-caption p {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.plot-caption code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 5px;
+}
+
+/* ================================================================
+   FILES GRID
+   ================================================================ */
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+.file-cell {
+  background: var(--surface);
+  border: 1px solid var(--grid-line-bright);
+  padding: 24px 20px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+}
+.file-cell.visible { opacity: 1; transform: translateY(0); }
+.file-cell:hover {
+  background: var(--surface-inset);
+  border-color: var(--wire);
+}
+.file-path {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+  display: block;
+}
+.file-status {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: inline-block;
+  padding: 2px 8px;
+}
+.file-status.new      { color: var(--green); background: rgba(26,122,80,0.08); }
+.file-status.modified { color: var(--blue);  background: rgba(26,80,160,0.08); }
+.file-status.deleted  { color: var(--red);   background: rgba(160,32,32,0.08); }
+.file-status.renamed  { color: var(--accent); background: var(--accent-dim); }
+
+.file-changes {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+/* ================================================================
+   FOOTER
+   ================================================================ */
+footer {
+  padding: 60px 0 40px;
+  border-top: 1px solid var(--grid-line-bright);
+  position: relative;
+  z-index: 10;
+}
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.footer-brand {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.footer-brand span { color: var(--accent); }
+.footer-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: right;
+  line-height: 2;
+}
+</style>
+</head>
+<body>
+
+<canvas id="animus-canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="scan-line"></div>
+<div class="hud-corners"><div class="hud-br"></div><div class="hud-bl"></div></div>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-brand"><span>PROVIDER</span> / simenv</div>
+  <div class="nav-version">v0.5.1</div>
+</nav>
+
+<!-- ================================================================
+     HERO
+     ================================================================ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-eyebrow">OFFIS · PROVIDER Project · Release Summary</div>
+    <h1 class="hero-title">
+      Data<br>
+      <span class="accent">Persistence</span><br>
+      &amp; Visualization
+    </h1>
+    <p class="hero-subtitle">
+      v0.5.1 wires simulation output to persistent storage and plots.
+      SQLite and PostgreSQL adapters are implemented in parallel —
+      SQLite as a reliable local store, PostgreSQL as infrastructure
+      for future palaestrAI integration.
+    </p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="label">Version</span>
+        <span class="value highlight">0.5.1</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">Session</span>
+        <span class="value">2026-04-21</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">Framework</span>
+        <span class="value">Melodie ABM</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="label">New files</span>
+        <span class="value">3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     01 — WHAT WE IMPLEMENTED
+     ================================================================ -->
+<section id="implemented">
+  <div class="container">
+    <div class="section-label"><span class="num">01</span> What We Implemented</div>
+    <h2 class="section-headline">
+      Three deliverables — <em>storage, visualization, and a PostgreSQL adapter.</em>
+    </h2>
+
+    <div class="changes-grid">
+      <div class="change-cell">
+        <span class="change-tag tag-new">New</span>
+        <h3>SQLite Persistence</h3>
+        <p>
+          After every simulation run, all <code>Result_Simulator_*.csv</code> files
+          are merged into a single <code>provider-simenv.sqlite</code> database via
+          <code>csv_to_sqlite()</code> in <code>main.py</code>. Each CSV becomes one
+          table. The database is rebuilt from scratch on every run.
+        </p>
+      </div>
+
+      <div class="change-cell">
+        <span class="change-tag tag-new">New</span>
+        <h3>Simulation Plots</h3>
+        <p>
+          <code>visualize_sql.py</code> reads from the SQLite database and produces
+          two publication-ready PNGs: a price development chart (soja + feed across
+          all drought scenarios) and a sourcing volume flow chart (BRA vs USA split,
+          one panel per scenario).
+        </p>
+      </div>
+
+      <div class="change-cell">
+        <span class="change-tag tag-new">New</span>
+        <h3>PostgreSQL Adapter</h3>
+        <p>
+          <code>db_config.py</code> provides a <code>PostgresDBConfig</code> dataclass
+          holding connection parameters. <code>csv_to_postgres()</code> in
+          <code>main.py</code> mirrors the same CSV data to a Postgres database,
+          designed for future palaestrAI connectivity.
+        </p>
+      </div>
+
+      <div class="change-cell">
+        <span class="change-tag tag-enhance">Enhanced</span>
+        <h3>DataCollector Fix</h3>
+        <p>
+          Two bugs in Melodie's <code>DataCollector</code> were patched:
+          the <code>status</code> property now always returns <code>True</code>
+          (fixing a silent data-drop in the normal <code>Simulator.run()</code> path),
+          and <code>bra_volume</code> / <code>usa_volume</code> were registered for
+          wholesalers so sourcing splits are captured per step.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     02 — SQLITE: PROBLEM & FIX
+     ================================================================ -->
+<section id="sqlite">
+  <div class="container">
+    <div class="section-label"><span class="num">02</span> SQLite — The Problem &amp; The Fix</div>
+    <h2 class="section-headline">
+      Two silent bugs in Melodie — <em>both discovered, both circumvented.</em>
+    </h2>
+
+    <div class="info-box warn" style="margin-bottom:24px;">
+      <span class="info-box-label warn">Bug 1 — DataCollector.status</span>
+      <p>
+        Melodie's <code>DataCollector.collect()</code> checks <code>self.status</code>,
+        which by default calls <code>isinstance(scenario.manager, Simulator)</code>.
+        In the normal <code>Simulator.run()</code> path, <code>scenario.manager</code>
+        is never set — it remains <code>None</code>. The isinstance check returns
+        <code>False</code>, and every <code>collect()</code> call is silently skipped.
+        Result: all output tables are empty.
+        Fix: override <code>status</code> to always return <code>True</code>.
+      </p>
+    </div>
+
+    <div class="info-box warn" style="margin-bottom:48px;">
+      <span class="info-box-label warn">Bug 2 — SQLAlchemy 2.0 Missing Commit</span>
+      <p>
+        Melodie's built-in <code>data_output_type="sqlite"</code> routes output through
+        <code>MelodieInfra.DatabaseConnector.write_table()</code>, which opens a
+        connection via <code>with engine.connect() as conn:</code> and calls
+        <code>conn.execute(sql, data)</code>. In SQLAlchemy 2.0, a transaction opened
+        with <code>engine.connect()</code> requires an explicit <code>conn.commit()</code>
+        — without it, the transaction rolls back silently on exit. Tables are created
+        (DDL auto-commits in SQLite) but all <code>INSERT</code> rows vanish.
+      </p>
+    </div>
+
+    <div class="problem-fix">
+      <div class="pf-problem">
+        <div class="pf-label">Melodie Built-in SQLite Path</div>
+        <ul class="pf-list">
+          <li>Set <code>data_output_type="sqlite"</code></li>
+          <li>Uses SQLAlchemy 2.0 internally</li>
+          <li>Missing <code>conn.commit()</code> in library</li>
+          <li>All INSERT rows silently rolled back</li>
+          <li>Tables exist but are empty</li>
+        </ul>
+      </div>
+      <div class="pf-arrow">→</div>
+      <div class="pf-fix">
+        <div class="pf-label">Our Workaround</div>
+        <ul class="pf-list">
+          <li>Melodie writes CSVs (default, proven path)</li>
+          <li>Post-process with <code>csv_to_sqlite()</code></li>
+          <li>Uses <code>sqlite3</code> + <code>pandas</code> directly</li>
+          <li>Explicit <code>conn.commit()</code> — no SQLAlchemy</li>
+          <li>All rows persisted correctly</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="info-box ok">
+      <span class="info-box-label ok">Why not patch the library?</span>
+      <p>
+        Patching <code>MelodieInfra</code> directly would be silently overwritten on the
+        next <code>pip upgrade</code>, would only exist on one machine, and would not be
+        tracked in git. The <code>csv_to_sqlite()</code> function in <code>main.py</code>
+        is fully version-controlled, portable, and survives any library update.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     03 — POSTGRESQL ADAPTER
+     ================================================================ -->
+<section id="postgres">
+  <div class="container">
+    <div class="section-label"><span class="num">03</span> PostgreSQL Adapter</div>
+    <h2 class="section-headline">
+      Ready for palaestrAI — <em>graceful fallback when no instance is running.</em>
+    </h2>
+
+    <div class="algo-block">
+      <div class="algo-steps">
+        <div class="algo-step">
+          <div class="algo-dot"><span></span></div>
+          <div>
+            <div class="algo-step-num">COMPONENT 01</div>
+            <div class="algo-step-text">
+              <strong>db_config.py</strong> — a <code>PostgresDBConfig</code> dataclass
+              holding <code>host</code>, <code>port</code>, <code>dbname</code>,
+              <code>user</code>, and <code>password</code>. Defaults point to a local
+              instance. Override at runtime with environment variables for production.
+              Password is always masked in <code>__repr__</code> to prevent accidental logging.
+            </div>
+          </div>
+        </div>
+        <div class="algo-step">
+          <div class="algo-dot"><span></span></div>
+          <div>
+            <div class="algo-step-num">COMPONENT 02</div>
+            <div class="algo-step-text">
+              <strong>csv_to_postgres()</strong> in <code>main.py</code> — mirrors all
+              <code>Result_Simulator_*.csv</code> files to PostgreSQL using
+              <code>engine.begin()</code> (SQLAlchemy's auto-committing context manager).
+              Uses <code>psycopg2</code> as the driver and <code>pandas.to_sql()</code>
+              in replace mode for idempotent reruns.
+            </div>
+          </div>
+        </div>
+        <div class="algo-step">
+          <div class="algo-dot"><span></span></div>
+          <div>
+            <div class="algo-step-num">COMPONENT 03</div>
+            <div class="algo-step-text">
+              <strong>Graceful fallback</strong> — before writing any data,
+              <code>csv_to_postgres()</code> tests the connection with a
+              <code>SELECT 1</code>. If Postgres is unreachable, the exception is caught,
+              a clear warning is printed, and <code>main.py</code> continues normally.
+              SQLite output is never affected.
+            </div>
+          </div>
+        </div>
+        <div class="algo-step">
+          <div class="algo-dot"><span></span></div>
+          <div>
+            <div class="algo-step-num">USAGE — FUTURE</div>
+            <div class="algo-step-text">
+              To activate: start a PostgreSQL instance (local Docker or palaestrAI server),
+              set credentials in <code>PostgresDBConfig</code> or via environment variables,
+              and run <code>main.py</code>. Data flows automatically. Grafana can then be
+              pointed at the Postgres database for live dashboards.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-inner">
+        <div><span class="t-dim"># When no Postgres instance is running:</span></div>
+        <div><span class="t-normal">[main] Converting CSVs to SQLite...</span></div>
+        <div><span class="t-green">[csv_to_sqlite]   Result_Simulator_Environment → 30 rows</span></div>
+        <div><span class="t-green">[csv_to_sqlite]   Result_Simulator_Wholesalers → 90 rows</span></div>
+        <div><span class="t-green">[csv_to_sqlite]   SQLite database written to: .../data/output/provider-simenv.sqlite</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-normal">[main] Converting CSVs to PostgreSQL...</span></div>
+        <div><span class="t-normal">[csv_to_postgres] Connecting to PostgresDBConfig(host='localhost', port=5432, ...)</span></div>
+        <div><span class="t-red">[csv_to_postgres] WARNING: could not connect to PostgreSQL.</span></div>
+        <div><span class="t-red">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OperationalError: connection refused</span></div>
+        <div><span class="t-dim">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Skipping Postgres write — SQLite output is unaffected.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     04 — SIMULATION OUTPUT
+     ================================================================ -->
+<section id="plots">
+  <div class="container">
+    <div class="section-label"><span class="num">04</span> Simulation Output</div>
+    <h2 class="section-headline">
+      Price propagation and origin switching — <em>visualized across three scenarios.</em>
+    </h2>
+
+    <div class="plot-wrap">
+      <img src="src/provider_simenv/data/output/price_curves.png"
+           alt="Price Development under Drought Scenarios">
+      <div class="plot-caption">
+        <div class="plot-caption-title">Price Development — Wholesaler &amp; Feed Trader Level</div>
+        <p>
+          The baseline scenario (blue) holds flat throughout — no drought, no price shock,
+          soja price stays around 525 EUR/t and feed around 1,280 EUR/t.
+          The mild drought (orange) begins showing price pressure around step 13 and stabilizes
+          at a new equilibrium by step 25 — soja near 615 EUR/t, feed near 1,465 EUR/t.
+          The severe drought (red) drives a sharper ramp, crossing the mild scenario's peak
+          and settling at 720 EUR/t soja and 1,820 EUR/t feed.
+          Prices plateau once the shock stabilizes — there is no recovery within the 52-step window,
+          reflecting the real-world lag in supply chain adaptation.
+        </p>
+      </div>
+    </div>
+
+    <div class="plot-wrap">
+      <img src="src/provider_simenv/data/output/volume_flow.png"
+           alt="Sourcing Volume Flow BRA vs USA">
+      <div class="plot-caption">
+        <div class="plot-caption-title">Sourcing Volume Flow — BRA vs USA Split</div>
+        <p>
+          The baseline panel (top) shows full BRA dominance throughout — around 1,000 t from
+          Brazil and 775 t from USA each week, stable and flat. This is the expected equilibrium
+          when BRA prices are lower.
+          Under mild drought (middle), BRA volume drops from ~1,050 t to ~870 t by step 50 as
+          Brazilian prices rise. USA volume rises to compensate — the wholesaler greedily switches
+          sourcing without any hardcoded logic.
+          The severe drought panel (bottom) shows the same dynamic accelerated: BRA contribution
+          falls to ~775 t while USA rises. Total supply contracts slightly due to BRA capacity
+          constraints, visible as the slight downward slope in combined volume.
+          This emergent sourcing shift is the core behavioral output of v0.5.0's greedy algorithm,
+          now captured and persisted in the database for the first time.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     05 — FILES MODIFIED
+     ================================================================ -->
+<section id="files">
+  <div class="container">
+    <div class="section-label"><span class="num">05</span> Files Modified</div>
+    <h2 class="section-headline">
+      Five files touched — <em>three new, two modified, one renamed.</em>
+    </h2>
+
+    <div class="file-grid">
+      <div class="file-cell">
+        <span class="file-path">main.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          Added <code>csv_to_sqlite()</code> and <code>csv_to_postgres()</code> functions.
+          Removed broken <code>data_output_type="sqlite"</code>.
+          Both converters called after <code>simulator.run()</code>.
+        </div>
+      </div>
+
+      <div class="file-cell">
+        <span class="file-path">data_collector.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          Added <code>status</code> property override (always returns <code>True</code>)
+          to fix Melodie's silent data-drop bug.
+          Added <code>bra_volume</code> and <code>usa_volume</code> registration for wholesalers.
+        </div>
+      </div>
+
+      <div class="file-cell">
+        <span class="file-path">db_config.py</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          New file. <code>PostgresDBConfig</code> dataclass with connection parameters,
+          <code>sqlalchemy_url()</code> helper, and password-masked repr.
+        </div>
+      </div>
+
+      <div class="file-cell">
+        <span class="file-path">visualize_sql.py</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          New file. Reads from <code>provider-simenv.sqlite</code> and generates
+          <code>price_curves.png</code> (price development) and
+          <code>volume_flow.png</code> (BRA vs USA stacked area).
+        </div>
+      </div>
+
+      <div class="file-cell">
+        <span class="file-path">visualize_csv.py</span>
+        <span class="file-status renamed">Renamed</span>
+        <div class="file-changes">
+          Formerly <code>visualize.py</code>. Content unchanged.
+          Kept as a CSV-based fallback for price curves only.
+        </div>
+      </div>
+
+      <div class="file-cell">
+        <span class="file-path">visualize.py</span>
+        <span class="file-status deleted">Deleted</span>
+        <div class="file-changes">
+          Replaced by <code>visualize_csv.py</code> (renamed)
+          and <code>visualize_sql.py</code> (new, database-backed).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     FOOTER
+     ================================================================ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand"><span>PROVIDER</span> simenv · v0.5.1</div>
+      <div class="footer-meta">
+        OFFIS · Oldenburg<br>
+        Session 2026-04-21
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ================================================================
+     CANVAS ANIMATION
+     ================================================================ -->
+<script>
+(function() {
+  const canvas = document.getElementById('animus-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function Particle() {
+    this.x  = Math.random() * W;
+    this.y  = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.25;
+    this.vy = (Math.random() - 0.5) * 0.25;
+    this.r  = Math.random() * 1.0 + 0.2;
+    this.a  = Math.random() * 0.4 + 0.05;
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    const n = Math.floor((W * H) / 20000);
+    for (let i = 0; i < n; i++) particles.push(new Particle());
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (let p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W;
+      if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H;
+      if (p.y > H) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(154,122,40,${p.a})`;
+      ctx.fill();
+    }
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 110) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(154,122,40,${0.07 * (1 - dist/110)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', init);
+  init();
+  draw();
+})();
+</script>
+
+<!-- ================================================================
+     SCROLL OBSERVER
+     ================================================================ -->
+<script>
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.change-cell, .algo-step, .file-cell').forEach(el => observer.observe(el));
+})();
+</script>
+
+</body>
+</html>

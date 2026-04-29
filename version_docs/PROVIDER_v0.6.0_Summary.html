@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROVIDER Simulation — v0.6.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+
+    /* ══ TOKENS ══ */
+    :root {
+      /* Dark base — v0.4 structure, warm-tinted for gold palette */
+      --bg:            #07060300;
+      --bg-solid:      #080704;
+      --surface:       #110f0b;
+      --card:          #161310;
+      --card-hover:    #1e1a14;
+      --border:        #26201a;
+      --border-bright: #352b1f;
+
+      /* Gold accent — v0.5 palette adapted to dark */
+      --accent:        #c9962e;
+      --accent-dim:    rgba(201,150,46,0.10);
+      --accent-glow:   rgba(201,150,46,0.24);
+      --gold:          #d4a84c;
+      --green:         #22c55e;
+      --green-dim:     rgba(34,197,94,0.09);
+      --red:           #ef4444;
+      --red-dim:       rgba(239,68,68,0.09);
+      --blue:          #60a5fa;
+      --blue-dim:      rgba(96,165,250,0.09);
+
+      /* Text — warm whites */
+      --text:          #e8dfc8;
+      --text-mid:      #9a8060;
+      --muted:         #524030;
+
+      /* Fonts */
+      --font-display:  'Barlow Condensed', sans-serif;
+      --font-body:     'Inter', system-ui, sans-serif;
+      --font-mono:     'IBM Plex Mono', 'JetBrains Mono', monospace;
+
+      --radius:    14px;
+      --radius-sm: 8px;
+      --gap:       24px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: #080704;
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── Canvas background ── */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.22;
+    }
+
+    /* ── Grid overlay ── */
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(201,150,46,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(201,150,46,0.035) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* ── Scan line ── */
+    .scan-line {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+      opacity: 0.20;
+      z-index: 100;
+      animation: scanDown 12s linear infinite;
+    }
+    @keyframes scanDown {
+      0%   { top: 0%;   opacity: 0; }
+      5%   { opacity: 0.20; }
+      95%  { opacity: 0.20; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    /* ── HUD corners ── */
+    .hud {
+      position: fixed;
+      inset: 16px;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .hud::before, .hud::after, .hud .hud-br, .hud .hud-bl {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      opacity: 0.30;
+    }
+    .hud::before  { top: 0; left: 0;  border-top:    1px solid var(--accent); border-left:  1px solid var(--accent); }
+    .hud::after   { top: 0; right: 0; border-top:    1px solid var(--accent); border-right: 1px solid var(--accent); }
+    .hud .hud-br  { bottom: 0; right: 0; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+    .hud .hud-bl  { bottom: 0; left: 0;  border-bottom: 1px solid var(--accent); border-left:  1px solid var(--accent); }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 90;
+      padding: 16px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(20px);
+      background: rgba(8,7,4,0.82);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+    }
+    .nav-brand span { color: var(--accent); }
+    .nav-version {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--text-mid);
+      border: 1px solid var(--border-bright);
+      padding: 4px 12px;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 32px;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* ── Scroll reveal ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 580ms ease, transform 580ms ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay:  80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ══ HEADER ══ */
+    .header {
+      position: relative;
+      padding: 120px 0 80px;
+      text-align: center;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% -5%,  rgba(201,150,46,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 35% 30% at 88% 110%, rgba(201,150,46,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 25% 25% at 8% 110%,  rgba(201,150,46,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .header .container { position: relative; z-index: 1; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(201,150,46,0.08);
+      border: 1px solid rgba(201,150,46,0.28);
+      color: #d4a84c;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 6px 18px;
+      border-radius: 100px;
+      margin-bottom: 36px;
+    }
+    .badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1;   box-shadow: 0 0 8px var(--accent); }
+      50%       { opacity: 0.3; box-shadow: 0 0 2px var(--accent); }
+    }
+
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 6.5vw, 80px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.05;
+      margin-bottom: 18px;
+    }
+    .header h1 .version {
+      display: block;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .subtitle {
+      color: var(--text-mid);
+      font-size: 15px;
+      font-weight: 400;
+      max-width: 600px;
+      margin: 0 auto 44px;
+      line-height: 1.8;
+    }
+
+    .version-tags {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.06em;
+    }
+    .tag-green  { background: var(--green-dim);  color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .tag-gold   { background: var(--accent-dim); color: #d4a84c; border: 1px solid rgba(201,150,46,0.28); }
+    .tag-red    { background: var(--red-dim);    color: #fca5a5; border: 1px solid rgba(239,68,68,0.22); }
+    .tag-blue   { background: var(--blue-dim);   color: #93c5fd; border: 1px solid rgba(96,165,250,0.22); }
+
+    /* ══ SECTION ══ */
+    section { padding: 80px 0 0; }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .section-label::before { content: '→ '; letter-spacing: 0; }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--border-bright) 0%, transparent 100%);
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 32px;
+      line-height: 1.15;
+    }
+
+    /* ══ GRIDS ══ */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+    @media (max-width: 840px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    /* ══ STAT CARDS ══ */
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 840px) { .stat-cards { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      position: relative;
+      border-radius: var(--radius);
+      padding: 1px;
+      background: linear-gradient(135deg, var(--border-bright) 0%, rgba(38,32,26,0.3) 60%);
+      transition: background 400ms ease, box-shadow 400ms ease;
+    }
+    .stat-card:hover {
+      background: linear-gradient(135deg, var(--accent-glow) 0%, rgba(38,32,26,0) 60%);
+      box-shadow: 0 0 28px rgba(201,150,46,0.10);
+    }
+    .stat-card-inner {
+      background: var(--card);
+      border-radius: calc(var(--radius) - 1px);
+      padding: 26px 22px;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card-inner::before {
+      content: '';
+      position: absolute;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.04;
+      filter: blur(22px);
+      animation: halo 10s linear infinite;
+      pointer-events: none;
+    }
+    .stat-card:nth-child(2) .stat-card-inner::before { animation-delay: -2.5s; }
+    .stat-card:nth-child(3) .stat-card-inner::before { animation-delay: -5s; }
+    .stat-card:nth-child(4) .stat-card-inner::before { animation-delay: -7.5s; }
+    @keyframes halo {
+      0%   { top: 10%; left: 10%; }
+      25%  { top: 10%; left: 72%; }
+      50%  { top: 68%; left: 72%; }
+      75%  { top: 68%; left: 10%; }
+      100% { top: 10%; left: 10%; }
+    }
+    .stat-card-inner::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, var(--accent-glow), transparent);
+      opacity: 0;
+      transition: opacity 350ms ease;
+    }
+    .stat-card:hover .stat-card-inner::after { opacity: 1; }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #e8dfc8 0%, var(--text-mid) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stat-sub {
+      font-size: 11.5px;
+      color: var(--text-mid);
+      margin-top: 10px;
+      line-height: 1.55;
+    }
+
+    /* ══ CARDS ══ */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color 280ms ease;
+    }
+    .card:hover { border-color: var(--border-bright); }
+    .card-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      letter-spacing: 0.01em;
+    }
+    .card p {
+      font-size: 13px;
+      color: var(--text-mid);
+      line-height: 1.8;
+    }
+
+    /* ══ CODE BLOCK ══ */
+    .code-block {
+      background: #040302;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 22px 26px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.9;
+      overflow-x: auto;
+      position: relative;
+    }
+    .code-block::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, var(--accent-glow) 0%, transparent 70%);
+    }
+    .cc { color: #3a2e20; }         /* comment */
+    .ck { color: #d4a84c; }         /* keyword */
+    .cs { color: #86efac; }         /* string */
+    .cn { color: var(--accent); }   /* number */
+    .cf { color: #93c5fd; }         /* function */
+    .cv { color: #f9a8d4; }         /* variable */
+    .cp { color: #fbbf24; }         /* param */
+    .ct { color: #67e8f9; }         /* type */
+
+    /* ══ MONO INLINE ══ */
+    .mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(201,150,46,0.2);
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: #d4a84c;
+    }
+
+    /* ══ STATUS ITEMS ══ */
+    .status-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(38,32,26,0.9);
+    }
+    .status-item:last-child { border-bottom: none; }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .status-dot.done    { background: var(--green); box-shadow: 0 0 7px rgba(34,197,94,0.4); }
+    .status-dot.gap     { background: var(--red);   box-shadow: 0 0 7px rgba(239,68,68,0.3); }
+    .status-dot.partial { background: var(--accent); box-shadow: 0 0 7px rgba(201,150,46,0.35); }
+    .status-dot.later   { background: var(--muted); }
+    .status-text { font-size: 13px; line-height: 1.65; }
+    .status-text strong { font-weight: 600; color: var(--text); }
+    .status-text small  { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+
+    /* ══ PROBLEM → FIX BLOCK ══ */
+    .problem-fix {
+      display: grid;
+      grid-template-columns: 1fr 52px 1fr;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 32px;
+    }
+    .pf-problem {
+      border: 1px dashed var(--border-bright);
+      background: rgba(239,68,68,0.03);
+      padding: 32px;
+      border-radius: var(--radius) 0 0 var(--radius);
+    }
+    .pf-fix {
+      border: 1px solid var(--accent);
+      background: var(--accent-dim);
+      box-shadow: 0 0 32px rgba(201,150,46,0.10);
+      padding: 32px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+    .pf-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: var(--accent);
+      background: var(--bg-solid);
+      height: 100%;
+    }
+    .pf-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      margin-bottom: 16px;
+    }
+    .pf-list { list-style: none; font-size: 13px; color: var(--text-mid); line-height: 2.2; }
+    .pf-problem .pf-list li::before { content: '✕'; margin-right: 10px; color: var(--red); font-size: 11px; }
+    .pf-fix     .pf-list li::before { content: '✓'; margin-right: 10px; color: var(--green); font-size: 11px; }
+
+    /* ══ PIPELINE ══ */
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .pipeline-node {
+      flex: 1;
+      min-width: 110px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 18px 10px;
+      text-align: center;
+      position: relative;
+    }
+    .pipeline-node:first-child { border-radius: 12px 0 0 12px; }
+    .pipeline-node:last-child  { border-radius: 0 12px 12px 0; }
+    .pipeline-node.highlight {
+      background: var(--accent-dim);
+      border-color: rgba(201,150,46,0.35);
+    }
+    .pipeline-node.deleted {
+      background: var(--red-dim);
+      border-color: rgba(239,68,68,0.25);
+    }
+    .pipeline-node::after {
+      content: '→';
+      position: absolute;
+      right: -10px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 2;
+      background: #080704;
+      padding: 0 2px;
+    }
+    .pipeline-node:last-child::after { display: none; }
+    .pipeline-node .node-icon { font-size: 20px; margin-bottom: 6px; }
+    .pipeline-node .node-name {
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .pipeline-node .node-sub {
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .pipeline-node .node-del {
+      font-size: 9px;
+      color: var(--red);
+      margin-top: 4px;
+    }
+
+    /* ══ KG MAPPING TABLE ══ */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 400;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(38,32,26,0.8);
+      vertical-align: middle;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+    tr:last-child td { border-bottom: none; }
+    .td-done    { background: rgba(34,197,94,0.03); }
+    .td-partial { background: rgba(201,150,46,0.04); }
+    .td-gap     { background: rgba(239,68,68,0.03); }
+
+    .effort-pill {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      padding: 3px 9px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .effort-low    { background: rgba(34,197,94,0.09);   color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .effort-medium { background: var(--accent-dim);       color: #d4a84c; border: 1px solid rgba(201,150,46,0.25); }
+    .effort-high   { background: var(--red-dim);          color: #fca5a5; border: 1px solid rgba(239,68,68,0.22); }
+    .effort-done   { background: rgba(34,197,94,0.06);   color: #86efac; border: 1px solid rgba(34,197,94,0.15); }
+
+    /* ══ FILE GRID ══ */
+    .file-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      margin-bottom: 8px;
+    }
+    @media (max-width: 720px) { .file-grid { grid-template-columns: 1fr; } }
+    .file-cell {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 22px 20px;
+    }
+    .file-cell:hover { border-color: var(--border-bright); }
+    .file-path {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .file-status {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: inline-block;
+      padding: 2px 8px;
+    }
+    .file-status.new      { color: var(--green); background: var(--green-dim); }
+    .file-status.modified { color: #93c5fd;      background: var(--blue-dim); }
+    .file-status.deleted  { color: #fca5a5;      background: var(--red-dim); }
+    .file-changes { font-size: 12.5px; color: var(--text-mid); line-height: 1.8; }
+
+    /* ══ TIMELINE ══ */
+    .timeline { position: relative; padding-left: 30px; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px; top: 8px; bottom: 8px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent) 0%, var(--border) 100%);
+    }
+    .tl-item { position: relative; margin-bottom: 26px; }
+    .tl-dot {
+      position: absolute;
+      left: -26px; top: 4px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid #080704;
+    }
+    .tl-item h4 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .tl-item p { font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+
+    /* ══ DIVIDER / FOOTER ══ */
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent 0%, var(--border) 30%, var(--border) 70%, transparent 100%);
+      margin-top: 80px;
+    }
+    .footer {
+      padding: 40px 0 52px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 11.5px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.08em;
+    }
+    .footer strong { color: var(--text-mid); }
+
+    /* ══ INFO BOX ══ */
+    .info-box {
+      border-left: 3px solid var(--accent);
+      background: var(--accent-dim);
+      padding: 20px 24px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin-bottom: 20px;
+    }
+    .info-box.ok   { border-left-color: var(--green); background: var(--green-dim); }
+    .info-box.warn { border-left-color: var(--red);   background: var(--red-dim); }
+    .info-box-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: block;
+    }
+    .info-box.ok .info-box-label   { color: var(--green); }
+    .info-box.warn .info-box-label { color: var(--red); }
+    .info-box p { font-size: 13px; color: var(--text-mid); line-height: 1.75; }
+
+    /* ══ TERMINAL ══ */
+    .terminal {
+      background: #040302;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 32px 28px 24px;
+      position: relative;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 2.0;
+      overflow-x: auto;
+    }
+    .terminal::before {
+      content: 'STDOUT';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 7px 16px;
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      color: var(--muted);
+      background: rgba(0,0,0,0.35);
+      border-bottom: 1px solid var(--border);
+    }
+    .terminal-inner { margin-top: 20px; }
+    .t-dim    { color: #3a2e20; }
+    .t-normal { color: #9a8060; }
+    .t-accent { color: var(--accent); font-weight: 600; }
+    .t-green  { color: #86efac; }
+    .t-red    { color: #fca5a5; }
+
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="scan-line"></div>
+<div class="hud"><div class="hud-br"></div><div class="hud-bl"></div></div>
+
+<nav>
+  <div class="nav-brand"><span>PROVIDER</span> / simenv</div>
+  <div class="nav-version">v0.6.0</div>
+</nav>
+
+
+<!-- ══════════════════════════════════════
+     HEADER
+══════════════════════════════════════ -->
+<div class="header">
+  <div class="container">
+
+    <div class="badge reveal">
+      <span class="dot"></span>
+      BMBF-Funded · OFFIS e.V. · PROVIDER
+    </div>
+
+    <h1 class="reveal reveal-delay-1">
+      PROVIDER Simulation
+      <span class="version">v0.6.0 — What's New</span>
+    </h1>
+
+    <p class="subtitle reveal reveal-delay-2">
+      KG parameter coverage audit, wholesaler storage cap &amp; BRA→USA switching,
+      live PostgreSQL instance, and tick-based persistence replacing end-of-run batch writes.
+    </p>
+
+    <div class="version-tags reveal reveal-delay-3">
+      <span class="tag tag-green">✓ 4 Tasks Complete</span>
+      <span class="tag tag-gold">Tick-Based Postgres</span>
+      <span class="tag tag-blue">Push→Pull Sourcing</span>
+      <span class="tag tag-red">Multi-Scenario Bug Fixed</span>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     STAT CARDS
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Release at a Glance</div>
+
+    <div class="stat-cards">
+      <div class="stat-card reveal reveal-delay-1">
+        <div class="stat-card-inner">
+          <div class="stat-value">6</div>
+          <div class="stat-label">Tasks Done</div>
+          <div class="stat-sub">Phases A–D + sourcing model + tick writer</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-2">
+        <div class="stat-card-inner">
+          <div class="stat-value">7</div>
+          <div class="stat-label">Files Changed</div>
+          <div class="stat-sub">tick_writer · model · main · scenario · trader · farmer · data_collector</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-3">
+        <div class="stat-card-inner">
+          <div class="stat-value" style="font-size:36px;">156</div>
+          <div class="stat-label">Postgres Rows</div>
+          <div class="stat-sub">Environment table — 3 scenarios × 52 steps, tick-written</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     01 — DOMAIN LANGUAGE / KG MAPPING
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Phase A — Domain Language</div>
+    <h2 class="reveal">KG → scenario.py: What's Covered, What's Missing</h2>
+
+    <div class="info-box reveal" style="margin-bottom:32px;">
+      <span class="info-box-label">Task</span>
+      <p>
+        Map the CoyPu Knowledge Graph's 4 recommended palaestrAI parameters
+        (<span class="mono">supply_shock_probability</span>, <span class="mono">harvest_disruption_factor</span>,
+        <span class="mono">export_route_capacity</span>, <span class="mono">trade_diversion_matrix</span>)
+        to scenario.py's 6 KG shock coefficients. Document overlaps, gaps, and implementation effort.
+        Deliverable: <span class="mono">docs/kg-param-mapping.md</span>.
+      </p>
+    </div>
+
+    <div class="card reveal" style="margin-bottom:32px;">
+      <table>
+        <thead>
+          <tr>
+            <th>KG Recommends</th>
+            <th>scenario.py Equivalent</th>
+            <th>Coverage</th>
+            <th>Gap / Effort to Close</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="td-partial">
+            <td><span class="mono">supply_shock_probability</span></td>
+            <td><span class="mono">farm_capacity_bra</span> (deterministic, BRA only)</td>
+            <td><span class="effort-medium">Partial</span></td>
+            <td style="color:var(--text-mid);">KG expects stochastic; we use deterministic capacity multiplier. Low effort to add probability sampling on top.</td>
+          </tr>
+          <tr class="td-partial">
+            <td><span class="mono">harvest_disruption_factor</span></td>
+            <td><span class="mono">farm_capacity_bra</span> + <span class="mono">shock_ramp_steps</span></td>
+            <td><span class="effort-medium">Partial</span></td>
+            <td style="color:var(--text-mid);">Timing and magnitude covered. BRA only — no ARG, USA disruption params yet. Medium effort.</td>
+          </tr>
+          <tr class="td-partial">
+            <td><span class="mono">export_route_capacity</span></td>
+            <td><span class="mono">port_capacity_sa</span> (SA aggregate only)</td>
+            <td><span class="effort-medium">Partial</span></td>
+            <td style="color:var(--text-mid);">Only SA export ports (Paranaguá + Rosario). Santos, Rotterdam, Hamburg not modelled separately. Medium effort to add port sub-agents.</td>
+          </tr>
+          <tr class="td-gap">
+            <td><span class="mono">trade_diversion_matrix</span></td>
+            <td>— (implicit wholesaler greedy switching only)</td>
+            <td><span class="effort-high">Missing</span></td>
+            <td style="color:var(--text-mid);">KG expects an explicit country×country routing matrix. Current wholesaler greedily switches on price but has no explicit trade-flow representation. High effort — needs new data structure.</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">fertilizer_price_factor</span></td>
+            <td><span class="mono">fertilizer_price_factor</span> ✓</td>
+            <td><span class="effort-done">Done</span></td>
+            <td style="color:var(--text-mid);">Direct 1:1 mapping. GTA Red interventions → BRA farmer fixed_costs multiplier.</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">energy_price_factor</span></td>
+            <td><span class="mono">energy_price_factor</span> ✓</td>
+            <td><span class="effort-done">Done</span></td>
+            <td style="color:var(--text-mid);">Direct 1:1 mapping. Applied to all transport fixed_costs.</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">oil_mill_capacity</span></td>
+            <td><span class="mono">oil_mill_capacity</span> ✓</td>
+            <td><span class="effort-done">Done</span></td>
+            <td style="color:var(--text-mid);">EU processor output multiplier. EXIOBASE IO coefficients.</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">feed_mill_capacity</span></td>
+            <td><span class="mono">feed_mill_capacity</span> ✓</td>
+            <td><span class="effort-done">Done</span></td>
+            <td style="color:var(--text-mid);">Feed manufacturer output multiplier.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid-2 reveal">
+      <div class="card">
+        <div class="card-icon" style="background:var(--green-dim);">✓</div>
+        <h3>What's Covered</h3>
+        <p>4 of 6 scenario.py KG coefficients have direct counterparts in the KG parameter space. Timing logic (<span class="mono">shock_onset_step</span>, <span class="mono">shock_ramp_steps</span>) is fully implemented. Any KG-derived value can be passed as a scenario parameter today with no code changes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--red-dim);">✗</div>
+        <h3>The Main Gap</h3>
+        <p><span class="mono">trade_diversion_matrix</span> is the only KG parameter with no structural equivalent. The greedy price-switching wholesaler <em>behaves similarly</em> in effect but is not an explicit matrix. Closing this gap requires adding country-level routing logic — estimate: 2–3 days of design + implementation.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     02 — WHOLESALER CAP + BRA→USA SWITCH
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Phase B + Extension — Storage &amp; Sourcing</div>
+    <h2 class="reveal">Wholesaler Storage Cap &amp; Visible BRA→USA Switching</h2>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card reveal">
+        <div class="card-icon" style="background:var(--accent-dim);">🏭</div>
+        <h3>Wholesaler Storage Capacity</h3>
+        <p>Before: <span class="mono">my_share = total_supply / n_wholesalers</span> — no upper bound, infinite storage. Now: <span class="mono">my_demand = min(normal_capacity / n_wholesalers, storage_capacity)</span>. Default cap: <strong>20 000 t</strong>. Field <span class="mono">storage_utilization</span> (stock ÷ capacity) is tracked and written to the database every tick.</p>
+      </div>
+      <div class="card reveal reveal-delay-1">
+        <div class="card-icon" style="background:var(--blue-dim);">📊</div>
+        <h3>Push → Pull Sourcing</h3>
+        <p>Before: wholesaler demand shrank with BRA supply — if BRA falls 30%, demand falls 30%, USA never needed. Now: demand target is fixed at <span class="mono">sum(base_yield)</span>, independent of disruption. USA offers <span class="mono">1.5×</span> its base yield (<span class="mono">usa_surplus_factor</span>) but prices at cost — stays expensive at baseline, gets called when BRA can't fill the gap.</p>
+      </div>
+    </div>
+
+    <div class="problem-fix reveal">
+      <div class="pf-problem">
+        <div class="pf-label">Old (Push Model)</div>
+        <ul class="pf-list">
+          <li>Demand = total BRA supply ÷ n_wholesalers</li>
+          <li>Demand shrinks when BRA drops</li>
+          <li>USA never needed to fill a gap</li>
+          <li>BRA→USA switch invisible on plot</li>
+          <li>USA always priced identically</li>
+        </ul>
+      </div>
+      <div class="pf-arrow">→</div>
+      <div class="pf-fix">
+        <div class="pf-label">New (Pull Model)</div>
+        <ul class="pf-list">
+          <li>Demand = sum(base_yield) ÷ n_wholesalers</li>
+          <li>Demand stays fixed under BRA shock</li>
+          <li>Gap forces wholesaler to pull from USA</li>
+          <li>BRA drop / USA rise visible in plot</li>
+          <li><code>usa_surplus_factor = 1.5</code> in scenario.py</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="code-block reveal" style="margin-top:8px;">
+<span class="cc"># agents/trader.py — _step_wholesaler() — core change</span><br/>
+<span class="cc"># Demand is now anchored to base_yield sum, not disrupted supply</span><br/><br/>
+<span class="ck">normal_capacity</span> = (
+<br/>    sum(f.base_yield <span class="ck">for</span> f <span class="ck">in</span> active_bra) +
+<br/>    sum(f.base_yield <span class="ck">for</span> f <span class="ck">in</span> active_usa)
+<br/>)
+<br/><span class="cv">my_demand</span> = min(<span class="ck">normal_capacity</span> / <span class="cv">n_wholesalers</span>, <span class="cv">self</span>.storage_capacity)
+<br/><br/>
+<span class="cc"># agents/farmer.py — _step_usa() — surplus capacity</span><br/>
+<span class="cc"># Offer more volume than base, but price at base cost → stays expensive at baseline</span><br/>
+<span class="cv">self</span>.quantity_available = <span class="cv">self</span>.base_yield * <span class="cv">self</span>.scenario.usa_surplus_factor
+<br/><span class="cv">self</span>.unit_price = (<span class="cv">self</span>.fixed_costs / <span class="cv">self</span>.base_yield) * (<span class="cn">1.0</span> + <span class="cv">self</span>.margin)
+<br/><br/>
+<span class="cc"># scenario.py — two new parameters</span><br/>
+<span class="cv">wholesaler_storage_capacity</span>: <span class="ct">float</span> = <span class="cn">20_000.0</span>   <span class="cc"># tonnes / step</span>
+<br/><span class="cv">usa_surplus_factor</span>:          <span class="ct">float</span> = <span class="cn">1.5</span>        <span class="cc"># USA offers 150% of base_yield</span>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     03 — POSTGRES INSTANCE
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Phase C — Postgres Docker</div>
+    <h2 class="reveal">Live PostgreSQL Instance</h2>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div>
+        <div class="info-box reveal">
+          <span class="info-box-label">docker run command (single line)</span>
+          <p style="font-family:var(--font-mono); font-size:11px; line-height:1.9; color:var(--text-mid);">
+            docker run --name provider-postgres<br/>
+            &nbsp;&nbsp;-e POSTGRES_PASSWORD=provider<br/>
+            &nbsp;&nbsp;-e POSTGRES_USER=provider<br/>
+            &nbsp;&nbsp;-e POSTGRES_DB=provider_simenv<br/>
+            &nbsp;&nbsp;-p 5432:5432<br/>
+            &nbsp;&nbsp;-d postgres:16
+          </p>
+        </div>
+        <div class="info-box ok reveal">
+          <span class="info-box-label ok">Connection verified</span>
+          <p>
+            <span class="mono">db_config.py</span> defaults match the above exactly.
+            PyCharm Database panel connects to <span class="mono">provider_simenv</span>
+            (not the default <span class="mono">postgres</span> admin DB).
+            All 8 <span class="mono">Result_Simulator_*</span> tables visible after a run.
+          </p>
+        </div>
+      </div>
+      <div class="card reveal reveal-delay-1">
+        <p style="font-family:var(--font-mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); margin-bottom:18px;">Connection defaults (db_config.py)</p>
+        <table>
+          <tbody>
+            <tr><td style="color:var(--text-mid);">host</td><td><span class="mono">localhost</span></td></tr>
+            <tr><td style="color:var(--text-mid);">port</td><td><span class="mono">5432</span></td></tr>
+            <tr><td style="color:var(--text-mid);">dbname</td><td><span class="mono">provider_simenv</span></td></tr>
+            <tr><td style="color:var(--text-mid);">user</td><td><span class="mono">provider</span></td></tr>
+            <tr><td style="color:var(--text-mid);">driver</td><td><span class="mono">psycopg2-binary</span></td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:20px; font-size:12.5px; color:var(--muted); line-height:1.7;">
+          ⚠ Container data is ephemeral without a volume mount.
+          Add <span class="mono">-v pgdata:/var/lib/postgresql/data</span> if data must survive restarts.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     04 — TICK-BASED POSTGRES LOGGING
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Option A — Tick Writer</div>
+    <h2 class="reveal">Tick-Based Postgres Logging — Not End-of-Simulation Batch</h2>
+
+    <div class="info-box reveal" style="margin-bottom:32px;">
+      <span class="info-box-label">Why this matters</span>
+      <p>
+        palaestrAI needs to <strong>query data mid-run</strong> — pause at step t, inspect state, alter parameters, resume.
+        Batch import (write-all-at-end) makes this impossible. The new tick writer
+        commits one row per agent per step to Postgres <em>inside</em> <span class="mono">run_stepwise()</span>,
+        after every <span class="mono">_do_step(t)</span>. Data is queryable from step 0 onward.
+      </p>
+    </div>
+
+    <!-- Old pipeline -->
+    <p style="font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;" class="reveal">Before (batch)</p>
+    <div class="pipeline reveal" style="margin-bottom:20px;">
+      <div class="pipeline-node">
+        <div class="node-icon">🔄</div>
+        <div class="node-name">run() loop</div>
+        <div class="node-sub">52 steps</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">📦</div>
+        <div class="node-name">buffer</div>
+        <div class="node-sub">in memory</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">💾</div>
+        <div class="node-name">save()</div>
+        <div class="node-sub">flush all at end</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">📄</div>
+        <div class="node-name">CSV</div>
+        <div class="node-sub">post-hoc</div>
+      </div>
+      <div class="pipeline-node deleted">
+        <div class="node-icon">🐘</div>
+        <div class="node-name">csv_to_postgres</div>
+        <div class="node-del">removed</div>
+      </div>
+    </div>
+
+    <!-- New pipeline -->
+    <p style="font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;" class="reveal">After (tick-based)</p>
+    <div class="pipeline reveal" style="margin-bottom:32px;">
+      <div class="pipeline-node">
+        <div class="node-icon">🔄</div>
+        <div class="node-name">run_stepwise()</div>
+        <div class="node-sub">generator</div>
+      </div>
+      <div class="pipeline-node highlight">
+        <div class="node-icon">⚡</div>
+        <div class="node-name">_do_step(t)</div>
+        <div class="node-sub">each tick</div>
+      </div>
+      <div class="pipeline-node highlight">
+        <div class="node-icon">🐘</div>
+        <div class="node-name">write_tick()</div>
+        <div class="node-sub">live → Postgres</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">📄</div>
+        <div class="node-name">CSV</div>
+        <div class="node-sub">unchanged</div>
+      </div>
+      <div class="pipeline-node">
+        <div class="node-icon">🗃️</div>
+        <div class="node-name">SQLite</div>
+        <div class="node-sub">post-sim</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="code-block reveal">
+<span class="cc"># model.py — run_stepwise() — new wiring</span><br/>
+<span class="ck">from</span> db_config <span class="ck">import</span> <span class="cf">PostgresDBConfig</span><br/>
+<span class="ck">from</span> tick_writer <span class="ck">import</span> <span class="cf">TickWriter</span><br/><br/>
+<span class="cv">id_scenario</span> = <span class="cf">getattr</span>(<span class="cv">self</span>.scenario, <span class="cs">"id"</span>, <span class="cn">0</span>)<br/>
+<span class="cv">tick_writer</span> = <span class="cf">TickWriter</span>.<span class="cf">from_config</span>(
+<br/>    <span class="cf">PostgresDBConfig</span>(),
+<br/>    reset=(<span class="cv">id_scenario</span> == <span class="cn">0</span>)   <span class="cc"># ← drop tables only once per full run</span>
+<br/>)
+<br/><br/>
+<span class="ck">for</span> <span class="cv">t</span> <span class="ck">in</span> <span class="cf">range</span>(<span class="cv">self</span>.scenario.period_num):
+<br/>    <span class="cv">self</span>.<span class="cf">_do_step</span>(<span class="cv">t</span>)
+<br/>    <span class="cv">tick_writer</span>.<span class="cf">write_tick</span>(
+<br/>        <span class="cv">self</span>, id_scenario=<span class="cv">id_scenario</span>, id_run=<span class="cn">0</span>, t=<span class="cv">t</span>
+<br/>    )
+<br/>    <span class="ck">yield</span> { ... }
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card reveal reveal-delay-1">
+          <div class="card-icon" style="background:var(--red-dim);">🐛</div>
+          <h3>Multi-Scenario Bug — Fixed</h3>
+          <p>Melodie creates a new model object per scenario, so a new <span class="mono">TickWriter</span> was created each time. Without the <span class="mono">reset</span> flag, every scenario wiped the previous scenario's data. Result: only the last scenario's 52 rows survived instead of 156 (3 × 52). Fix: <span class="mono">reset=(id_scenario == 0)</span> — tables are dropped exactly once per full run.</p>
+        </div>
+        <div class="card reveal reveal-delay-2">
+          <div class="card-icon" style="background:var(--green-dim);">✓</div>
+          <h3>Verify with One Query</h3>
+          <div class="code-block" style="margin-top:12px; font-size:11px;">
+<span class="cf">SELECT</span> id_scenario, <span class="cf">COUNT</span>(*)<br/>
+<span class="ck">FROM</span> <span class="cs">"Result_Simulator_Environment"</span><br/>
+<span class="ck">GROUP BY</span> id_scenario<br/>
+<span class="ck">ORDER BY</span> id_scenario;<br/>
+<span class="cc">-- Expected: 3 rows, each with 52</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal reveal" style="margin-top:28px;">
+      <div class="terminal-inner">
+        <div><span class="t-dim"># Simulation run — 3 scenarios, tick writer active</span></div>
+        <div><span class="t-accent">[tick_writer] Tables reset for new run (scenario 0)</span></div>
+        <div><span class="t-normal">[s0 t000] shock=0.00 | px: BRA= 412.1 USA= 516.4 EUR/t [BRA✓] | ...</span></div>
+        <div><span class="t-dim">  ... 52 steps ...</span></div>
+        <div><span class="t-green">[s0 done] 52 rows written to Result_Simulator_Environment</span></div>
+        <div><span class="t-dim"># Scenario 1 — reset=False, appends on top of scenario 0</span></div>
+        <div><span class="t-normal">[s1 t000] shock=0.00 | px: BRA= 412.1 USA= 516.4 EUR/t [BRA✓] | ...</span></div>
+        <div><span class="t-dim">  ... shock ramps in at step 13 ...</span></div>
+        <div><span class="t-normal">[s1 t026] shock=1.00 | px: BRA= 678.3 USA= 516.4 EUR/t [USA✓] | ...</span></div>
+        <div><span class="t-green">[s1 done] 52 rows appended → 104 total in Environment</span></div>
+        <div><span class="t-green">[s2 done] 52 rows appended → 156 total in Environment ✓</span></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     05 — FILES CHANGED
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Files</div>
+    <h2 class="reveal">What Changed</h2>
+
+    <div class="file-grid reveal">
+      <div class="file-cell">
+        <span class="file-path">tick_writer.py</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          <span class="mono">TickWriter</span> class. Writes agent + environment state per tick to <span class="mono">Result_Simulator_*</span> tables. <span class="mono">from_config(reset=)</span> classmethod. Silently disables if Postgres unreachable.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">model.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          <span class="mono">run_stepwise()</span> wired to TickWriter. <span class="mono">reset=(id_scenario == 0)</span> flag passed. No other changes.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">main.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          <span class="mono">csv_to_postgres()</span> removed entirely (~50 lines). Module docstring updated. <span class="mono">csv_to_sqlite()</span> unchanged.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">scenario.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          Added <span class="mono">wholesaler_storage_capacity: float = 20_000.0</span> and <span class="mono">usa_surplus_factor: float = 1.5</span>.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">agents/trader.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          <span class="mono">storage_capacity</span> + <span class="mono">storage_utilization</span> fields. Fixed demand target in <span class="mono">_step_wholesaler()</span>. Utilization computed per tick.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">agents/farmer.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          <span class="mono">_step_usa()</span> rewritten: <span class="mono">quantity_available = base_yield × surplus_factor</span>, priced at <span class="mono">base_yield</span> cost.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">data_collector.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          <span class="mono">storage_utilization</span> registered for wholesalers via <span class="mono">add_agent_property()</span>.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     06 — WHAT'S NEXT
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">Roadmap</div>
+    <h2 class="reveal">What Remains</h2>
+
+    <div class="grid-2">
+      <div class="card reveal">
+        <h3 style="font-size:11px; font-weight:600; letter-spacing:0.10em; text-transform:uppercase; color:var(--accent); margin-bottom:18px;">Next Session</h3>
+
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>Option B — Direct DB writes (bypass DataCollector)</strong>
+            <small>Full Melodie decoupling. Required before first palaestrAI milestone. Higher effort but full control over persistence.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>Drop orphaned tick_* tables</strong>
+            <small>One-time SQL: <span class="mono">DROP TABLE IF EXISTS tick_*</span>. Leftover from first-version tick_writer naming.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>Postgres volume mount</strong>
+            <small>Add <span class="mono">-v pgdata:/var/lib/postgresql/data</span> to Docker command so data survives container restarts.</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card reveal reveal-delay-1">
+        <h3 style="font-size:11px; font-weight:600; letter-spacing:0.10em; text-transform:uppercase; color:var(--muted); margin-bottom:18px;">Longer Term</h3>
+
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>palaestrAI integration — pause/inspect/alter/resume</strong>
+            <small>run_stepwise() is the designated hook. tick_writer makes state queryable mid-run. API design pending.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>trade_diversion_matrix — close the KG gap</strong>
+            <small>Explicit country×country routing matrix. Est. 2–3 days design + implementation.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>ARG + multi-port granularity</strong>
+            <small>KG has ARG export ports (Santos, Rosario separate) and destination ports (Rotterdam, Hamburg). Currently aggregated.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════
+     VERSION TIMELINE
+══════════════════════════════════════ -->
+<section>
+  <div class="container">
+
+    <div class="section-label reveal">History</div>
+    <h2 class="reveal">Version Timeline</h2>
+
+    <div class="card reveal">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.1 — Project Init + 9 Actors</h4>
+          <p>Scaffold with 9 separate agent classes. Budget-based fields. ~0.032s end-to-end.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.2 — 4-Class Refactor + Cost-Plus Pricing</h4>
+          <p>9 classes → 4 role-based classes. Full cost-plus price cascade. Equal-split flow.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.3 — KG Shock Integration + Time-Series Dynamics</h4>
+          <p>6 KG coefficients wired. Universal lerp pattern. Shock onset + ramp timing. ShockLoader. 3-scenario CSV.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.4 — Heterogeneous Farm Sizes + Stepwise Execution</h4>
+          <p>Log-normal size_factor distribution. run_stepwise() generator. _do_step() shared core.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--muted);"></div>
+          <h4>v0.5.1 — Data Persistence + Visualization</h4>
+          <p>SQLite via csv_to_sqlite(). PostgreSQL adapter (csv_to_postgres()). Plots: price curves + volume flow. DataCollector status bug patched.</p>
+        </div>
+        <div class="tl-item" style="margin-bottom:0;">
+          <div class="tl-dot" style="background:var(--accent); box-shadow: 0 0 12px var(--accent-glow);"></div>
+          <h4 style="color:var(--accent);">v0.6.0 — KG Audit, Storage Cap, Push→Pull, Tick Postgres &nbsp;← current</h4>
+          <p>KG param coverage mapped. Wholesaler storage cap. BRA→USA switching visible. tick_writer.py live. csv_to_postgres() removed. Multi-scenario reset fixed.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<div class="divider"></div>
+<div class="footer">
+  <div class="container">
+    <strong>PROVIDER Simulation v0.6.0</strong> · OFFIS e.V. · BMBF-funded<br/>
+    <span style="margin-top:6px; display:block;">Python · Melodie ABM · SQLAlchemy · psycopg2 · Docker Postgres 16</span>
+  </div>
+</div>
+
+
+<!-- ══ CANVAS ANIMATION (v0.5 gold particle system) ══ -->
+<script>
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function Particle() {
+    this.x  = Math.random() * W;
+    this.y  = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.22;
+    this.vy = (Math.random() - 0.5) * 0.22;
+    this.r  = Math.random() * 1.1 + 0.2;
+    this.a  = Math.random() * 0.35 + 0.04;
+  }
+
+  function init() {
+    resize();
+    particles = [];
+    const n = Math.floor((W * H) / 22000);
+    for (let i = 0; i < n; i++) particles.push(new Particle());
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (let p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W;
+      if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H;
+      if (p.y > H) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(201,150,46,${p.a})`;
+      ctx.fill();
+    }
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < 105) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(201,150,46,${0.06 * (1 - d/105)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', init);
+  init();
+  draw();
+})();
+</script>
+
+<!-- ══ SCROLL REVEAL ══ -->
+<script>
+(function() {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // Trigger above-fold immediately
+  document.querySelectorAll('.reveal').forEach(el => {
+    if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('visible');
+  });
+})();
+</script>
+
+</body>
+</html>

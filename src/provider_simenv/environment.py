@@ -9,8 +9,8 @@ The env updates itself each step based on aggregate agent behavior.
 Tracked prices mirror the computed unit_price at key chain nodes:
     soja_price: weighted average price from active wholesalers
     feed_price: weighted average price from active feed traders
-    total_soja_supply: sum of quantity_available across SA farmers
-    transport_utilisation: averae utilisation of all transport agents
+    total_soja_supply: sum of quantity_available across BRA + USA farmers
+    transport_utilisation: average utilisation of all transport agents
 """
 
 from Melodie import Environment
@@ -78,14 +78,19 @@ class SupplyChainEnvironment(Environment):
 
         soja_price: quantity-weighted average price across active wholesalers
         feed_price: quantity-weighted average price across active feed traders
-        total_soja_supply: total tons produced by active SA farmers
+        total_soja_supply: total tons produced by active BRA + USA farmers
         transport_utilisation: mean utilisation of all transport agents
         """
         self.current_step += 1
 
-        # Soja supply (SA farmer output)
-        active_sa = self.model.sa_farmers.filter(lambda f: f.active)
-        self.total_soja_supply = sum(f.quantity_available for f in active_sa)
+        # Soja supply (BRA + USA farmer output)
+        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
+        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
+        self.total_soja_supply = (
+            sum(f.quantity_available for f in active_bra)
+            + sum(f.quantity_available for f in active_usa)
+        )
+
 
         # Soja price (wholesaler lvl)
         active_wholesalers = self.model.wholesalers.filter(lambda w: w.active)

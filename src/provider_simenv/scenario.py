@@ -28,7 +28,7 @@ class SupplyChainScenario(Scenario):
     shock_ramp_steps: int = 0
 
     # --- Agent population size ---
-    n_sa_farmers: int = 10          # South American Farmers
+    n_bra_farmers: int = 10         # South American Farmers
     n_wholesalers: int = 3          # buys from farmers, aggregate them, sell internationally
     n_transport_sa: int = 2         # land transport, South America
     n_transport_sea: int = 2        # maritime transport
@@ -38,10 +38,17 @@ class SupplyChainScenario(Scenario):
     n_feed_traders: int = 3
     n_eu_farmers: int = 10          # EU livestock farmers
 
+    # --- Storage capacities (t/step)
+    # Maximum inventory a wholesaler can hold in a single simulation step
+    # set to realistic value (e.g. 20_000) to observe capacity-binding behavior under brazil_drought scenario.
+    wholesaler_storage_capacity: float = 20_000.0
+
+
+
     # --- Fixed costs (€/step) ---
     # Total operating cost an agent pays each step regardless of volume.
     # the resulting price chain stays in a plausible EUR/ton range.
-    fixed_costs_sa_farmer: float = 36000.0          # farm labor, land, machinery
+    fixed_costs_bra_farmer: float = 36000.0          # farm labor, land, machinery
     fixed_costs_eu_farmer: float = 5000.0           # livestock farm operating cost
     fixed_costs_wholesaler: float = 15000.0         # aggregation, storage, logistics
     fixed_costs_feed_trader: float = 8000.0         # distribution, warehousing
@@ -53,7 +60,7 @@ class SupplyChainScenario(Scenario):
 
     # --- Margins ---
     # applied on top of total per unit cost at each chain node.
-    margin_sa_farmer: float = 0.10
+    margin_bra_farmer: float = 0.10
     margin_wholesaler: float = 0.10
     margin_feed_trader: float = 0.08
     margin_transport: float = 0.10          # shared across all transport roles
@@ -64,10 +71,21 @@ class SupplyChainScenario(Scenario):
     period_num: int = 52            # week in a year
 
     # Farm size heterogeneity
-    # log-normal size distribution for SA and EU farmers.
+    # log-normal size distribution for BRA, USA and EU farmers.
     # sigma = 0.0 -> all farms identical
     # sigma = 0.4 -> realistic spread (most farms near mean, few very large/small)
-    farm_size_sigma_sa: float = 0.0
+    farm_size_sigma_bra: float = 0.0
     farm_size_sigma_eu: float = 0.0
     farm_size_seed: int = 42
+
+    # --- USA farmer parameters ---
+    # USA farmers are structurally identical to BRA farmers:
+    #   - higher fixed_costs -> higher baseline price (EU prefers BRA under normal conditions)
+    #   - unaffected by BRA shock -> stable supply when BRA supply is disrupted
+    #   - base_yield acts as capacity ceiling
+    n_usa_farmers: int = 8
+    fixed_costs_usa_farmer: float = 48000.0
+    margin_usa_farmer: float = 0.10
+    farm_size_sigma_usa: float = 0.0
+    usa_surplus_factor: float = 1.5
 
