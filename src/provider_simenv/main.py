@@ -8,6 +8,8 @@ v.0.5.1 notes:
 import glob
 import os
 import sqlite3
+import shutil
+import argparse
 
 import pandas as pd
 
@@ -15,6 +17,7 @@ from Melodie import Config, Simulator
 
 from model import SupplyChainModel
 from scenario import SupplyChainScenario
+from pdl_loader import PDLLoader
 
 # --------------------
 # Helpers
@@ -56,14 +59,60 @@ def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> N
 # --------------------
 
 if __name__ == "__main__":
-    output_folder = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "data", "output"
+
+    # CLI arguments
+    parser = argparse.ArgumentParser(description="PROVIDER supply chain simulation")
+    parser.add_argument(
+        "--pdl",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a PDL YAML scenario file (e.g. scenarios/s1-soja.pdl.yaml)."
+            "When given, shock parameters in SimulatorScenarios.csv are replaced "
+            "with values derived from the PDL before the simulation runs."
+        ),
     )
+    args = parser.parse_args()
+
+    # Folder paths (both needed for PDL injection and Config)
+    here = os.path.dirname(os.path.abspath(__file__))
+    input_folder = os.path.join(here, "data", "input")
+    output_folder = os.path.join(here, "data", "output")
+    csv_path = os.path.join(input_folder, "SimulatorScenarios.csv")
+    template_path = os.path.join(input_folder, "SimulatorScenarios_template.csv")
+
+    # Always restore the working CSV from the template before every run.
+    # This prevents previous PDL runs from contaminating the baseline values.
+    if os.path.exists(template_path):
+        shutil.copy2(template_path, csv_path)
+
+    # PDL Injection: update shock columns in SimulatorScenarios.csv
+    if args.pdl:
+        loader = PDLLoader(args.pdl)
+        overrides = loader.to_scenario_overrides()
+
+        print(f"\n[pdl_loader] Scenario : {loader.label}")
+        print(f"[pdl_loader] Source : {args.pdl}")
+        print("[pdl_loader] Overrides applied to SimulatorScenarios.csv (id > 0):")
+        for col, val in overrides.items():
+            print(f"{col} = {val}")
+
+        df = pd.read_csv(csv_path)
+        shocked = df["id"] > 0
+        for col, val in overrides.items():
+            if col in df.columns:
+                df.loc[shocked, col] = val
+            else:
+                print(f"[pdl_loader] WARNING: column '{col}' not found in CSV - skipped")
+        df.to_csv(csv_path, index=False)
+        print(f"[pdl_loader] CSV updated. \n")
+
 
     config = Config(
         project_name= "provider-simenv",
-        project_root= os.path.dirname(os.path.abspath(__file__)),
-        input_folder= os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "input"),
+        project_root= here,
+        input_folder= input_folder,
         output_folder= output_folder,
     )
 

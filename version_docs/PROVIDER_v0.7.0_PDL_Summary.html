@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROVIDER Simulation — v0.7.0 PDL Integration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+
+    /* ══ TOKENS ══ */
+    :root {
+      --bg:            #07060300;
+      --bg-solid:      #080704;
+      --surface:       #110f0b;
+      --card:          #161310;
+      --card-hover:    #1e1a14;
+      --border:        #26201a;
+      --border-bright: #352b1f;
+
+      --accent:        #c9962e;
+      --accent-dim:    rgba(201,150,46,0.10);
+      --accent-glow:   rgba(201,150,46,0.24);
+      --gold:          #d4a84c;
+      --green:         #22c55e;
+      --green-dim:     rgba(34,197,94,0.09);
+      --red:           #ef4444;
+      --red-dim:       rgba(239,68,68,0.09);
+      --blue:          #60a5fa;
+      --blue-dim:      rgba(96,165,250,0.09);
+
+      --text:          #e8dfc8;
+      --text-mid:      #9a8060;
+      --muted:         #524030;
+
+      --font-display:  'Barlow Condensed', sans-serif;
+      --font-body:     'Inter', system-ui, sans-serif;
+      --font-mono:     'IBM Plex Mono', 'JetBrains Mono', monospace;
+
+      --radius:    14px;
+      --radius-sm: 8px;
+      --gap:       24px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: #080704;
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    #bg-canvas {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.22;
+    }
+    .grid-overlay {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(201,150,46,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(201,150,46,0.035) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+    .scan-line {
+      position: fixed; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+      opacity: 0.20; z-index: 100;
+      animation: scanDown 12s linear infinite;
+    }
+    @keyframes scanDown {
+      0%   { top: 0%;   opacity: 0; }
+      5%   { opacity: 0.20; }
+      95%  { opacity: 0.20; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .hud { position: fixed; inset: 16px; pointer-events: none; z-index: 100; }
+    .hud::before, .hud::after, .hud .hud-br, .hud .hud-bl {
+      content: ''; position: absolute; width: 16px; height: 16px; opacity: 0.30;
+    }
+    .hud::before  { top: 0; left: 0;  border-top:    1px solid var(--accent); border-left:  1px solid var(--accent); }
+    .hud::after   { top: 0; right: 0; border-top:    1px solid var(--accent); border-right: 1px solid var(--accent); }
+    .hud .hud-br  { bottom: 0; right: 0; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+    .hud .hud-bl  { bottom: 0; left: 0;  border-bottom: 1px solid var(--accent); border-left:  1px solid var(--accent); }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+      padding: 16px 40px;
+      display: flex; justify-content: space-between; align-items: center;
+      backdrop-filter: blur(20px);
+      background: rgba(8,7,4,0.82);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-mid); }
+    .nav-brand span { color: var(--accent); }
+    .nav-version { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; color: var(--text-mid); border: 1px solid var(--border-bright); padding: 4px 12px; }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 10; }
+
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity 580ms ease, transform 580ms ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay:  80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ══ HEADER ══ */
+    .header {
+      position: relative; padding: 120px 0 80px; text-align: center;
+      overflow: hidden; border-bottom: 1px solid var(--border);
+    }
+    .header::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% -5%,  rgba(201,150,46,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 35% 30% at 88% 110%, rgba(201,150,46,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 25% 25% at 8% 110%,  rgba(201,150,46,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .header .container { position: relative; z-index: 1; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(201,150,46,0.08); border: 1px solid rgba(201,150,46,0.28);
+      color: #d4a84c; font-family: var(--font-mono); font-size: 10px;
+      font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase;
+      padding: 6px 18px; border-radius: 100px; margin-bottom: 36px;
+    }
+    .badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1;   box-shadow: 0 0 8px var(--accent); }
+      50%       { opacity: 0.3; box-shadow: 0 0 2px var(--accent); }
+    }
+
+    .header h1 {
+      font-family: var(--font-display); font-size: clamp(40px, 6.5vw, 80px);
+      font-weight: 600; letter-spacing: -0.01em; line-height: 1.05; margin-bottom: 18px;
+    }
+    .header h1 .version { display: block; color: var(--accent); font-weight: 500; }
+    .subtitle { color: var(--text-mid); font-size: 15px; font-weight: 400; max-width: 600px; margin: 0 auto 44px; line-height: 1.8; }
+
+    .version-tags { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .tag { padding: 5px 14px; border-radius: 100px; font-family: var(--font-mono); font-size: 10px; font-weight: 400; letter-spacing: 0.06em; }
+    .tag-green  { background: var(--green-dim);  color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .tag-gold   { background: var(--accent-dim); color: #d4a84c; border: 1px solid rgba(201,150,46,0.28); }
+    .tag-red    { background: var(--red-dim);    color: #fca5a5; border: 1px solid rgba(239,68,68,0.22); }
+    .tag-blue   { background: var(--blue-dim);   color: #93c5fd; border: 1px solid rgba(96,165,250,0.22); }
+
+    section { padding: 80px 0 0; }
+
+    .section-label {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-mono); font-size: 10px; font-weight: 400;
+      letter-spacing: 0.20em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+    }
+    .section-label::before { content: '→ '; letter-spacing: 0; }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, var(--border-bright) 0%, transparent 100%); }
+
+    h2 { font-family: var(--font-display); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -0.01em; margin-bottom: 32px; line-height: 1.15; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+    @media (max-width: 840px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 840px) { .stat-cards { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card { position: relative; border-radius: var(--radius); padding: 1px; background: linear-gradient(135deg, var(--border-bright) 0%, rgba(38,32,26,0.3) 60%); transition: background 400ms ease, box-shadow 400ms ease; }
+    .stat-card:hover { background: linear-gradient(135deg, var(--accent-glow) 0%, rgba(38,32,26,0) 60%); box-shadow: 0 0 28px rgba(201,150,46,0.10); }
+    .stat-card-inner { background: var(--card); border-radius: calc(var(--radius) - 1px); padding: 26px 22px; height: 100%; position: relative; overflow: hidden; }
+    .stat-card-inner::before {
+      content: ''; position: absolute; width: 64px; height: 64px; border-radius: 50%;
+      background: var(--accent); opacity: 0.04; filter: blur(22px);
+      animation: halo 10s linear infinite; pointer-events: none;
+    }
+    .stat-card:nth-child(2) .stat-card-inner::before { animation-delay: -2.5s; }
+    .stat-card:nth-child(3) .stat-card-inner::before { animation-delay: -5s; }
+    @keyframes halo {
+      0%   { top: 10%; left: 10%; } 25%  { top: 10%; left: 72%; }
+      50%  { top: 68%; left: 72%; } 75%  { top: 68%; left: 10%; } 100% { top: 10%; left: 10%; }
+    }
+    .stat-card-inner::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(to right, var(--accent-glow), transparent); opacity: 0; transition: opacity 350ms ease; }
+    .stat-card:hover .stat-card-inner::after { opacity: 1; }
+    .stat-value { font-family: var(--font-display); font-size: 48px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; margin-bottom: 8px; background: linear-gradient(135deg, #e8dfc8 0%, var(--text-mid) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-family: var(--font-mono); font-size: 9px; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    .stat-sub { font-size: 11.5px; color: var(--text-mid); margin-top: 10px; line-height: 1.55; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; transition: border-color 280ms ease; }
+    .card:hover { border-color: var(--border-bright); }
+    .card-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
+    .card h3 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.01em; }
+    .card p { font-size: 13px; color: var(--text-mid); line-height: 1.8; }
+
+    .code-block {
+      background: #040302; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 22px 26px; font-family: var(--font-mono); font-size: 12px; line-height: 1.9;
+      overflow-x: auto; position: relative;
+    }
+    .code-block::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(to right, var(--accent-glow) 0%, transparent 70%); }
+    .cc { color: #3a2e20; } .ck { color: #d4a84c; } .cs { color: #86efac; }
+    .cn { color: var(--accent); } .cf { color: #93c5fd; } .cv { color: #f9a8d4; }
+    .cp { color: #fbbf24; } .ct { color: #67e8f9; }
+
+    .mono { font-family: var(--font-mono); font-size: 11px; background: var(--accent-dim); border: 1px solid rgba(201,150,46,0.2); padding: 2px 7px; border-radius: 4px; color: #d4a84c; }
+
+    .status-item { display: flex; align-items: flex-start; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(38,32,26,0.9); }
+    .status-item:last-child { border-bottom: none; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .status-dot.done    { background: var(--green); box-shadow: 0 0 7px rgba(34,197,94,0.4); }
+    .status-dot.gap     { background: var(--red);   box-shadow: 0 0 7px rgba(239,68,68,0.3); }
+    .status-dot.partial { background: var(--accent); box-shadow: 0 0 7px rgba(201,150,46,0.35); }
+    .status-dot.later   { background: var(--muted); }
+    .status-text { font-size: 13px; line-height: 1.65; }
+    .status-text strong { font-weight: 600; color: var(--text); }
+    .status-text small  { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th { text-align: left; padding: 10px 14px; font-family: var(--font-mono); font-size: 9px; font-weight: 400; letter-spacing: 0.10em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid rgba(38,32,26,0.8); vertical-align: middle; font-size: 12.5px; line-height: 1.55; }
+    tr:last-child td { border-bottom: none; }
+    .td-done    { background: rgba(34,197,94,0.03); }
+    .td-partial { background: rgba(201,150,46,0.04); }
+    .td-gap     { background: rgba(239,68,68,0.03); }
+
+    .effort-pill { display: inline-block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 100px; text-transform: uppercase; }
+    .effort-low    { background: rgba(34,197,94,0.09);   color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .effort-medium { background: var(--accent-dim);       color: #d4a84c; border: 1px solid rgba(201,150,46,0.25); }
+    .effort-high   { background: var(--red-dim);          color: #fca5a5; border: 1px solid rgba(239,68,68,0.22); }
+    .effort-done   { background: rgba(34,197,94,0.06);   color: #86efac; border: 1px solid rgba(34,197,94,0.15); }
+    .effort-sep    { background: rgba(96,165,250,0.09);  color: #93c5fd; border: 1px solid rgba(96,165,250,0.22); }
+
+    /* ══ WORKFLOW DIAGRAM ══ */
+    .workflow {
+      display: flex; align-items: stretch; gap: 0;
+      overflow-x: auto; padding-bottom: 8px;
+    }
+    .wf-node {
+      flex: 1; min-width: 120px;
+      background: var(--card); border: 1px solid var(--border);
+      padding: 22px 14px; text-align: center; position: relative;
+    }
+    .wf-node:first-child { border-radius: 12px 0 0 12px; }
+    .wf-node:last-child  { border-radius: 0 12px 12px 0; }
+    .wf-node.highlight { background: var(--accent-dim); border-color: rgba(201,150,46,0.40); }
+    .wf-node.new-node  { background: rgba(34,197,94,0.05); border-color: rgba(34,197,94,0.28); }
+    .wf-node::after {
+      content: '→'; position: absolute; right: -11px; top: 50%; transform: translateY(-50%);
+      color: var(--accent); font-size: 14px; font-weight: 700; z-index: 2;
+      background: #080704; padding: 0 2px;
+    }
+    .wf-node:last-child::after { display: none; }
+    .wf-icon  { font-size: 22px; margin-bottom: 8px; }
+    .wf-name  { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
+    .wf-sub   { font-size: 9.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+    .wf-badge { display: inline-block; margin-top: 8px; font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.10em; padding: 2px 7px; border-radius: 100px; text-transform: uppercase; }
+    .wf-new   { background: rgba(34,197,94,0.10); color: #86efac; border: 1px solid rgba(34,197,94,0.22); }
+    .wf-mod   { background: var(--accent-dim); color: #d4a84c; border: 1px solid rgba(201,150,46,0.22); }
+    .wf-exist { background: rgba(38,32,26,0.6); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ══ INFO BOX ══ */
+    .info-box { border-left: 3px solid var(--accent); background: var(--accent-dim); padding: 20px 24px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 20px; }
+    .info-box.ok   { border-left-color: var(--green); background: var(--green-dim); }
+    .info-box.warn { border-left-color: var(--red);   background: var(--red-dim); }
+    .info-box.blue { border-left-color: var(--blue);  background: var(--blue-dim); }
+    .info-box-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.20em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; display: block; }
+    .info-box.ok .info-box-label   { color: var(--green); }
+    .info-box.warn .info-box-label { color: var(--red); }
+    .info-box.blue .info-box-label { color: var(--blue); }
+    .info-box p { font-size: 13px; color: var(--text-mid); line-height: 1.75; }
+
+    /* ══ FILE GRID ══ */
+    .file-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-bottom: 8px; }
+    @media (max-width: 720px) { .file-grid { grid-template-columns: 1fr; } }
+    .file-cell { background: var(--card); border: 1px solid var(--border); padding: 22px 20px; }
+    .file-cell:hover { border-color: var(--border-bright); }
+    .file-path { font-family: var(--font-mono); font-size: 10px; color: var(--accent); letter-spacing: 0.04em; margin-bottom: 10px; display: block; }
+    .file-status { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 10px; display: inline-block; padding: 2px 8px; }
+    .file-status.new      { color: var(--green); background: var(--green-dim); }
+    .file-status.modified { color: #93c5fd;      background: var(--blue-dim); }
+    .file-changes { font-size: 12.5px; color: var(--text-mid); line-height: 1.8; }
+
+    /* ══ MATH CONVERSION ══ */
+    .math-row {
+      display: flex; align-items: center; gap: 16px; padding: 14px 20px;
+      border-bottom: 1px solid rgba(38,32,26,0.8); font-family: var(--font-mono); font-size: 12px;
+    }
+    .math-row:last-child { border-bottom: none; }
+    .math-input  { color: var(--accent); min-width: 100px; }
+    .math-arrow  { color: var(--muted); }
+    .math-formula { color: var(--text-mid); flex: 1; }
+    .math-result { color: #86efac; font-weight: 600; min-width: 60px; text-align: right; }
+
+    .divider { height: 1px; background: linear-gradient(to right, transparent 0%, var(--border) 30%, var(--border) 70%, transparent 100%); margin-top: 80px; }
+    .footer { padding: 40px 0 52px; text-align: center; color: var(--muted); font-size: 11.5px; font-family: var(--font-mono); letter-spacing: 0.08em; }
+    .footer strong { color: var(--text-mid); }
+
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="grid-overlay"></div>
+<div class="scan-line"></div>
+<div class="hud"><div class="hud-br"></div><div class="hud-bl"></div></div>
+
+<nav>
+  <div class="nav-brand"><span>PROVIDER</span> / simenv</div>
+  <div class="nav-version">v0.7.0 — PDL</div>
+</nav>
+
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="container">
+    <div class="badge reveal">
+      <span class="dot"></span>
+      BMBF-Funded · OFFIS e.V. · PROVIDER
+    </div>
+    <h1 class="reveal reveal-delay-1">
+      PROVIDER Simulation
+      <span class="version">v0.7.0 — PDL Integration</span>
+    </h1>
+    <p class="subtitle reveal reveal-delay-2">
+      Provider Domain Language support wired into simenv. PDL YAML scenario files from the
+      reference repository now drive simulation parameters directly via a dedicated translator layer.
+    </p>
+    <div class="version-tags reveal reveal-delay-3">
+      <span class="tag tag-green">✓ PDL Loader Implemented</span>
+      <span class="tag tag-gold">5 Params Mapped</span>
+      <span class="tag tag-blue">Template CSV — No Contamination</span>
+      <span class="tag tag-red">Timing — Next Step</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ STAT CARDS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">Release at a Glance</div>
+    <div class="stat-cards">
+      <div class="stat-card reveal reveal-delay-1">
+        <div class="stat-card-inner">
+          <div class="stat-value">5</div>
+          <div class="stat-label">Params Mapped</div>
+          <div class="stat-sub">farm · port · energy · oil mill · fertilizer — extracted from PDL events</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-2">
+        <div class="stat-card-inner">
+          <div class="stat-value">18</div>
+          <div class="stat-label">PDL Events</div>
+          <div class="stat-sub">in s1-soja.pdl.yaml — 6 produce usable params, 12 are silently skipped</div>
+        </div>
+      </div>
+      <div class="stat-card reveal reveal-delay-3">
+        <div class="stat-card-inner">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Files Added / Changed</div>
+          <div class="stat-sub">pdl_loader.py · main.py · template CSV · scenarios/s1-soja.pdl.yaml</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 01 — WHAT IS PDL ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">01 — What is PDL</div>
+    <h2 class="reveal">Provider Domain Language</h2>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div>
+        <div class="info-box reveal">
+          <span class="info-box-label">Definition</span>
+          <p>PDL (Provider Domain Language) is a YAML-based domain-specific language developed by Implisense as part of the PROVIDER project. It provides a standardised, human-readable format for describing supply chain disruption scenarios — independent of any specific simulation tool.</p>
+        </div>
+        <div class="info-box blue reveal">
+          <span class="info-box-label">Role in the System</span>
+          <p>PDL is an <strong style="color:var(--text);">input file</strong>, not an output. It is written by domain experts or generated from knowledge graph data, and fed into a simulation like simenv. Our task was to build the translator so simenv can actually read and consume it.</p>
+        </div>
+      </div>
+      <div class="card reveal reveal-delay-1">
+        <div class="card-icon" style="background:var(--accent-dim);">📄</div>
+        <h3>PDL vs. the old approach</h3>
+        <p style="margin-bottom:14px;">Before PDL integration, shock parameters were hardcoded manually in <span class="mono">SimulatorScenarios.csv</span> — three rows written by hand. There was a <span class="mono">shock_loader.py</span> stub for KG-format shocks but it was never wired in.</p>
+        <p>PDL replaces the manual CSV editing workflow. A single YAML file from the reference repository now fully drives the simulation parameters via <span class="mono">--pdl</span>. The PDL loader is the first real implementation of the scenario ingestion interface.</p>
+      </div>
+    </div>
+
+    <div class="grid-3 reveal">
+      <div class="card">
+        <div class="card-icon" style="background:var(--accent-dim);">🗂️</div>
+        <h3>Standardised Format</h3>
+        <p>PDL schema version 1.1. All files follow the same JSON Schema (pdl-schema.json). Any compliant scenario file — not just s1-soja — can be fed to the loader without code changes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--blue-dim);">🔗</div>
+        <h3>Knowledge Graph Bridge</h3>
+        <p>PDL serves as the bridge between the CoyPu Knowledge Graph and simulation tools. KG events and impact magnitudes are expressed in PDL, then translated into numeric scenario parameters.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--green-dim);">⚙️</div>
+        <h3>Simulation-Agnostic</h3>
+        <p>PDL does not describe how a simulation works internally. It only describes what happened in the real world and by how much. The translator layer (pdl_loader.py) handles the conversion to simenv's internal parameters.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 02 — PDL FILE CONTENTS ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">02 — PDL File Contents</div>
+    <h2 class="reveal">What's Inside a PDL File — s1-soja.pdl.yaml</h2>
+
+    <div class="card reveal" style="margin-bottom:28px;">
+      <table>
+        <thead>
+          <tr>
+            <th>PDL Section</th>
+            <th>What It Contains</th>
+            <th>Count (s1-soja)</th>
+            <th>Used in simenv</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="td-partial">
+            <td><span class="mono">scenario</span></td>
+            <td style="color:var(--text-mid);">ID, name, sector, criticality, description</td>
+            <td style="color:var(--text-mid);">1</td>
+            <td><span class="effort-medium">Label only</span> — scenario name printed to console</td>
+          </tr>
+          <tr class="td-gap">
+            <td><span class="mono">entities</span></td>
+            <td style="color:var(--text-mid);">All actors in the chain: farms, ports, mills, consumers, commodities. Each has id, type, location, vulnerability.</td>
+            <td style="color:var(--text-mid);">20</td>
+            <td><span class="effort-high">Not used</span> — entity metadata not consumed. IDs are only used as lookup keys in the mapping table.</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">events</span></td>
+            <td style="color:var(--text-mid);">Disruption events with trigger target + impact magnitude (supply %, price %, duration). The core shock data.</td>
+            <td style="color:var(--text-mid);">18</td>
+            <td><span class="effort-done">Primary source</span> — 6 of 18 events map to simenv params. The other 12 are silently skipped.</td>
+          </tr>
+          <tr class="td-gap">
+            <td><span class="mono">supply_chains</span></td>
+            <td style="color:var(--text-mid);">Named chain routes with stage arrays (from→to) and dependency links between entities.</td>
+            <td style="color:var(--text-mid);">5</td>
+            <td><span class="effort-high">Not used</span> — simenv's chain topology is hardcoded in agent classes. PDL topology is separate concern.</td>
+          </tr>
+          <tr class="td-gap">
+            <td><span class="mono">substitutions</span></td>
+            <td style="color:var(--text-mid);">Resilience mechanisms: supplier switches, product substitutions, route alternatives. Includes coverage %, cost delta, ramp-up time.</td>
+            <td style="color:var(--text-mid);">6</td>
+            <td><span class="effort-high">Not used</span> — substitution logic is a separate model feature (out of current scope).</td>
+          </tr>
+          <tr class="td-gap">
+            <td><span class="mono">cascades</span></td>
+            <td style="color:var(--text-mid);">Named crisis timelines linking events with day offsets (at: 14d, at: 42d…). Three cascade scenarios: soy crisis, energy-food, compound.</td>
+            <td style="color:var(--text-mid);">3</td>
+            <td><span class="effort-high">Not used</span> — timing extraction is the planned next step. Currently only impact magnitudes are used.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box warn reveal">
+      <span class="info-box-label">Important Distinction</span>
+      <p>The loader reads the flat <strong style="color:var(--text);">events</strong> list only — not the cascades timeline. This means event timing (at: 14d, at: 42d) is ignored in the current version. All mapped impacts are applied as static shocks for the full simulation run.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 03 — WORKFLOW DIAGRAM ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">03 — Workflow</div>
+    <h2 class="reveal">End-to-End: PDL File → Simulation Output</h2>
+
+    <p style="font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:16px;" class="reveal">With <span style="color:var(--accent);">--pdl</span> flag</p>
+    <div class="workflow reveal" style="margin-bottom: 28px;">
+      <div class="wf-node">
+        <div class="wf-icon">📄</div>
+        <div class="wf-name">s1-soja<br/>.pdl.yaml</div>
+        <div class="wf-sub">PDL scenario<br/>from reference repo</div>
+        <div class="wf-badge wf-exist">Input</div>
+      </div>
+      <div class="wf-node new-node highlight">
+        <div class="wf-icon">🔄</div>
+        <div class="wf-name">PDLLoader<br/>.py</div>
+        <div class="wf-sub">Parses events.<br/>Maps to params.</div>
+        <div class="wf-badge wf-new">New</div>
+      </div>
+      <div class="wf-node new-node highlight">
+        <div class="wf-icon">🗃️</div>
+        <div class="wf-name">Template<br/>CSV restore</div>
+        <div class="wf-sub">Always reset<br/>from template</div>
+        <div class="wf-badge wf-new">New</div>
+      </div>
+      <div class="wf-node highlight">
+        <div class="wf-icon">💉</div>
+        <div class="wf-name">CSV<br/>Injection</div>
+        <div class="wf-sub">Overrides applied<br/>to rows id &gt; 0</div>
+        <div class="wf-badge wf-mod">Modified</div>
+      </div>
+      <div class="wf-node">
+        <div class="wf-icon">⚙️</div>
+        <div class="wf-name">Melodie<br/>Simulator</div>
+        <div class="wf-sub">Reads CSV.<br/>Runs 3 scenarios.</div>
+        <div class="wf-badge wf-exist">Unchanged</div>
+      </div>
+      <div class="wf-node">
+        <div class="wf-icon">📊</div>
+        <div class="wf-name">CSV + SQLite<br/>Output</div>
+        <div class="wf-sub">s0 baseline<br/>s1/s2 PDL crisis</div>
+        <div class="wf-badge wf-exist">Unchanged</div>
+      </div>
+    </div>
+
+    <p style="font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:16px;" class="reveal">Without flag (normal run)</p>
+    <div class="workflow reveal" style="margin-bottom: 32px; opacity: 0.55;">
+      <div class="wf-node">
+        <div class="wf-icon">🗃️</div>
+        <div class="wf-name">Template<br/>CSV restore</div>
+        <div class="wf-sub">Resets to baseline<br/>all 1.0 values</div>
+        <div class="wf-badge wf-new">New</div>
+      </div>
+      <div class="wf-node">
+        <div class="wf-icon">⚙️</div>
+        <div class="wf-name">Melodie<br/>Simulator</div>
+        <div class="wf-sub">Reads unmodified<br/>template values</div>
+        <div class="wf-badge wf-exist">Unchanged</div>
+      </div>
+      <div class="wf-node">
+        <div class="wf-icon">📊</div>
+        <div class="wf-name">CSV + SQLite<br/>Output</div>
+        <div class="wf-sub">Hardcoded baseline<br/>scenarios only</div>
+        <div class="wf-badge wf-exist">Unchanged</div>
+      </div>
+    </div>
+
+    <div class="grid-2 reveal">
+      <div class="card">
+        <div class="card-icon" style="background:var(--green-dim);">🛡️</div>
+        <h3>Template CSV — Anti-Contamination</h3>
+        <p><span class="mono">SimulatorScenarios_template.csv</span> is the source of truth and is never modified. Before every run, <span class="mono">main.py</span> copies it to the working CSV. This prevents a previous <span class="mono">--pdl</span> run from permanently corrupting the baseline — a silent bug that existed before this fix.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:var(--accent-dim);">🎯</div>
+        <h3>s0 = Always Baseline</h3>
+        <p>PDL overrides are applied only to CSV rows with <span class="mono">id &gt; 0</span>. Row 0 (s0) is always kept at capacity=1.0 — the true unshocked baseline. This makes s1/s2 directly comparable to s0 in every PDL run without manual intervention.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 04 — WHAT IS IMPLEMENTED ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">04 — Current Implementation</div>
+    <h2 class="reveal">What pdl_loader.py Does — and How</h2>
+
+    <div class="info-box reveal" style="margin-bottom:28px;">
+      <span class="info-box-label">Translation Logic</span>
+      <p>The loader scans the PDL <span class="mono">events</span> list. For each event it reads <span class="mono">trigger.target</span> (which entity) and <span class="mono">impact.supply</span> / <span class="mono">impact.price</span> (the percentage string). It looks up the <span class="mono">(entity_id, field)</span> pair in a mapping table to get the simenv parameter name, then converts the percentage to a float multiplier.</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div>
+        <div class="card reveal">
+          <h3 style="font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--accent); margin-bottom:16px; font-family:var(--font-mono);">Conversion Math</h3>
+          <div class="math-row">
+            <span class="math-input">"-40%"</span>
+            <span class="math-arrow">→</span>
+            <span class="math-formula">1.0 + (−40 / 100)</span>
+            <span class="math-result">= 0.60</span>
+          </div>
+          <div class="math-row">
+            <span class="math-input">"-20%"</span>
+            <span class="math-arrow">→</span>
+            <span class="math-formula">1.0 + (−20 / 100)</span>
+            <span class="math-result">= 0.80</span>
+          </div>
+          <div class="math-row">
+            <span class="math-input">"+200%"</span>
+            <span class="math-arrow">→</span>
+            <span class="math-formula">1.0 + (200 / 100)</span>
+            <span class="math-result">= 3.00</span>
+          </div>
+          <div class="math-row">
+            <span class="math-input">"+80%"</span>
+            <span class="math-arrow">→</span>
+            <span class="math-formula">1.0 + (80 / 100)</span>
+            <span class="math-result">= 1.80</span>
+          </div>
+        </div>
+      </div>
+      <div class="code-block reveal reveal-delay-1">
+<span class="cc"># pdl_loader.py — _PDL_MAPPING</span><br/>
+<span class="cc"># Key: (PDL entity id, impact field)</span><br/>
+<span class="cc"># Value: scenario.py parameter name</span><br/><br/>
+<span class="cv">_PDL_MAPPING</span> = {<br/>
+&nbsp;&nbsp;(<span class="cs">"brazil_farms"</span>,      <span class="cs">"supply"</span>): <span class="cs">"farm_capacity_bra"</span>,<br/>
+&nbsp;&nbsp;(<span class="cs">"santos_port"</span>,       <span class="cs">"supply"</span>): <span class="cs">"port_capacity_sa"</span>,<br/>
+&nbsp;&nbsp;(<span class="cs">"paranagua_port"</span>,    <span class="cs">"supply"</span>): <span class="cs">"port_capacity_sa"</span>,<br/>
+&nbsp;&nbsp;(<span class="cs">"gas_supply"</span>,        <span class="cs">"price"</span>):  <span class="cs">"energy_price_factor"</span>,<br/>
+&nbsp;&nbsp;(<span class="cs">"fertilizer_supply"</span>, <span class="cs">"price"</span>):  <span class="cs">"fertilizer_price_factor"</span>,<br/>
+&nbsp;&nbsp;(<span class="cs">"eu_oil_mills"</span>,      <span class="cs">"supply"</span>): <span class="cs">"oil_mill_capacity"</span>,<br/>
+}<br/><br/>
+<span class="cc"># Aggregation when multiple events hit the same param:</span><br/>
+<span class="cc"># capacity → min()  (worst-case degradation)</span><br/>
+<span class="cc"># price    → max()  (worst-case spike)</span>
+      </div>
+    </div>
+
+    <div class="card reveal" style="margin-bottom: 0;">
+      <table>
+        <thead>
+          <tr><th>PDL Entity + Field</th><th>simenv Parameter</th><th>From s1-soja Value</th><th>Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr class="td-done">
+            <td><span class="mono">brazil_farms · supply</span></td>
+            <td><span class="mono">farm_capacity_bra</span></td>
+            <td><span class="effort-done">0.60</span></td>
+            <td style="color:var(--text-mid);">BRA farm output at 60% — drought event "-40%"</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">santos_port + paranagua_port · supply</span></td>
+            <td><span class="mono">port_capacity_sa</span></td>
+            <td><span class="effort-done">0.80</span></td>
+            <td style="color:var(--text-mid);">Port throughput at 80% — min() of both events</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">gas_supply · price</span></td>
+            <td><span class="mono">energy_price_factor</span></td>
+            <td><span class="effort-done">3.00</span></td>
+            <td style="color:var(--text-mid);">Energy cost tripled — gas price spike "+200%"</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">eu_oil_mills · supply</span></td>
+            <td><span class="mono">oil_mill_capacity</span></td>
+            <td><span class="effort-done">0.70</span></td>
+            <td style="color:var(--text-mid);">EU processor output at 70% — gas-driven slowdown "-30%"</td>
+          </tr>
+          <tr class="td-done">
+            <td><span class="mono">fertilizer_supply · price</span></td>
+            <td><span class="mono">fertilizer_price_factor</span></td>
+            <td><span class="effort-done">1.80</span></td>
+            <td style="color:var(--text-mid);">Fertilizer cost +80% — demand spike event</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 05 — WHAT'S NOT USED / SEPARATE ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">05 — Scope Boundaries</div>
+    <h2 class="reveal">What Is Out of Current Scope</h2>
+
+    <div class="grid-2">
+      <div class="card reveal">
+        <h3 style="font-size:11px; letter-spacing:0.10em; text-transform:uppercase; color:var(--red); margin-bottom:18px; font-family:var(--font-mono);">Skipped from PDL — Impact Magnitudes Only</h3>
+        <div class="status-item">
+          <div class="status-dot gap"></div>
+          <div class="status-text">
+            <strong>Event duration field</strong>
+            <small>e.g. <span class="mono">duration: 90d</span>. Read by YAML parser but never extracted — current implementation treats all shocks as permanent.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot gap"></div>
+          <div class="status-text">
+            <strong>Cascade timeline offsets</strong>
+            <small><span class="mono">at: 14d, at: 42d</span> entries in each cascade define when events trigger. Not consumed — planned as next step.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot gap"></div>
+          <div class="status-text">
+            <strong>12 of 18 event impacts</strong>
+            <small>Events targeting <span class="mono">feed_mills</span>, <span class="mono">poultry_farms</span>, <span class="mono">consumers</span>, etc. have no mapping to simenv params — skipped silently.</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card reveal reveal-delay-1">
+        <h3 style="font-size:11px; letter-spacing:0.10em; text-transform:uppercase; color:var(--blue); margin-bottom:18px; font-family:var(--font-mono);">Separate Concern — Different Feature</h3>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>PDL substitutions section</strong>
+            <small>Describes resilience mechanisms (BRA→ARG supplier switch, protein substitution). Requires a dedicated substitution model in simenv — separate implementation task.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>PDL supply_chains topology</strong>
+            <small>Defines the full chain graph (routes, ports, dependencies). SimEnv's agent topology is hardcoded in agent classes — wiring PDL topology would restructure the model.</small>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-dot later"></div>
+          <div class="status-text">
+            <strong>PDL entities metadata</strong>
+            <small>Vulnerability scores, location, sector — structural information about each actor. Not a simulation parameter today; could feed a future risk-weighting layer.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 06 — NEXT STEP: TIMING ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">06 — Next Step</div>
+    <h2 class="reveal">Planned: Timing Extraction from PDL Cascades</h2>
+
+    <div class="info-box reveal" style="margin-bottom:28px;">
+      <span class="info-box-label">The Gap</span>
+      <p>PDL cascades define exactly when each event triggers — e.g. <span class="mono">brazil_drought</span> at day 0, <span class="mono">feed_price_spike</span> at day 28, <span class="mono">livestock_pressure</span> at day 42. This temporal structure exists in the file but is completely ignored by the current loader. All shocks are applied statically for the full simulation run, regardless of when they happened in reality.</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 28px;">
+      <div class="card reveal">
+        <div class="card-icon" style="background:var(--accent-dim);">📅</div>
+        <h3>How It Would Work</h3>
+        <p style="margin-bottom:12px;">Read the <span class="mono">cascades[].timeline[].at</span> field for each event. Convert the day offset to a simulation week (days ÷ 7). Use this value to set <span class="mono">shock_onset_step</span> for the corresponding scenario row.</p>
+        <p>The ramp duration could be derived from the PDL event's own <span class="mono">duration</span> field, also converted to weeks. This would make the simenv timing parameters fully PDL-driven.</p>
+      </div>
+      <div class="code-block reveal reveal-delay-1">
+<span class="cc"># What the cascade section provides:</span><br/>
+<span class="cc"># cascades[0].timeline:</span><br/>
+<span class="cv">at</span>: <span class="cn">0d</span>  → <span class="cs">brazil_drought</span>    <span class="cc"># onset week 0</span><br/>
+<span class="cv">at</span>: <span class="cn">14d</span> → <span class="cs">soy_export_reduction</span> <span class="cc"># onset week 2</span><br/>
+<span class="cv">at</span>: <span class="cn">28d</span> → <span class="cs">feed_price_spike</span>   <span class="cc"># onset week 4</span><br/>
+<span class="cv">at</span>: <span class="cn">42d</span> → <span class="cs">livestock_pressure</span>  <span class="cc"># onset week 6</span><br/><br/>
+<span class="cc"># What we currently pass to SimulatorScenarios.csv:</span><br/>
+<span class="cv">shock_onset_step</span> = <span class="cn">13</span>   <span class="cc"># hardcoded ← should come from PDL</span><br/>
+<span class="cv">shock_ramp_steps</span> = <span class="cn">13</span>   <span class="cc"># hardcoded ← could come from duration</span><br/><br/>
+<span class="cc"># Planned output of timing extractor:</span><br/>
+<span class="cv">shock_onset_step</span> = <span class="cf">round</span>(<span class="cn">0</span> / <span class="cn">7</span>)   <span class="cc"># = 0</span><br/>
+<span class="cv">shock_ramp_steps</span> = <span class="cf">round</span>(<span class="cn">90</span> / <span class="cn">7</span>)  <span class="cc"># = 13</span>
+      </div>
+    </div>
+
+    <div class="info-box warn reveal">
+      <span class="info-box-label">Unit Mismatch</span>
+      <p>PDL expresses time in <strong style="color:var(--text);">days</strong>. SimEnv runs in <strong style="color:var(--text);">weeks</strong>. Any timing extraction must divide PDL day values by 7 and round to the nearest integer step. This is a known, documented mismatch — not a blocker for the current implementation.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 07 — FILES CHANGED ══ -->
+<section>
+  <div class="container">
+    <div class="section-label reveal">07 — Files</div>
+    <h2 class="reveal">What Changed</h2>
+
+    <div class="file-grid reveal">
+      <div class="file-cell">
+        <span class="file-path">pdl_loader.py</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          <span class="mono">PDLLoader</span> class. Parses PDL YAML, extracts impact magnitudes via <span class="mono">_PDL_MAPPING</span> lookup. Two-pass aggregation: <span class="mono">min()</span> for capacity, <span class="mono">max()</span> for price. Warns if no mappable events found.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">main.py</span>
+        <span class="file-status modified">Modified</span>
+        <div class="file-changes">
+          Added <span class="mono">argparse</span> with <span class="mono">--pdl</span> flag. Template CSV restore before every run. PDL injection targets only <span class="mono">id &gt; 0</span> rows. <span class="mono">import shutil</span> added.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">data/input/SimulatorScenarios_template.csv</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          Baseline template: all capacity = 1.0, all price factors = 1.0. Never modified at runtime. Copied to working CSV at the start of every run to prevent contamination.
+        </div>
+      </div>
+      <div class="file-cell">
+        <span class="file-path">scenarios/s1-soja.pdl.yaml</span>
+        <span class="file-status new">New</span>
+        <div class="file-changes">
+          Official PDL scenario file from Implisense reference repository. 20 entities, 18 events, 6 substitutions, 5 supply chains, 3 cascades describing the 2022 soy supply chain crisis.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<div class="divider"></div>
+<div class="footer">
+  <div class="container">
+    <strong>PROVIDER Simulation v0.7.0</strong> · OFFIS e.V. · BMBF-funded<br/>
+    <span style="margin-top:6px; display:block;">Python · Melodie ABM · pyyaml · pandas · PDL v1.1</span>
+  </div>
+</div>
+
+
+<!-- ══ CANVAS ANIMATION ══ -->
+<script>
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+
+  function Particle() {
+    this.x  = Math.random() * W;
+    this.y  = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.22;
+    this.vy = (Math.random() - 0.5) * 0.22;
+    this.r  = Math.random() * 1.1 + 0.2;
+    this.a  = Math.random() * 0.35 + 0.04;
+  }
+
+  function init() {
+    resize(); particles = [];
+    const n = Math.floor((W * H) / 22000);
+    for (let i = 0; i < n; i++) particles.push(new Particle());
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (let p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(201,150,46,${p.a})`;
+      ctx.fill();
+    }
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < 105) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(201,150,46,${0.06 * (1 - d/105)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', init);
+  init(); draw();
+})();
+</script>
+
+<!-- ══ SCROLL REVEAL ══ -->
+<script>
+(function() {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+  document.querySelectorAll('.reveal').forEach(el => {
+    if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('visible');
+  });
+})();
+</script>
+
+</body>
+</html>
