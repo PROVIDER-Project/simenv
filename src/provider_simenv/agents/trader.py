@@ -40,6 +40,7 @@ class Trader(SupplyChainAgent):
 
         # volume sourced from each origin this step
         self.bra_volume: float = 0.0
+        self.arg_volume: float = 0.0
         self.usa_volume: float = 0.0
 
         # storage capacity and utilisation (wholesaler only)
@@ -80,11 +81,11 @@ class Trader(SupplyChainAgent):
 
     def _step_wholesaler(self):
         """
-        Pool BRA + USA farmer output and fill this wholesaler's stock
+        Pool BRA + ARG + USA farmer output and fill this wholesaler's stock
         allocation greedily from the cheapest source first.
 
         Workflow:
-            1. Pool all active BRA + USA farmers into one list.
+            1. Pool all active BRA + ARG + USA farmers into one list.
             2. Each wholesaler's stock = total_supply / n_wholesalers
                 (push model - all supply flows forward)
             3. Sort pooled farmers by unit_price ascending.
@@ -101,8 +102,9 @@ class Trader(SupplyChainAgent):
         """
 
         active_bra = self.model.bra_farmers.filter(lambda f: f.active)
+        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
         active_usa = self.model.usa_farmers.filter(lambda f: f.active)
-        all_farmers = active_bra + active_usa
+        all_farmers = active_bra + active_arg + active_usa
         n_wholesalers = len(self.model.wholesalers.filter(lambda w: w.active))
 
         if not all_farmers or n_wholesalers == 0:
@@ -110,13 +112,14 @@ class Trader(SupplyChainAgent):
             self.quantity_available = 0.0
             self.unit_price = 0.0
             self.bra_volume = 0.0
+            self.arg_volume = 0.0
             self.usa_volume = 0.0
             return
 
-        # Demand target: based on unshocked ccapacity, not current disrupted supply
+        # Demand target: based on unshocked capacity, not current disrupted supply
         # Under no shock: demand == old push share
         # Under BRA shock: demand stays the same -> wholesaler actively pulls more from USA
-        normal_capacity = ( sum(f.base_yield for f in active_bra) + sum(f.base_yield for f in active_usa))
+        normal_capacity = ( sum(f.base_yield for f in active_bra) + sum(f.base_yield for f in active_arg) + sum(f.base_yield for f in active_usa))
         my_demand = min(normal_capacity / n_wholesalers, self.storage_capacity)
 
         # Greedy fill: pull from cheapest source first, up to each farmer's
@@ -127,6 +130,7 @@ class Trader(SupplyChainAgent):
         remaining = my_demand
         total_cost = 0.0
         bra_taken = 0.0
+        arg_taken = 0.0
         usa_taken = 0.0
         for farmer in sorted_farmers:
             if remaining <= 0.0:
@@ -137,11 +141,14 @@ class Trader(SupplyChainAgent):
             remaining -= taken
             if farmer.role == "bra":
                 bra_taken += taken
+            elif farmer.role == "arg":
+                arg_taken += taken
             else:
                 usa_taken += taken
 
-        actual_taken = bra_taken + usa_taken
+        actual_taken = bra_taken + arg_taken + usa_taken
         self.bra_volume = bra_taken
+        self.arg_volume = arg_taken
         self.usa_volume = usa_taken
         self.stock = actual_taken
         self.quantity_available = actual_taken

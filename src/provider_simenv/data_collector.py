@@ -26,6 +26,10 @@ class SupplyChainDataCollector(DataCollector):
         self.add_agent_property("bra_farmers", "unit_price")
         self.add_agent_property("bra_farmers", "active")
 
+        self.add_agent_property("arg_farmers", "quantity_available")
+        self.add_agent_property("arg_farmers", "unit_price")
+        self.add_agent_property("arg_farmers", "active")
+
         self.add_agent_property("usa_farmers", "quantity_available")
         self.add_agent_property("usa_farmers", "unit_price")
         self.add_agent_property("usa_farmers", "active")
@@ -33,6 +37,7 @@ class SupplyChainDataCollector(DataCollector):
         self.add_agent_property("wholesalers", "quantity_available")
         self.add_agent_property("wholesalers", "unit_price")
         self.add_agent_property("wholesalers", "bra_volume")
+        self.add_agent_property("wholesalers", "arg_volume")
         self.add_agent_property("wholesalers", "usa_volume")
         self.add_agent_property("wholesalers", "storage_utilization")
 

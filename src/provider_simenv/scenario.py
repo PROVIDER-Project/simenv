@@ -16,7 +16,11 @@ class SupplyChainScenario(Scenario):
     # --- KG shock coefficients ---
     farm_capacity_bra: float = 1.0  # BRA soja farm output multiplier (0.7 = 30% drought loss)
 
-    port_capacity_sa: float = 1.0   # SA port throughput multiplier
+    port_capacity_santos: float = 1.0    # Santos port throughput multiplier
+    port_capacity_paranagua: float = 1.0 # Paranagua port throughput multiplier
+    port_capacity_rotterdam: float = 1.0    # Rotterdam port throughput multiplier
+    port_capacity_hamburg: float = 1.0      # Hamburg port throughput multiplier
+    santos_share: float = 0.7   # 0.7 = 70% of BRA exports via Santos
 
     fertilizer_price_factor: float = 1.0 # multiplier on SA farmer fixed costs (1.3 = + 30%)
     energy_price_factor: float = 1.0    # multiplier on all transport fixed costs (1.5 = + 50%)
@@ -30,9 +34,14 @@ class SupplyChainScenario(Scenario):
     # --- Agent population size ---
     n_bra_farmers: int = 10         # South American Farmers
     n_wholesalers: int = 3          # buys from farmers, aggregate them, sell internationally
-    n_transport_sa: int = 2         # land transport, South America
-    n_transport_sea: int = 2        # maritime transport
-    n_transport_eu: int = 2         # land transport, EU
+    n_transport_sa_santos: int = 1  # Agents handling the Santos lane
+    n_transport_sa_paranagua: int = 1   # Agents handling the Paranagua lane
+    n_sea_lane_santos: int = 1        # Sea agents: Santos -> Rotterdam
+    n_sea_lane_paranagua: int = 1     # Sea agents: Paranagua -> Hamburg
+    n_sea_lane_arg: int = 1           # Sea agents: ARG direct -> Rotterdam
+    n_sea_lane_usa: int = 1           # Sea agents: USA Gulf -> Rotterdam
+    n_transport_eu_rtm: int = 1         # Rotterdam EU entry port agents
+    n_transport_eu_ham: int = 1         # Hamburg EU entry port agents
     n_processors: int = 3           # Crushers / Verschrotung
     n_feed_manufacturers: int = 3
     n_feed_traders: int = 3
@@ -75,6 +84,8 @@ class SupplyChainScenario(Scenario):
     # sigma = 0.0 -> all farms identical
     # sigma = 0.4 -> realistic spread (most farms near mean, few very large/small)
     farm_size_sigma_bra: float = 0.0
+    farm_size_sigma_usa: float = 0.0
+    farm_size_sigma_arg: float = 0.0
     farm_size_sigma_eu: float = 0.0
     farm_size_seed: int = 42
 
@@ -86,6 +97,17 @@ class SupplyChainScenario(Scenario):
     n_usa_farmers: int = 8
     fixed_costs_usa_farmer: float = 48000.0
     margin_usa_farmer: float = 0.10
-    farm_size_sigma_usa: float = 0.0
     usa_surplus_factor: float = 1.5
+
+
+    # --- Argentina farmer parameters ---
+    # Argentina is a permanent always-on baseline supplier:
+    #   - fixed_costs between BRA and USA
+    #   - unaffected by BRA shock
+    #   - No surplus_factor - ARG is a baseline supply, not emergency reserve
+    n_arg_farmers: int = 5
+    fixed_costs_arg_farmer: float = 42000.0
+    margin_arg_farmer: float = 0.10
+    farm_capacity_arg: float = 1.0  # ARG output multiplier (1.0 = unshocked)
+
 

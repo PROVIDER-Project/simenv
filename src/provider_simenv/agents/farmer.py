@@ -1,10 +1,15 @@
 """
-  role="bra"  Brazilian soja producer. First actor in the chain.
+  role="bra" Brazilian soja producer. First actor in the chain.
              Produces soja; price = (fixed_costs / qty) * (1 + margin).
+
+  role="arg" Argentine soja producer. Always-on baseline supplier.
+             Same price formula as BRA, not affected by BRA shock.
+             fixed_costs between BRA and USA -> price sits between them at baseline.
+             farm_capacity_arg allows independent ARG-specific shocks
 
   role="usa" US soja producer. Alternative supplier to BRA.
              Same price formula as BRA but not affected by BRA/SA shock.
-             Higher fixed_costs -> higher baseline price than BRA.
+             Higher fixed_costs -> higher baseline price than BRA and ARG.
              base_yield acts as a hard capacity ceiling.
 
   role="eu"  European livestock farmer. End consumer of the chain.
@@ -20,6 +25,7 @@ import numpy as np
 from .base import SupplyChainAgent
 
 ROLE_BRA = "bra"
+ROLE_ARG = "arg"
 ROLE_USA = "usa"
 ROLE_EU = "eu"
 
@@ -116,6 +122,21 @@ class Farmer(SupplyChainAgent):
                     self.fixed_costs / self.quantity_available
                 ) * (1.0 + self.margin)
 
+        elif self.role == ROLE_ARG:
+            self.fixed_costs = self.scenario.fixed_costs_arg_farmer
+            self.margin = self.scenario.margin_arg_farmer
+            self.base_yield = 100.0 # Placeholder; loaded from data later
+
+            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_arg)
+            self.base_yield *= self.size_factor
+            self.fixed_costs *= self.size_factor
+
+            self.quantity_available = self.base_yield
+            if self.quantity_available > 0:
+                self.unit_price = (
+                    self.fixed_costs / self.quantity_available
+                ) * (1.0 + self.margin)
+
         elif self.role == ROLE_EU:
             self.fixed_costs = self.scenario.fixed_costs_eu_farmer
             self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_eu)
@@ -132,6 +153,8 @@ class Farmer(SupplyChainAgent):
             self._step_bra()
         elif self.role == ROLE_USA:
             self._step_usa()
+        elif self.role == ROLE_ARG:
+            self._step_arg()
         elif self.role == ROLE_EU:
             self._step_eu()
 
@@ -179,6 +202,34 @@ class Farmer(SupplyChainAgent):
             self.unit_price = (self.fixed_costs / self.base_yield) * (1.0 + self.margin)  # still priced at 100t
         else:
             self.unit_price = 0.0
+
+    # --------------------------------------------------
+    # ARG farmer: produce soja, price from fixed costs - no BRA shock
+    # --------------------------------------------------
+
+    def _step_arg(self):
+        """
+        Produce soja this step.
+
+        Argentina farmers are not affected by the BRA shock.
+
+        Unlike USA(surplus_factor for emergency scaling),
+        ARG produces at base_yield every step - a permanent baseline supplier.
+
+        farm_capacity_arg allows ARG-specific shocks to be modelled independently.
+        Defaults to 1.0 = always unshocked.
+        """
+        shock_scale = self.model.environment.shock_scale
+        farm_capacity = 1.0 + shock_scale * (self.scenario.farm_capacity_arg - 1.0)
+        self.quantity_available = self.base_yield * farm_capacity
+
+        if self.quantity_available > 0:
+            self.unit_price = (
+                self.fixed_costs / self.quantity_available
+            ) * (1.0 + self.margin)
+        else:
+            self.unit_price = 0.0
+
 
 
     # --------------------------------------------------
