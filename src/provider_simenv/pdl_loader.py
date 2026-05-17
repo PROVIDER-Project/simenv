@@ -35,15 +35,21 @@ import yaml
 
 _PDL_MAPPING: dict[tuple[str, str], str] = {
     ("brazil_farms", "supply"): "farm_capacity_bra",
-    ("santos_port", "supply"): "port_capacity_sa",
-    ("paranagua_port", "supply"): "port_capacity_sa",
+    ("argentina_farms", "supply"): "farm_capacity_arg",
+    ("santos_port", "supply"): "port_capacity_santos",
+    ("paranagua_port", "supply"): "port_capacity_paranagua",
+    ("rotterdam_port", "supply"): "port_capacity_rotterdam",
+    ("hamburg_port", "supply"): "port_capacity_hamburg",
     ("gas_supply", "price"): "energy_price_factor",
     ("fertilizer_supply", "price"): "fertilizer_price_factor",
     ("eu_oil_mills", "supply"): "oil_mill_capacity",
 }
 
 # params where lower = worse (capacity degradation) -> aggregate with min()
-_CAPACITY_PARAMS = {"farm_capacity_bra", "port_capacity_sa", "oil_mill_capacity", "feed_mill_capacity"}
+_CAPACITY_PARAMS = {"farm_capacity_bra", "farm_capacity_arg",
+                    "port_capacity_santos", "port_capacity_paranagua",
+                    "port_capacity_rotterdam", "port_capacity_hamburg",
+                    "oil_mill_capacity", "feed_mill_capacity"}
 
 # params where higher = worse (price spikes) -> aggregate with max()
 _PRICE_PARAMS = {"energy_price_factor", "fertilizer_price_factor"}

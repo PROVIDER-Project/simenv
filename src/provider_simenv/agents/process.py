@@ -83,7 +83,10 @@ class Process(SupplyChainAgent):
         were consumed, so the input cost per output unit is:
             input_price / conversion_ratio
         """
-        active_upstream = upstream_list.filter(lambda a: a.active)
+        if hasattr(upstream_list, 'filter'):
+            active_upstream = upstream_list.filter(lambda a: a.active)
+        else:
+            active_upstream = upstream_list
         n_peers = len(peer_list.filter(lambda a: a.active))
 
         if not active_upstream or n_peers == 0:
@@ -124,9 +127,14 @@ class Process(SupplyChainAgent):
     # --------------------------
 
     def _step_processor(self):
-        """Receive soja from EU land transport, crush to meal."""
+        """Receive soja from both EU entry ports (RTM + HAM), crush to meal.
+        oil_mill_capacity applied as indirect capacity constraint."""
+        combined_eu = (
+            self.model.transport_eu_rtm.filter(lambda a: a.active)
+            + self.model.transport_eu_ham.filter(lambda a: a.active)
+        )
         self._process(
-            upstream_list=self.model.transport_eu,
+            upstream_list=combined_eu,
             peer_list=self.model.processors,
             capacity_factor=self.scenario.oil_mill_capacity,
         )

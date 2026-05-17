@@ -21,9 +21,10 @@ import pandas as pd
 
 AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
     "Result_Simulator_BraFarmers":        ("bra_farmers",        ["quantity_available", "unit_price", "active"]),
+    "Result_Simulator_ArgFarmers":        ("arg_farmers",        ["quantity_available", "unit_price", "active"]),
     "Result_Simulator_UsaFarmers":        ("usa_farmers",        ["quantity_available", "unit_price", "active"]),
     "Result_Simulator_Wholesalers":       ("wholesalers",        ["quantity_available", "unit_price",
-                                                                   "bra_volume", "usa_volume",
+                                                                   "bra_volume", "arg_volume", "usa_volume",
                                                                    "storage_utilization"]),
     "Result_Simulator_Processors":        ("processors",         ["quantity_available", "unit_price"]),
     "Result_Simulator_FeedManufacturers": ("feed_manufacturers", ["quantity_available", "unit_price"]),

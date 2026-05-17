@@ -85,9 +85,11 @@ class SupplyChainEnvironment(Environment):
 
         # Soja supply (BRA + USA farmer output)
         active_bra = self.model.bra_farmers.filter(lambda f: f.active)
+        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
         active_usa = self.model.usa_farmers.filter(lambda f: f.active)
         self.total_soja_supply = (
             sum(f.quantity_available for f in active_bra)
+            + sum(f.quantity_available for f in active_arg)
             + sum(f.quantity_available for f in active_usa)
         )
 
@@ -116,9 +118,14 @@ class SupplyChainEnvironment(Environment):
 
         # Transport util
         all_transport = (
-            self.model.transport_sa.filter(lambda a: a.active)
-            + self.model.sea_transport.filter(lambda a: a.active)
-            + self.model.transport_eu.filter(lambda a: a.active)
+            self.model.transport_sa_santos.filter(lambda a: a.active)
+            + self.model.transport_sa_paranagua.filter(lambda a: a.active)
+            + self.model.sea_lane_santos.filter(lambda a: a.active)
+            + self.model.sea_lane_paranagua.filter(lambda a: a.active)
+            + self.model.sea_lane_arg.filter(lambda a: a.active)
+            + self.model.sea_lane_usa.filter(lambda a: a.active)
+            + self.model.transport_eu_rtm.filter(lambda a: a.active)
+            + self.model.transport_eu_ham.filter(lambda a: a.active)
         )
 
         if all_transport:
