@@ -43,3 +43,6 @@ ENV/
 
 # IDE settings
 .vscode/
+
+# Simulation output
+src/provider_simenv/data/output/
