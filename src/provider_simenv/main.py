@@ -15,9 +15,9 @@ import pandas as pd
 
 from Melodie import Config, Simulator
 
-from model import SupplyChainModel
-from scenario import SupplyChainScenario
-from pdl_loader import PDLLoader
+from provider_simenv.model import SupplyChainModel
+from provider_simenv.scenario import SupplyChainScenario
+from provider_simenv.pdl_loader import PDLLoader
 
 # --------------------
 # Helpers

@@ -28,7 +28,7 @@ Step order each timestep:
 """
 import fontTools.misc.arrayTools
 from Melodie import Model
-from agents import (
+from .agents import (
     Farmer, Trader, Transport, Process,
     ROLE_BRA, ROLE_ARG, ROLE_USA, ROLE_EU,
     ROLE_WHOLESALER, ROLE_FEED_TRADER,
@@ -37,8 +37,8 @@ from agents import (
     ROLE_EU_RTM, ROLE_EU_HAM,
     ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER,
 )
-from environment import SupplyChainEnvironment
-from data_collector import SupplyChainDataCollector
+from .environment import SupplyChainEnvironment
+from .data_collector import SupplyChainDataCollector
 
 
 class SupplyChainModel(Model):
@@ -252,8 +252,8 @@ class SupplyChainModel(Model):
                     print(state['soja_price'])
                     # TODO: RL actions here
             """
-            from db_config import PostgresDBConfig
-            from tick_writer import TickWriter
+            from .db_config import PostgresDBConfig
+            from .tick_writer import TickWriter
 
             id_scenario = getattr(self.scenario, "id", 0)
             tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
