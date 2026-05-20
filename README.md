@@ -84,13 +84,13 @@ source .venv/bin/activate
 pip install .
 
 # Optional: Install all packages needed for development (run in project root)
-pip install .[dev]
+pip install '.[dev]'
 
 # This should ususally be done in editable mode for development purposes:
-pip install -e .[dev]
+pip install -e '.[dev]'
 
 # Optional: Install with PostgreSQL support (run in project root)
-pip install .[db]
+pip install '.[db]'
 ```
 
 ---
