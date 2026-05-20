@@ -55,6 +55,7 @@ Melodie>=0.6.0
 pandas
 numpy
 matplotlib
+pyyaml
 ```
 
 **Optional — only needed for PostgreSQL output:**
@@ -79,11 +80,17 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-# Install core dependencies
-pip install "Melodie>=0.6.0" pandas numpy matplotlib
+# Install core dependencies (run in project root)
+pip install .
 
-# Optional: PostgreSQL support
-pip install sqlalchemy psycopg2-binary
+# Optional: Install all packages needed for development (run in project root)
+pip install .[dev]
+
+# This should ususally be done in editable mode for development purposes:
+pip install -e .[dev]
+
+# Optional: Install with PostgreSQL support (run in project root)
+pip install .[db]
 ```
 
 ---
