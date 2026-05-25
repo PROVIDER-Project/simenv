@@ -174,7 +174,7 @@ class PDLLoader:
                 return c
         raise ValueError(
             f"Cascase '{cascade_id}' not found in '{self.path.name}'.'"
-            f"Available cascade IDs: {[c.get("id") for c in cascades]}."
+            f"Available cascade IDs: {[c.get('id') for c in cascades]}."
         )
 
 
