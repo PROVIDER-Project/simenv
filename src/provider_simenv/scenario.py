@@ -28,8 +28,32 @@ class SupplyChainScenario(Scenario):
     oil_mill_capacity: float = 1.0  # EU processor output multiplier (0.95 = slight soja shortage)
     feed_mill_capacity: float = 1.0     # feed manufacturer output multiplier
 
-    shock_onset_setup: int = 0
     shock_ramp_steps: int = 0
+
+    # --- Per-parameter onset and end days ---
+    # onset: simulation day the shock activates (inclusive)
+    # end:   simulation day the shock deactivates (exclusive)
+    # Active window: onset <= t < end
+    shock_onset_farm_bra: int = 0
+    shock_end_farm_bra: int = 365
+    shock_onset_farm_arg: int = 0
+    shock_end_farm_arg: int = 365
+    shock_onset_port_santos: int = 0
+    shock_end_port_santos: int = 365
+    shock_onset_port_paranagua: int = 0
+    shock_end_port_paranagua: int = 365
+    shock_onset_port_rotterdam: int = 0
+    shock_end_port_rotterdam: int = 365
+    shock_onset_port_hamburg: int = 0
+    shock_end_port_hamburg: int = 365
+    shock_onset_fertilizer: int = 0
+    shock_end_fertilizer: int = 365
+    shock_onset_energy: int = 0
+    shock_end_energy: int = 365
+    shock_onset_oil_mill: int = 0
+    shock_end_oil_mill: int = 365
+    shock_onset_feed_mill: int = 0
+    shock_end_feed_mill: int = 365
 
     # --- Agent population size ---
     n_bra_farmers: int = 10         # South American Farmers
@@ -50,7 +74,8 @@ class SupplyChainScenario(Scenario):
     # --- Storage capacities (t/step)
     # Maximum inventory a wholesaler can hold in a single simulation step
     # set to realistic value (e.g. 20_000) to observe capacity-binding behavior under brazil_drought scenario.
-    wholesaler_storage_capacity: float = 20_000.0
+    # 20 000 t / week -> 2857 t / day
+    wholesaler_storage_capacity: float = 2_857.0
 
 
 
@@ -77,7 +102,7 @@ class SupplyChainScenario(Scenario):
     margin_feed_manufacturer: float = 0.10
 
     # Simulation length (Number of steps)
-    period_num: int = 52            # week in a year
+    period_num: int = 365            # days in a year
 
     # Farm size heterogeneity
     # log-normal size distribution for BRA, USA and EU farmers.

@@ -125,7 +125,7 @@ class SupplyChainModel(Model):
         """
         Execute one simulation step at period t. Shared by run() and run_stepwise().
         """
-        self.environment.update_shock_scale(t)
+        self.environment.update_shock_scales(t)
 
         # Production
         self.bra_farmers.method_foreach('step', ())
@@ -216,7 +216,7 @@ class SupplyChainModel(Model):
         )
 
         print(
-            f"[s{self.scenario.id} t{t:03d}] "
+            f"[s{self.scenario.id} day={t:03d}] "
             f"shock={self.environment.shock_scale:.2f} | "
             f"px: BRA={bra_px:6.1f} ARG={arg_px:6.1f} USA={usa_px:6.1f} EUR/t [{cheaper}] | "
             f"soja={self.environment.soja_price:7.1f} feed={self.environment.feed_price:7.1f} EUR/t | "

@@ -14,11 +14,24 @@ import argparse
 import pandas as pd
 
 from Melodie import Config, Simulator
+from scipy.constants import value
 
 from model import SupplyChainModel
 from scenario import SupplyChainScenario
 from pdl_loader import PDLLoader
 
+_PDL_TIMING_COLUMNS = {
+      "farm_capacity_bra":       ("shock_onset_farm_bra",       "shock_end_farm_bra"),
+      "farm_capacity_arg":       ("shock_onset_farm_arg",       "shock_end_farm_arg"),
+      "port_capacity_santos":    ("shock_onset_port_santos",    "shock_end_port_santos"),
+      "port_capacity_paranagua": ("shock_onset_port_paranagua", "shock_end_port_paranagua"),
+      "port_capacity_rotterdam": ("shock_onset_port_rotterdam", "shock_end_port_rotterdam"),
+      "port_capacity_hamburg":   ("shock_onset_port_hamburg",   "shock_end_port_hamburg"),
+      "fertilizer_price_factor": ("shock_onset_fertilizer",     "shock_end_fertilizer"),
+      "energy_price_factor":     ("shock_onset_energy",         "shock_end_energy"),
+      "oil_mill_capacity":       ("shock_onset_oil_mill",       "shock_end_oil_mill"),
+      "feed_mill_capacity":      ("shock_onset_feed_mill",      "shock_end_feed_mill"),
+}
 # --------------------
 # Helpers
 # --------------------
@@ -73,6 +86,15 @@ if __name__ == "__main__":
             "with values derived from the PDL before the simulation runs."
         ),
     )
+    parser.add_argument(
+        "--cascade",
+        type=str,
+        default=None,
+        metavar="ID",
+        help=(
+            "PDL cascade id to use for timing. Defaults to the first cascade in the PDL file."
+        ),
+    )
     args = parser.parse_args()
 
     # Folder paths (both needed for PDL injection and Config)
@@ -90,10 +112,17 @@ if __name__ == "__main__":
     # PDL Injection: update shock columns in SimulatorScenarios.csv
     if args.pdl:
         loader = PDLLoader(args.pdl)
-        overrides = loader.to_scenario_overrides()
+        schedule = loader.to_cascade_schedule(args.cascade)
+        all_overrides = loader.to_scenario_overrides()
+        overrides = {
+            param: value
+            for param, value in all_overrides.items()
+            if param in schedule
+        }
 
         print(f"\n[pdl_loader] Scenario : {loader.label}")
         print(f"[pdl_loader] Source : {args.pdl}")
+        print(f"[pdl_loader] Cascade: {args.cascade or 'first cascade in file'}")
         print("[pdl_loader] Overrides applied to SimulatorScenarios.csv (id > 0):")
         for col, val in overrides.items():
             print(f"{col} = {val}")
@@ -105,6 +134,19 @@ if __name__ == "__main__":
                 df.loc[shocked, col] = val
             else:
                 print(f"[pdl_loader] WARNING: column '{col}' not found in CSV - skipped")
+
+        print("[pdl_loader] Cascade timing applied to SimulatorScenarios.csv (id > 0):")
+        for param, timing in schedule.items():
+            fields = _PDL_TIMING_COLUMNS.get(param)
+            if fields is None:
+                continue
+            onset_col, end_col = fields
+            df.loc[shocked, onset_col] = timing["onset"]
+            df.loc[shocked, end_col] = timing["end"]
+            print(
+                f"  {param}:"
+                f"{onset_col}={timing['onset']}, {end_col}={timing['end']}"
+            )
         df.to_csv(csv_path, index=False)
         print(f"[pdl_loader] CSV updated. \n")
 

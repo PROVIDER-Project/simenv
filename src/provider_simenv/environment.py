@@ -15,6 +15,22 @@ Tracked prices mirror the computed unit_price at key chain nodes:
 
 from Melodie import Environment
 
+
+# maps scenario param name -> (onset_field, end_field) on SupplyChainScenario
+_PARAM_TIMING_FIELDS: list[tuple[str, str, str]] = [
+    ("farm_capacity_bra", "shock_onset_farm_bra", "shock_end_farm_bra"),
+    ("farm_capacity_arg", "shock_onset_farm_arg", "shock_end_farm_arg"),
+    ("port_capacity_santos", "shock_onset_port_santos", "shock_end_port_santos"),
+    ("port_capacity_paranagua", "shock_onset_port_paranagua", "shock_end_port_paranagua"),
+    ("port_capacity_rotterdam", "shock_onset_port_rotterdam", "shock_end_port_rotterdam"),
+    ("port_capacity_hamburg", "shock_onset_port_hamburg", "shock_end_port_hamburg"),
+    ("fertilizer_price_factor", "shock_onset_fertilizer", "shock_end_fertilizer"),
+    ("energy_price_factor", "shock_onset_energy", "shock_end_energy"),
+    ("oil_mill_capacity", "shock_onset_oil_mill", "shock_end_oil_mill"),
+    ("feed_mill_capacity", "shock_onset_feed_mill", "shock_end_feed_mill"),
+]
+
+
 class SupplyChainEnvironment(Environment):
     """
     Updated once per simulation step after all agents acted.
@@ -26,7 +42,8 @@ class SupplyChainEnvironment(Environment):
     # current price of precessed animal feed
     feed_price: float = 0.0
 
-    # global shock intensity for the current step (0.0 = baseline, 1.0 = full shock)
+    # global shock intensity
+    # Agents should call get_shock_scale(param) instead of reading this directly.
     shock_scale: float = 0.0
 
     # drought severity this step
@@ -53,23 +70,38 @@ class SupplyChainEnvironment(Environment):
         self.transport_utilisation = 0.0
         self.current_step = 0
 
-    def update_shock_scale(self, period: int):
-        """
-        update the current global shock intensity for the given period.
-        the model interpolates from baseline factor 1.0 to the target scenario
-        factor over shock_ramp_steps after shock_onset_setup
-        """
-        onset = self.scenario.shock_onset_step
-        ramp_steps = self.scenario.shock_ramp_steps
+        # per-parameter shock activation scale
+        self.shock_scales: dict[str, float] = {
+            param: 0.0 for param, _, _ in _PARAM_TIMING_FIELDS
+        }
 
-        if period < onset:
-            self.shock_scale = 0.0
-        elif ramp_steps <= 0:
-            self.shock_scale = 1.0
-        else:
-            self.shock_scale = min(1.0, max(0.0, (period - onset) / ramp_steps))
+    def update_shock_scales(self, period: int):
+        """
+        update per-parameter shock activation scales for the given day.
 
-        self.drought_severity = self.shock_scale * (1.0 - self.scenario.farm_capacity_bra)
+        Each parameter has its own onset and end day read from the scenario.
+        A parameter's scale is 1.0 (fully active) when onset <= period < end,
+        and 0.0 (inactive) otherwise. With shock_ramp_steps = 0 (PDL default)
+        the transition is instantaneous.
+        """
+        for param, onset_field, end_field in _PARAM_TIMING_FIELDS:
+            onset = getattr(self.scenario, onset_field)
+            end = getattr(self.scenario, end_field)
+            value = getattr(self.scenario, param)
+            has_shock = value != 1.0
+            self.shock_scales[param] = (1.0 if onset <= period < end else 0.0)
+
+        self.shock_scale = max(self.shock_scales.values(), default=0.0)
+        self.drought_severity = (
+            self.shock_scales["farm_capacity_bra"] * (1.0 - self.scenario.farm_capacity_bra)
+        )
+
+
+    def get_shock_scale(self, param: str) -> float:
+        """
+        Return the current shock actibation scale for a scenario parameter.
+        """
+        return self.shock_scales.get(param, 0.0)
 
     def step(self):
         """
