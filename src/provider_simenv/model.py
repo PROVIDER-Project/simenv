@@ -121,6 +121,75 @@ class SupplyChainModel(Model):
         self._setup_with_role(self.processors, self.scenario.n_processors, ROLE_PROCESSOR)
         self._setup_with_role(self.feed_manufacturers, self.scenario.n_feed_manufacturers, ROLE_FEED_MANUFACTURER)
 
+        self._prev_shock_scales: dict[str, float] = {}
+        self._heartbeat_interval: int = 30
+
+
+    def _collect_snapshot(self) -> dict:
+        """
+        Gather current prices and volumes for logging
+        """
+        active_bra = self.bra_farmers.filter(lambda f: f.active)
+        active_arg = self.arg_farmers.filter(lambda f: f.active)
+        active_usa = self.usa_farmers.filter(lambda f: f.active)
+        bra_vol = sum(f.quantity_available for f in active_bra)
+        arg_vol = sum(f.quantity_available for f in active_arg)
+        usa_vol = sum(f.quantity_available for f in active_usa)
+        return {
+            "bra_px": (sum(f.unit_price * f.quantity_available for f in active_bra) / bra_vol) if bra_vol > 0 else 0.0,
+            "arg_px": (sum(f.unit_price * f.quantity_available for f in active_arg) / arg_vol) if arg_vol > 0 else 0.0,
+            "usa_px": (sum(f.unit_price * f.quantity_available for f in active_usa) / usa_vol) if usa_vol > 0 else 0.0,
+            "soja_px": self.environment.soja_price,
+            "feed_px": self.environment.feed_price,
+            "supply": self.environment.total_soja_supply,
+            "sto_vol": sum(a.quantity_available for a in self.transport_sa_santos.filter(lambda a: a.active)),
+            "prg_vol": sum(a.quantity_available for a in self.transport_sa_paranagua.filter(lambda a: a.active)),
+            "n_active_shocks": sum(1 for v in self.environment.shock_scales.values() if v > 0),
+        }
+
+
+    def _log_event(self, t: int, direction: str, param: str, snap: dict):
+        """
+        layer 1: emit one line per shock state transition
+        """
+        value = getattr(self.scenario, param)
+        if direction == "ON":
+            pct = (value - 1.0) * 100
+            sign = "+" if pct > 0 else ""
+            print(f" ▸ DAY {t:03d} ON {param:<28s} {value:.2f} ({sign}{pct:.0f}%)")
+        else:
+            print(f" ▸ DAY {t:03d} OFF {param:<28s} → 1.00")
+
+
+    def _log_hearbeat(self, t: int, snap: dict):
+        """
+        layer 2: periodic state summary
+        """
+        print(
+            f" ... day {t:03d}   "
+            f"shocks={snap['n_active_shocks']}  "
+            f"BRA={snap['bra_px']:.0f} ARG={snap['arg_px']:.0f} USA={snap['usa_px']:.0f} "
+            f"soja={snap['soja_px']:.0f} feed={snap['feed_px']:.0f} "
+            f"supply={snap['supply']:.0f}t"
+            )
+
+
+    def _log_scenario_summary(self, id_scenario: int, total_days: int):
+        """
+        layer 3: end of scenario summary
+        """
+        snap = self._collect_snapshot()
+        n_shocks = snap["n_active_shocks"]
+        print()
+        print(f"  ┌─ Scenario {id_scenario} complete ─{'─' * 50}┐")
+        print(f"  │  Days: {total_days}  |  Active shocks remaining: {n_shocks:<21}│")
+        print(f"  │  Final prices: BRA={snap['bra_px']:.0f}  ARG={snap['arg_px']:.0f}  "
+              f"USA={snap['usa_px']:.0f}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}{'':>4}│")
+        print(f"  │  Final supply: {snap['supply']:.0f}t  "
+              f"STO={snap['sto_vol']:.0f}t  PRG={snap['prg_vol']:.0f}t{'':>22}│")
+        print(f"  └{'─' * 63}┘")
+        print()
+
     def _do_step(self, t: int) -> None:
         """
         Execute one simulation step at period t. Shared by run() and run_stepwise().
@@ -154,78 +223,23 @@ class SupplyChainModel(Model):
         # Global state update
         self.environment.step()
 
-        # Terminal output
-        n_bra_active = sum(1 for a in self.bra_farmers.agents if a.active)
-        n_arg_active = sum(1 for a in self.arg_farmers.agents if a.active)
-        n_usa_active = sum(1 for a in self.usa_farmers.agents if a.active)
-        n_eu_active = sum(1 for a in self.eu_farmers.agents if a.active)
+        # --- Event-based logging ---
+        snap = self._collect_snapshot()
+        current_scales = dict(self.environment.shock_scales)
 
-        # BRA / ARG / USA spot prices
-        active_bra = self.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.usa_farmers.filter(lambda f: f.active)
-        bra_vol = sum(f.quantity_available for f in active_bra)
-        arg_vol = sum(f.quantity_available for f in active_arg)
-        usa_vol = sum(f.quantity_available for f in active_usa)
-        bra_px = (
-            sum(f.unit_price * f.quantity_available for f in active_bra) / bra_vol
-            if bra_vol > 0 else 0.0
-        )
-        arg_px = (
-            sum(f.unit_price * f.quantity_available for f in active_arg) / arg_vol
-        )
-        usa_px = (
-            sum(f.unit_price * f.quantity_available for f in active_usa) / usa_vol
-            if usa_vol > 0 else 0.0
-        )
+        # layer 1: detect transitions
+        for param, scale in current_scales.items():
+            prev = self._prev_shock_scales.get(param, 0.0)
+            if prev == 0.0 and scale > 0.0:
+                self._log_event(t, "ON", param, snap)
+            elif prev > 0.0 and scale == 0.0:
+                self._log_event(t, "OFF", param, snap)
 
-        # wholesaler sourcing totals across all active wholesalers
-        active_w = self.wholesalers.filter(lambda w: w.active)
-        w_bra_total = sum(w.bra_volume for w in active_w)
-        w_arg_total = sum(w.arg_volume for w in active_w)
-        w_usa_total = sum(w.usa_volume for w in active_w)
-        cheaper = "BRA" if bra_px <= usa_px else "USA"
+        self._prev_shock_scales = current_scales
 
-        # SA port throughput in tons
-        sto_vol = sum(
-            a.quantity_available for a in self.transport_sa_santos.filter(lambda a:a.active)
-        )
-
-        prg_vol = sum(
-            a.quantity_available for a in self.transport_sa_paranagua.filter(lambda a:a.active)
-        )
-
-        # Sea lane through put in tons
-        sea_sto = sum(
-            a.quantity_available for a in self.sea_lane_santos.filter(lambda a:a.active)
-        )
-        sea_prg = sum(
-            a.quantity_available for a in self.sea_lane_paranagua.filter(lambda a:a.active)
-        )
-        sea_arg = sum(
-            a.quantity_available for a in self.sea_lane_arg.filter(lambda a:a.active)
-        )
-        sea_usa = sum(
-            a.quantity_available for a in self.sea_lane_usa.filter(lambda a:a.active)
-        )
-        eu_rtm_vol = sum(
-            a.quantity_available for a in self.transport_eu_rtm.filter(lambda a:a.active)
-        )
-        eu_ham_vol = sum(
-            a.quantity_available for a in self.transport_eu_ham.filter(lambda a:a.active)
-        )
-
-        print(
-            f"[s{self.scenario.id} day={t:03d}] "
-            f"shock={self.environment.shock_scale:.2f} | "
-            f"px: BRA={bra_px:6.1f} ARG={arg_px:6.1f} USA={usa_px:6.1f} EUR/t [{cheaper}] | "
-            f"soja={self.environment.soja_price:7.1f} feed={self.environment.feed_price:7.1f} EUR/t | "
-            f"W<-BRA={w_bra_total:5.0f}t ARG={w_arg_total:5.0f} USA={w_usa_total:5.0f}t | "
-            f"SA: STO={sto_vol:5.0f}t PRG={prg_vol:5.0f}t | "
-            f"sea: STO={sea_sto:5.0f}t PRG={sea_prg:5.0f}t ARG={sea_arg:5.0f} USA={sea_usa:5.0f}t | "
-            f"EU: RTM={eu_rtm_vol:5.0f} HAM={eu_ham_vol:5.0f} | "
-            f"farms BRA={n_bra_active} ARG={n_arg_active} USA={n_usa_active} EU={n_eu_active}"
-        )
+        # layer 2: heartbeat every N days + always on day 0
+        if t == 0 or t % self._heartbeat_interval == 0:
+            self._log_hearbeat(t, snap)
 
         # Record snapshot
         self.data_collector.collect(t)
@@ -240,6 +254,7 @@ class SupplyChainModel(Model):
 
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)
+        self._log_scenario_summary(self.scenario.id, self.scenario.period_num)
         self.data_collector.save()
 
     def run_stepwise(self):

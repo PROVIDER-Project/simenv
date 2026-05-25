@@ -128,27 +128,40 @@ if __name__ == "__main__":
             print(f"{col} = {val}")
 
         df = pd.read_csv(csv_path)
-        shocked = df["id"] > 0
+
+        # keep only the baseline row (id=0)
+        baseline = df[df["id"] == 0].copy()
+
+        # build exactly one PDL scenario row from the baseline
+        pdl_row = baseline.iloc[0].copy()
+        pdl_row["id"] = 1
+
+        # apply shock value override
         for col, val in overrides.items():
             if col in df.columns:
-                df.loc[shocked, col] = val
+                pdl_row[col] = val
             else:
-                print(f"[pdl_loader] WARNING: column '{col}' not found in CSV - skipped")
+                print(f"[pdl_loader] WARNING: column {col} not found, skipping")
 
-        print("[pdl_loader] Cascade timing applied to SimulatorScenarios.csv (id > 0):")
+        # apply cascade timing
+        print("[pdl_loader] Cascade timing applied to PDL scenario row (id=1):")
         for param, timing in schedule.items():
             fields = _PDL_TIMING_COLUMNS.get(param)
             if fields is None:
                 continue
             onset_col, end_col = fields
-            df.loc[shocked, onset_col] = timing["onset"]
-            df.loc[shocked, end_col] = timing["end"]
+            pdl_row[onset_col] = timing["onset"]
+            pdl_row[end_col] = timing["end"]
             print(
-                f"  {param}:"
+                f"    {param}: "
                 f"{onset_col}={timing['onset']}, {end_col}={timing['end']}"
             )
+
+        df = pd.concat([baseline, pdl_row.to_frame().T], ignore_index=True)
+        for col in baseline.select_dtypes(include="int64").columns:
+            df[col] = df[col].astype(int)
         df.to_csv(csv_path, index=False)
-        print(f"[pdl_loader] CSV updated. \n")
+        print(f"[pdl_loader] CSV updated (baseline + 1 PDL scenario). \n")
 
 
     config = Config(

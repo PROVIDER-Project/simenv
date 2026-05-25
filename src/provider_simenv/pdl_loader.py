@@ -217,7 +217,7 @@ class PDLLoader:
         """
         cascade = self._get_cascade(cascade_id)
         event_index = self._build_event_index()
-        timeline = self._doc.get("timeline") or []
+        timeline = cascade.get("timeline") or []
 
         candidates: dict[str, list[tuple[int, int]]] = {}
 

@@ -89,7 +89,7 @@ class SupplyChainEnvironment(Environment):
             end = getattr(self.scenario, end_field)
             value = getattr(self.scenario, param)
             has_shock = value != 1.0
-            self.shock_scales[param] = (1.0 if onset <= period < end else 0.0)
+            self.shock_scales[param] = (1.0 if has_shock and onset <= period < end else 0.0)
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
         self.drought_severity = (
