@@ -95,8 +95,7 @@ class Process(SupplyChainAgent):
             self.unit_price = 0.0
             return
 
-        capacity_scale = self.model.environment.get_shock_scale(param_name) if param_name else 0.0
-        effective_factor =1.0 + capacity_scale * (capacity_factor - 1.0)
+        effective_factor = self.model.environment.get_effective_value(param_name) if param_name else 1.0
 
         total_input = sum(a.quantity_available for a in active_upstream)
 

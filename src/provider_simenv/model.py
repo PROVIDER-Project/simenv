@@ -28,6 +28,7 @@ Step order each timestep:
 """
 import fontTools.misc.arrayTools
 from Melodie import Model
+from event_tracker import EventTracker
 from agents import (
     Farmer, Trader, Transport, Process,
     ROLE_BRA, ROLE_ARG, ROLE_USA, ROLE_EU,
@@ -122,7 +123,16 @@ class SupplyChainModel(Model):
         self._setup_with_role(self.feed_manufacturers, self.scenario.n_feed_manufacturers, ROLE_FEED_MANUFACTURER)
 
         self._prev_shock_scales: dict[str, float] = {}
+        self._prev_active_events: set[str] = set()
         self._heartbeat_interval: int = 30
+
+        # inject event tracker into env if registry data was provided.
+        registry = getattr(self, "_event_registry", None)
+        if registry is not None:
+            self.environment._tracker = EventTracker(
+                events=registry["events"],
+                timeline=registry["timeline"],
+            )
 
 
     def _collect_snapshot(self) -> dict:
@@ -152,7 +162,7 @@ class SupplyChainModel(Model):
         """
         layer 1: emit one line per shock state transition
         """
-        value = getattr(self.scenario, param)
+        value = self.environment.get_effective_value(param)
         if direction == "ON":
             pct = (value - 1.0) * 100
             sign = "+" if pct > 0 else ""
@@ -195,6 +205,25 @@ class SupplyChainModel(Model):
         Execute one simulation step at period t. Shared by run() and run_stepwise().
         """
         self.environment.update_shock_scales(t)
+
+        # tracker event logging
+        tracker = self.environment._tracker
+        if tracker is not None:
+            current_events = tracker.get_active_event_ids()
+            activated = current_events - self._prev_active_events
+            expired = self._prev_active_events - current_events
+
+            for eid in sorted(activated):
+                edef = tracker._events.get(eid)
+                reason = f"condition: {edef.condition}" if edef and edef.condition else "unconditional"
+                param_str = f" -> {edef.param}={edef.value:.2f}" if edef and edef.param else ""
+                dur_str = f", expires day {t + edef.duration}" if edef and edef.duraion > 0 else ", premanent"
+                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{param_str}{dur_str})")
+
+            for eid in sorted(expired):
+                print(f" ® DAY {t:03d} EVENT OFF {eid:<35s} (duration elapsed)")
+
+            self._prev_active_events = current_events
 
         # Production
         self.bra_farmers.method_foreach('step', ())
