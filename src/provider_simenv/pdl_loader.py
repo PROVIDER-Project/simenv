@@ -264,7 +264,7 @@ class PDLLoader:
             trigger = event.get("trigger") or {}
             target = trigger.get("target", "")
             condition = trigger.get("condition", "")
-            impact = trigger.get("impact") or {}
+            impact = event.get("impact") or {}
 
             duration_raw = impact.get("duration")
             duration = _parse_duration(duration_raw) if duration_raw else 0
@@ -284,16 +284,16 @@ class PDLLoader:
                     param = mapped
                     value = round(1.0 + pct / 100.0, 6)
                     impact_field = field
-                    break               # one param ber event
+                    break               # one param per event
 
-                events.append({
-                    "id": eid,
-                    "param": param,
-                    "value": value,
-                    "duration": duration,
-                    "condition": condition,
-                    "impact_field": impact_field,
-                })
+            events.append({
+                "id": eid,
+                "param": param,
+                "value": value,
+                "duration": duration,
+                "condition": condition,
+                "impact_field": impact_field,
+            })
 
         # --- cascade timeline ---
         cascade = self._get_cascade(cascade_id)

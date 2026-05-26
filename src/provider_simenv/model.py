@@ -126,14 +126,6 @@ class SupplyChainModel(Model):
         self._prev_active_events: set[str] = set()
         self._heartbeat_interval: int = 30
 
-        # inject event tracker into env if registry data was provided.
-        registry = getattr(self, "_event_registry", None)
-        if registry is not None:
-            self.environment._tracker = EventTracker(
-                events=registry["events"],
-                timeline=registry["timeline"],
-            )
-
 
     def _collect_snapshot(self) -> dict:
         """
@@ -217,7 +209,7 @@ class SupplyChainModel(Model):
                 edef = tracker._events.get(eid)
                 reason = f"condition: {edef.condition}" if edef and edef.condition else "unconditional"
                 param_str = f" -> {edef.param}={edef.value:.2f}" if edef and edef.param else ""
-                dur_str = f", expires day {t + edef.duration}" if edef and edef.duraion > 0 else ", premanent"
+                dur_str = f", expires day {t + edef.duration}" if edef and edef.duration > 0 else ", permanent"
                 print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{param_str}{dur_str})")
 
             for eid in sorted(expired):
@@ -280,6 +272,12 @@ class SupplyChainModel(Model):
         self.iterator(n): yields period 0..n-1, handles any visualiser updates per step
         agent_list.method_foreach(method_name, args): calls method_name on every agent in the list; args must be a tuple.
         """
+        registry = getattr(self.__class__, "_event_registry", None)
+        if registry is not None:
+            self.environment._tracker = EventTracker(
+                events=registry["events"],
+                timeline=registry["timeline"],
+            )
 
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)

@@ -137,11 +137,14 @@ class EventTracker:
             else:
                 pending.append(eid)
 
-        for edef in pending:
-            if edef.id in self._active or edef.id in self._expired:
+        for eid in pending:
+            if eid in self._active or eid in self._expired:
+                continue
+            edef = self._events.get(eid)
+            if edef is None:
                 continue
             if self._evaluate_condition(edef.condition, day):
-                self._active[edef.id] = ActiveEvent(
+                self._active[eid] = ActiveEvent(
                     activated_at=day, event_def=edef,
                 )
 
@@ -203,13 +206,13 @@ class EventTracker:
 
         # "event_id.duration > Xd"
         if ".duration" in condition and ">" in condition:
-            event_id = condition.split(".duraiton")[0].strip()
+            event_id = condition.split(".duration")[0].strip()
             threshold_str = condition.split(">")[1].strip().rstrip("d").strip()
             try:
                 threshold = int(threshold_str)
             except ValueError:
                 return False
-            return self.event_active_duration(event_id) > threshold
+            return self.is_event_active(event_id) > threshold
 
         # "event_id.active"
         if condition.endswith(".active"):
@@ -243,7 +246,7 @@ class EventTracker:
             self._shock_scales[param] = 1.0
             if param in _CAPACITY_PARAMS:
                 self._param_values[param] = min(values)
-            if param in _PRICE_PARAMS:
+            elif param in _PRICE_PARAMS:
                 self._param_values[param] = max(values)
             else:
                 self._param_values[param] = values[0]

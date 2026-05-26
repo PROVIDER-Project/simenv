@@ -59,6 +59,7 @@ class SupplyChainEnvironment(Environment):
     # step
     current_step: int = 0
 
+
     def setup(self):
         """
         Initialise environment state form the scenario parameters.
@@ -76,8 +77,6 @@ class SupplyChainEnvironment(Environment):
             param: 0.0 for param, _, _ in _PARAM_TIMING_FIELDS
         }
 
-        # event tracker - injected by model after setup whn PDL is active
-        self._tracker: EventTracker | None = None
 
     def update_shock_scales(self, period: int):
         """
