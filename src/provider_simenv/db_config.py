@@ -11,6 +11,7 @@ Usage:
     print(cfg)      # safe repr, password masked
 """
 
+import os
 from dataclasses import dataclass, field
 
 @dataclass
@@ -23,11 +24,12 @@ class PostgresDBConfig:
     - palaestrAI: host=<server>, port=<port>, user=<user>, password=<pw>
     """
 
-    host: str = "localhost"
-    port: int = 5432
-    dbname: str = "provider_simenv"
-    user: str = "postgres"
-    password: str = "postgres"
+    host: str = field(default_factory=lambda: os.getenv("PROVIDER_SIMENV_PG_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.getenv("PROVIDER_SIMENV_PG_PORT", "5432")))
+    dbname: str = field(default_factory=lambda: os.getenv("PROVIDER_SIMENV_PG_DB", "provider_simenv"))
+    user: str = field(default_factory=lambda: os.getenv("PROVIDER_SIMENV_PG_USER", "postgres"))
+    password: str = field(default_factory=lambda: os.getenv("PROVIDER_SIMENV_PG_PASSWORD", "postgres"))
+    postgres_url: str | None = field(default_factory=lambda: os.getenv("PROVIDER_SIMENV_POSTGRES_URL"))
 
     def sqlalchemy_url(self) -> str:
         """
@@ -35,6 +37,10 @@ class PostgresDBConfig:
 
         Example: postgresql+psycopg2://postgres:postgres@localhost:5432/provider_simenv
         """
+        if self.postgres_url:
+            # Accept either postgresql://... or postgresql+psycopg2://...
+            return self.postgres_url
+
         return (
             f"postgresql+psycopg2://{self.user}:{self.password}"
             f"@{self.host}:{self.port}/{self.dbname}"
