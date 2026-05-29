@@ -109,7 +109,7 @@ class Transport(SupplyChainAgent):
     # cap at capacity, compute all-in unit_price (commodity + freight)
     # ------------------------------------------------------------------
 
-    def _move(self, upstream, capacity_factor: float = 1.0):
+    def _move(self, upstream, capacity_factor: float = 1.0, shock_param: str = ""):
         """
         Pull an equal share of upstream output, ca at own capacity,
         and compute the all-in price passed to the next chain node.
@@ -118,6 +118,7 @@ class Transport(SupplyChainAgent):
         apply port_capacity_sa for SA land transport).
         """
         margin = self.scenario.margin_transport
+
         if hasattr(upstream, 'filter'):
             active_upstream = upstream.filter(lambda a: a.active)
         else:
@@ -134,15 +135,16 @@ class Transport(SupplyChainAgent):
         total_volume = sum(a.quantity_available for a in active_upstream)
         volume_in = total_volume / n_self
 
-        shock_scale = self.model.environment.shock_scale
-        effective_factor = 1.0 + shock_scale * (capacity_factor - 1.0)
+        env = self.model.environment
+        capacity_scale = env.get_shock_scale(shock_param) if shock_param else 0.0
+        effective_factor = 1.0 + capacity_scale * (capacity_factor - 1.0)
 
         # effective capacity after applying port capacity shock
         effective_capacity = self.capacity * effective_factor
 
         # cap at effective capacity
         self.quantity_available = min(volume_in, effective_capacity)
-        self.utilisation = (self.quantity_available * effective_capacity if effective_capacity > 0 else 0.0)
+        self.utilisation = (self.quantity_available / effective_capacity if effective_capacity > 0 else 0.0)
 
         # weighted average commodity price from upstream
         total_value = sum(a.unit_price * a.quantity_available for a in active_upstream)
@@ -151,7 +153,8 @@ class Transport(SupplyChainAgent):
         # price = commodity price + freight fee per unit
         # energy price factor raises transport operation costs
         if self.quantity_available > 0:
-            energy_factor = 1.0 + shock_scale * (self.scenario.energy_price_factor - 1.0)
+            energy_scale = env.get_shock_scale("energy_price_factor")
+            energy_factor = 1.0 + energy_scale * (self.scenario.energy_price_factor - 1.0)
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -159,7 +162,7 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, capacity_factor: float = 1.0, exclude_arg=False, exclude_usa=False):
+    def _move_split(self, upstream_list, share: float, capacity_factor: float = 1.0, shock_param: str = "", exclude_arg=False, exclude_usa=False):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
@@ -191,8 +194,9 @@ class Transport(SupplyChainAgent):
         # each agent in this port takes an equal slice of the port's share
         volume_in = (routable_volume * share) / n_self
 
-        shock_scale = self.model.environment.shock_scale
-        effective_factor = 1.0 + shock_scale * (capacity_factor - 1.0)
+        env = self.model.environment
+        capacity_scale = env.get_shock_scale(shock_param) if shock_param else 0.0
+        effective_factor = 1.0 + capacity_scale * (capacity_factor - 1.0)
         effective_capacity = self.capacity * effective_factor
 
         self.quantity_available = min(volume_in, effective_capacity)
@@ -204,7 +208,8 @@ class Transport(SupplyChainAgent):
         upstream_price = (total_value / total_volume) if total_volume > 0 else 0.0
 
         if self.quantity_available > 0:
-            energy_factor = 1.0 + shock_scale * (self.scenario.energy_price_factor - 1.0)
+            energy_scale = env.get_shock_scale("energy_price_factor")
+            energy_factor = 1.0 + energy_scale * (self.scenario.energy_price_factor - 1.0)
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -245,6 +250,7 @@ class Transport(SupplyChainAgent):
             self.model.wholesalers,
             share=self.scenario.santos_share,
             capacity_factor=self.scenario.port_capacity_santos,
+            shock_param="port_capacity_santos",
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -258,6 +264,7 @@ class Transport(SupplyChainAgent):
             self.model.wholesalers,
             share=1.0 - self.scenario.santos_share,
             capacity_factor=self.scenario.port_capacity_paranagua,
+            shock_param="port_capacity_paranagua",
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -315,10 +322,8 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_arg
 
         if self.quantity_available > 0:
-            shock_scale = self.model.environment.shock_scale
-            energy_factor = 1.0 + shock_scale * (
-                self.scenario.energy_price_factor - 1.0
-            )
+            energy_scale = self.model.environment.get_shock_scale("energy_price_factor")
+            energy_factor = 1.0 + energy_scale * (self.scenario.energy_price_factor - 1.0)
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -367,10 +372,8 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_usa
 
         if self.quantity_available > 0:
-            shock_scale = self.model.environment.shock_scale
-            energy_factor = 1.0 + shock_scale * (
-                self.scenario.energy_price_factor - 1.0
-            )
+            energy_scale = self.model.environment.get_shock_scale("energy_price_factor")
+            energy_factor = 1.0 + energy_scale * (self.scenario.energy_price_factor - 1.0)
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -388,7 +391,7 @@ class Transport(SupplyChainAgent):
             + self.model.sea_lane_arg.filter(lambda a: a.active)
             + self.model.sea_lane_usa.filter(lambda a: a.active)
         )
-        self._move(combined, capacity_factor=self.scenario.port_capacity_rotterdam)
+        self._move(combined, capacity_factor=self.scenario.port_capacity_rotterdam, shock_param="port_capacity_rotterdam")
 
 
     def _step_eu_ham(self):
@@ -400,5 +403,6 @@ class Transport(SupplyChainAgent):
         self._move(
             self.model.sea_lane_paranagua,
             capacity_factor=self.scenario.port_capacity_hamburg,
+            shock_param="port_capacity_hamburg",
         )
 

@@ -71,7 +71,7 @@ class Process(SupplyChainAgent):
     # Shared helper: receive from upstream list, convert, compute price
     # ------------------------------------------------------------------
 
-    def _process(self, upstream_list, peer_list, capacity_factor: float = 1.0):
+    def _process(self, upstream_list, peer_list, capacity_factor: float = 1.0, shock_param: str = ""):
         """
         Pull an equal share of upstream output, apply conversion_ratio,
         and compute unit_price accounting for yield loss.
@@ -95,8 +95,8 @@ class Process(SupplyChainAgent):
             self.unit_price = 0.0
             return
 
-        shock_scale = self.model.environment.shock_scale
-        effective_factor =1.0 + shock_scale * (capacity_factor - 1.0)
+        capacity_scale = self.model.environment.get_shock_scale(shock_param) if shock_param else 0.0
+        effective_factor =1.0 + capacity_scale * (capacity_factor - 1.0)
 
         total_input = sum(a.quantity_available for a in active_upstream)
 
@@ -137,6 +137,7 @@ class Process(SupplyChainAgent):
             upstream_list=combined_eu,
             peer_list=self.model.processors,
             capacity_factor=self.scenario.oil_mill_capacity,
+            shock_param="oil_mill_capacity",
         )
 
     def _step_feed_manufacturer(self):
@@ -145,4 +146,5 @@ class Process(SupplyChainAgent):
             upstream_list=self.model.processors,
             peer_list=self.model.feed_manufacturers,
             capacity_factor=self.scenario.feed_mill_capacity,
+            shock_param="feed_mill_capacity",
         )
