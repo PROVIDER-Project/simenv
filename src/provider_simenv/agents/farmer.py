@@ -37,8 +37,8 @@ class Farmer(SupplyChainAgent):
     Shared state:
       role                  "sa" or "eu".
       fixed_costs           Operating cost per step (EUR/step).
-      steps_without_input   Consecutive steps with zero input received.
-      bankruptcy_threshold  Exit market when counter exceeds this.
+      days_without_input   Consecutive days with zero input received.
+      bankruptcy_threshold_days  Days without input before exiting the market.
 
     SA-specific state:
       base_yield    Max soja output under no disruption.
@@ -54,8 +54,8 @@ class Farmer(SupplyChainAgent):
         super().setup()
         self.role: str = ""
         self.fixed_costs: float = 0.0
-        self.steps_without_input: int = 0
-        self.bankruptcy_threshold: int = 21
+        self.days_without_input: int = 0
+        self.bankruptcy_threshold_days: int = 21    # 3 weeks without feed = exit market
 
         # SA-specific
         self.base_yield: float = 0.0
@@ -255,9 +255,9 @@ class Farmer(SupplyChainAgent):
 
         # Bankruptcy counter
         if self.feed_received == 0.0:
-            self.steps_without_input += 1
+            self.days_without_input += 1
         else:
-            self.steps_without_input = 0
+            self.days_without_input = 0
 
-        if self.steps_without_input >= self.bankruptcy_threshold:
+        if self.days_without_input >= self.bankruptcy_threshold_days:
             self.active = False
