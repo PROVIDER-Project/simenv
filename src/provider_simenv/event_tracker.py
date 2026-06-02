@@ -122,7 +122,11 @@ class EventTracker:
             self._expired.add(eid)
 
         # activate eligible events, which have their condition met
-        # unconditional first, then conditional
+        # two passes (unconditional first, then conditional) keep activation order
+        # deterministic regardless of set-iteration order.
+        # NOTE: under the current condition language this doesn't enable same-day dependency resolution
+        # '.active' returns 0 (false) on an event's own activation day, so a conditional whose dependency
+        # activates the same day always fires one day later.
         pending = []
         for eid in list(self._eligible):
             if eid in self._active or eid in self._expired:

@@ -71,13 +71,13 @@ class Process(SupplyChainAgent):
     # Shared helper: receive from upstream list, convert, compute price
     # ------------------------------------------------------------------
 
-    def _process(self, upstream_list, peer_list, capacity_factor: float = 1.0, param_name: str = ""):
+    def _process(self, upstream_list, peer_list, param_name: str = ""):
         """
         Pull an equal share of upstream output, apply conversion_ratio,
         and compute unit_price accounting for yield loss.
 
-        capacity_factor: optional multiplier on output (used to apply oil_mill_capacity / feed_mill_capacity).
-                         models indirect capaciy reduction from soja shortage.
+        param_name: scenario param whose effective value scales output.
+                    Models indirect capacity reduction from soja shortage.
 
         For every 1 unit of output, (1 / conversion_ratio) input units
         were consumed, so the input cost per output unit is:
@@ -135,7 +135,6 @@ class Process(SupplyChainAgent):
         self._process(
             upstream_list=combined_eu,
             peer_list=self.model.processors,
-            capacity_factor=self.scenario.oil_mill_capacity,
             param_name="oil_mill_capacity",
         )
 
@@ -144,6 +143,5 @@ class Process(SupplyChainAgent):
         self._process(
             upstream_list=self.model.processors,
             peer_list=self.model.feed_manufacturers,
-            capacity_factor=self.scenario.feed_mill_capacity,
             param_name="feed_mill_capacity",
         )

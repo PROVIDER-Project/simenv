@@ -265,13 +265,14 @@ class SupplyChainModel(Model):
         # Record snapshot
         self.data_collector.collect(t)
 
-    def run(self):
-        """
-        Main simulation loop. Melodie calls this after create() and setup().
 
-        self.iterator(n): yields period 0..n-1, handles any visualiser updates per step
-        agent_list.method_foreach(method_name, args): calls method_name on every agent in the list; args must be a tuple.
+    def _init_event_tracker(self) -> None:
         """
+        Attach the EventTracker for PDL runs. No-op in static / non-PDL mode.
+        Shard by run() and run_stepwise().
+        """
+        if getattr(self.scenario, "id", 0) == 0:
+            return  # baseline: no conditional events (no-shock)
         registry = getattr(self.__class__, "_event_registry", None)
         if registry is not None:
             self.environment._tracker = EventTracker(
@@ -279,6 +280,14 @@ class SupplyChainModel(Model):
                 timeline=registry["timeline"],
             )
 
+    def run(self):
+        """
+        Main simulation loop. Melodie calls this after create() and setup().
+
+        self.iterator(n): yields period 0..n-1, handles any visualiser updates per step
+        agent_list.method_foreach(method_name, args): calls method_name on every agent in the list; args must be a tuple.
+        """
+        self._init_event_tracker()
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)
         self._log_scenario_summary(self.scenario.id, self.scenario.period_num)
@@ -299,6 +308,8 @@ class SupplyChainModel(Model):
 
             id_scenario = getattr(self.scenario, "id", 0)
             tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
+
+            self._init_event_tracker()
 
             for t in range(self.scenario.period_num):
                 self._do_step(t)

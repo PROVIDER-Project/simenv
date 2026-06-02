@@ -13,8 +13,11 @@ Tracked prices mirror the computed unit_price at key chain nodes:
     transport_utilisation: average utilisation of all transport agents
 """
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from Melodie import Environment
-from event_tracker import EventTracker
+
+if TYPE_CHECKING:
+    from event_tracker import EventTracker
 
 
 # maps scenario param name -> (onset_field, end_field) on SupplyChainScenario
@@ -59,6 +62,9 @@ class SupplyChainEnvironment(Environment):
     # step
     current_step: int = 0
 
+    # conditional-event tracker
+    # set in Model.run()/run_stepwise() for PDL runs
+    _tracker: EventTracker | None = None
 
     def setup(self):
         """
