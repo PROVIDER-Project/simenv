@@ -150,6 +150,29 @@ Scenarios are defined in `data/input/SimulatorScenarios.csv`. Each row is one sc
 
 ---
 
+## Run in docker container
+
+The simulation can also be run in a docker container.
+First, build the container. In the repo root run
+
+```bash
+docker build -t provider-simenv .
+```
+
+Then you can run the simulation in the container with
+
+```bash
+docker run --rm -v <path to pdl file directory>:/scenarios provider-simenv --pdl /scenarios/<pdl filename>
+```
+
+You can also configure a PostgreSQL interface for data storage (see next chapter) with
+
+```bash
+docker run --rm -v <path to pdl file directory>:/scenarios provider-simenv --pdl /scenarios/<pdl filename> --postgres-url <PostgreSQL URL string>
+```
+
+---
+
 ## PostgreSQL Setup (Optional)
 
 PostgreSQL enables live data access during the simulation — required for future palaestrAI
@@ -206,6 +229,19 @@ Result_Simulator_EuFarmers
 
 Tables are dropped and recreated at the start of each full simulation run (first scenario only).
 Subsequent scenarios within the same run append to the existing tables.
+
+---
+
+## docker-compose
+
+You can also run a docker compose that sets up a PostgreSQL database and links it to the simulation container.
+Using our helper script, everything is configured automatically. 
+Just run
+
+```bash
+./compose-up.sh <path to pdl file>
+```
+from the repository root. This builds the database container, if it's not already up and runs a simulation of the specified pdl file. You can run different configurations by simply repeating this call with the respective paths.
 
 ---
 
