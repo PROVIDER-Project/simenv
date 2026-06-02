@@ -16,9 +16,9 @@ import pandas as pd
 from Melodie import Config, Simulator
 from scipy.constants import value
 
-from model import SupplyChainModel
-from scenario import SupplyChainScenario
-from pdl_loader import PDLLoader
+from provider_simenv.model import SupplyChainModel
+from provider_simenv.scenario import SupplyChainScenario
+from provider_simenv.pdl_loader import PDLLoader
 
 _PDL_TIMING_COLUMNS = {
       "farm_capacity_bra":       ("shock_onset_farm_bra",       "shock_end_farm_bra"),
@@ -87,6 +87,13 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--postgres-url",
+        type=str,
+        default=None,
+        metavar="URL",
+        help=(
+            "Optional PostgreSQL SQLAlchemy connection string for tick writes, "
+            "e.g. postgresql+psycopg2://user:pass@host:5432/dbname"
         "--cascade",
         type=str,
         default=None,
@@ -96,6 +103,10 @@ if __name__ == "__main__":
         ),
     )
     args = parser.parse_args()
+
+    if args.postgres_url:
+        os.environ["PROVIDER_SIMENV_POSTGRES_URL"] = args.postgres_url
+        print("[main] Using PostgreSQL connection string from --postgres-url")
 
     # Folder paths (both needed for PDL injection and Config)
     here = os.path.dirname(os.path.abspath(__file__))

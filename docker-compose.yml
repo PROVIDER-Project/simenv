@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: provider-simenv-postgres
+    environment:
+      POSTGRES_DB: provider_simenv
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - simenv_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d provider_simenv"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  simenv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: provider-simenv:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ${PDL_DIR:?Set PDL_DIR to the directory that contains the PDL file}:/pdl:ro
+    command:
+      - --pdl
+      - /pdl/${PDL_FILE:?Set PDL_FILE to the PDL filename}
+      - --postgres-url
+      - postgresql+psycopg2://postgres:postgres@postgres:5432/provider_simenv
+    restart: "no"
+
+volumes:
+  simenv_postgres_data:
