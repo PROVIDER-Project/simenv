@@ -71,6 +71,18 @@ def _parse_percent(raw: str) -> float:
     return float(raw.strip().rstrip("%").replace("+", ""))
 
 
+def _parse_duration(raw: str) -> int:
+    """
+    Convert  PDL duration/offset string to plain integer days.
+
+    examples:
+        "0d" -> 0
+        "14d" -> 14
+        "90d" -> 90
+    """
+    return int(str(raw).strip().rstrip("d"))
+
+
 # ------
 # Loader
 # ------
@@ -147,6 +159,97 @@ class PDLLoader:
 
         return overrides
 
+
+    def _get_cascade(self, cascade_id: str | None) -> dict:
+        """
+        Return the cascade dict matching cascade_id, or the first one if None.
+        """
+        cascades = self._doc.get("cascades") or []
+        if not cascades:
+            raise ValueError(f"No cascade section found in '{self.path.name}'.")
+        if cascade_id is None:
+            return cascades[0]
+        for c in cascades:
+            if c.get("id") == cascade_id:
+                return c
+        raise ValueError(
+            f"Cascase '{cascade_id}' not found in '{self.path.name}'.'"
+            f"Available cascade IDs: {[c.get('id') for c in cascades]}."
+        )
+
+
+    def _build_event_index(self) -> dict[str, dict]:
+        """
+        Return a dict mapping event id -> event dict for fast lookup.
+        """
+        return {e["id"]: e for e in (self._doc.get("events") or [])}
+
+
+    def to_cascade_schedule(self, cascade_id: str | None = None) -> dict[str, dict[str, int]]:
+        """
+        Parse a cascade timeline and return per-parameter shock schedule.
+
+        For each scenario parameter the current model can consume,
+        returns the onset day (when the shock starts) and end day (when it ends).
+        Onset comes from the cascade timeline's 'at:' field.
+        End is onset + the matching event's 'impact.duration'.
+
+        When multiple timeline entries map to the same scenario parameter:
+            onset = min(all onset days) -> shock starts at earliest trigger
+            end = max(all end days) -> shock lasts until latest event expires
+
+            e.g.
+            - {at: 14d, event: soy_export_reduction} -> santos_port -> port_capacity_santos
+            - {at: 21d, event: port_congestion} -> santos_port -> port_capacity_santos
+
+        :param cascade_id:
+            cascade_id: str | None
+            ID of the cascade to read (e.g. "soy_crisis_cascade")
+            If None, the first cascae in the file is used.
+
+        :return:
+            dict[str, dict[str, int]]
+            e.g.
+            {
+                "farm_capacity_bra": {"onset": 0, "end": 90},
+                "port_capacity_santos": {"onset": 14, "end": 134},
+            }
+        """
+        cascade = self._get_cascade(cascade_id)
+        event_index = self._build_event_index()
+        timeline = cascade.get("timeline") or []
+
+        candidates: dict[str, list[tuple[int, int]]] = {}
+
+        for entry in timeline:
+            onset_day = _parse_duration(entry.get("at", "0d"))
+            event_id = entry.get("event", "")
+            event = event_index.get(event_id)
+            if event is None:
+                continue
+
+            target = (event.get("trigger") or {}).get("target", "")
+            impact = event.get("impact") or {}
+            duration_raw = impact.get("duration")
+            duration_days = _parse_duration(duration_raw) if duration_raw else 0
+            end_day = onset_day + duration_days
+
+            for field in ("supply", "price"):
+                if impact.get(field) is None:
+                    continue
+                param = _PDL_MAPPING.get((target, field))
+                if param is None:
+                    continue
+                candidates.setdefault(param, []).append((onset_day, end_day))
+
+        # earliest onset, latest end
+        return {
+            param: {
+                "onset": min(p[0] for p in pairs),
+                "end": max(p[1] for p in pairs),
+            }
+            for param, pairs in candidates.items()
+        }
 
     def __repr__(self) -> str:
         return f"PDLLoader({self.path.name!r}, label={self.label!r})"
