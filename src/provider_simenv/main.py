@@ -94,6 +94,9 @@ if __name__ == "__main__":
         help=(
             "Optional PostgreSQL SQLAlchemy connection string for tick writes, "
             "e.g. postgresql+psycopg2://user:pass@host:5432/dbname"
+        ),
+    )
+    parser.add_argument(
         "--cascade",
         type=str,
         default=None,
@@ -102,6 +105,7 @@ if __name__ == "__main__":
             "PDL cascade id to use for timing. Defaults to the first cascade in the PDL file."
         ),
     )
+
     args = parser.parse_args()
 
     if args.postgres_url:

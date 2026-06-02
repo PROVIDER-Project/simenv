@@ -28,8 +28,8 @@ Step order each timestep:
 """
 import fontTools.misc.arrayTools
 from Melodie import Model
-from event_tracker import EventTracker
-from agents import (
+from .event_tracker import EventTracker
+from .agents import (
     Farmer, Trader, Transport, Process,
     ROLE_BRA, ROLE_ARG, ROLE_USA, ROLE_EU,
     ROLE_WHOLESALER, ROLE_FEED_TRADER,
