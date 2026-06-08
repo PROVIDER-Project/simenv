@@ -109,12 +109,12 @@ class Transport(SupplyChainAgent):
     # cap at capacity, compute all-in unit_price (commodity + freight)
     # ------------------------------------------------------------------
 
-    def _move(self, upstream, param_name: str = ""):
+    def _move(self, upstream, scenario_param: str = ""):
         """
         Pull an equal share of upstream output, ca at own capacity,
         and compute the all-in price passed to the next chain node.
 
-        param_name: scenario param whose effective value scales this agent's capacity, via env.get_effective_value()
+        scenario_param: scenario param whose effective value scales this agent's capacity, via env.get_effective_value()
         """
         margin = self.scenario.margin_transport
 
@@ -135,7 +135,7 @@ class Transport(SupplyChainAgent):
         volume_in = total_volume / n_self
 
         env = self.model.environment
-        effective_factor = env.get_effective_value(param_name) if param_name else 1.0
+        effective_factor = env.get_effective_value(scenario_param) if scenario_param else 1.0
 
         # effective capacity after applying port capacity shock
         effective_capacity = self.capacity * effective_factor
@@ -159,13 +159,13 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, param_name: str = "", exclude_arg=False, exclude_usa=False):
+    def _move_split(self, upstream_list, share: float, scenario_param: str = "", exclude_arg=False, exclude_usa=False):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
 
         :param share: fraction of total wholesaler output for this port (e.g. 0.7 for Santos, 0.3 for Paranagua).
-        :param param_name: scenario param whose effective value scales this agent's capacity.
+        :param scenario_param: scenario param whose effective value scales this agent's capacity.
         """
         margin = self.scenario.margin_transport
         active_upstream = upstream_list.filter(lambda a: a.active)
@@ -192,7 +192,7 @@ class Transport(SupplyChainAgent):
         volume_in = (routable_volume * share) / n_self
 
         env = self.model.environment
-        effective_factor = env.get_effective_value(param_name) if param_name else 1.0
+        effective_factor = env.get_effective_value(scenario_param) if scenario_param else 1.0
         effective_capacity = self.capacity * effective_factor
 
         self.quantity_available = min(volume_in, effective_capacity)
@@ -244,7 +244,7 @@ class Transport(SupplyChainAgent):
         self._move_split(
             self.model.wholesalers,
             share=self.scenario.santos_share,
-            param_name="port_capacity_santos",
+            scenario_param="port_capacity_santos",
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -257,7 +257,7 @@ class Transport(SupplyChainAgent):
         self._move_split(
             self.model.wholesalers,
             share=1.0 - self.scenario.santos_share,
-            param_name="port_capacity_paranagua",
+            scenario_param="port_capacity_paranagua",
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -382,7 +382,7 @@ class Transport(SupplyChainAgent):
             + self.model.sea_lane_arg.filter(lambda a: a.active)
             + self.model.sea_lane_usa.filter(lambda a: a.active)
         )
-        self._move(combined, param_name="port_capacity_rotterdam")
+        self._move(combined, scenario_param="port_capacity_rotterdam")
 
 
     def _step_eu_ham(self):
@@ -393,6 +393,6 @@ class Transport(SupplyChainAgent):
         """
         self._move(
             self.model.sea_lane_paranagua,
-            param_name="port_capacity_hamburg",
+            scenario_param="port_capacity_hamburg",
         )
 
