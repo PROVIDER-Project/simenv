@@ -48,7 +48,7 @@ class TickWriter:
 
     def __init__(self, engine) -> None:
         self.engine = engine
-        self.eabled = True
+        self.enabled = True
         self._reset_tables()
 
     @classmethod
@@ -70,7 +70,7 @@ class TickWriter:
             print(f"[tick_writer] WARNING: could not connect to Postgres ({exc}).")
         writer = object.__new__(cls)
         writer.engine = None
-        writer.eabled = False
+        writer.enabled = False
         return writer
 
 

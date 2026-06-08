@@ -94,6 +94,9 @@ if __name__ == "__main__":
         help=(
             "Optional PostgreSQL SQLAlchemy connection string for tick writes, "
             "e.g. postgresql+psycopg2://user:pass@host:5432/dbname"
+        ),
+    )
+    parser.add_argument(
         "--cascade",
         type=str,
         default=None,
@@ -102,6 +105,7 @@ if __name__ == "__main__":
             "PDL cascade id to use for timing. Defaults to the first cascade in the PDL file."
         ),
     )
+
     args = parser.parse_args()
 
     if args.postgres_url:
@@ -174,6 +178,14 @@ if __name__ == "__main__":
         df.to_csv(csv_path, index=False)
         print(f"[pdl_loader] CSV updated (baseline + 1 PDL scenario). \n")
 
+        # Build event registry for conditional runtime evaluation
+        event_registry = loader.to_event_registry(args.cascade)
+        n_total = len(event_registry["events"])
+        n_mapped = sum(1 for e in event_registry["events"] if e["param"] is not None)
+        n_conditional = sum(1 for e in event_registry["events"] if e["condition"])
+        print(f"[event_tracker] Registry: {n_total} events "
+              f"({n_mapped} mapped, {n_conditional} conditional)")
+
 
     config = Config(
         project_name= "provider-simenv",
@@ -187,7 +199,15 @@ if __name__ == "__main__":
         scenario_cls=SupplyChainScenario,
         model_cls=SupplyChainModel,
     )
+
+    # attach event registry to model class so setup can inject the tracker into the env
+    if args.pdl:
+        SupplyChainModel._event_registry = event_registry
+
     simulator.run()
+
+    if hasattr(SupplyChainModel, "_event_registry"):
+        del SupplyChainModel._event_registry
 
     # post-process: merge CSVs -> SQLite for visualize_sql.py
     print("\n[main] Converting CSVs to SQLite...")

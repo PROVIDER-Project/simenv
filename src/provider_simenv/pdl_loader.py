@@ -251,5 +251,61 @@ class PDLLoader:
             for param, pairs in candidates.items()
         }
 
+
+    def to_event_registry(self, cascade_id: str | None = None) -> dict:
+        """
+        Export event definitions and cascade timeline for the EventTracker.
+
+        All PDL events are included, events without a simenv param mapping get param=None / value=None
+        """
+        events: list[dict] = []
+        for event in (self._doc.get("events") or []):
+            eid = event.get("id", "")
+            trigger = event.get("trigger") or {}
+            target = trigger.get("target", "")
+            condition = trigger.get("condition", "")
+            impact = event.get("impact") or {}
+
+            duration_raw = impact.get("duration")
+            duration = _parse_duration(duration_raw) if duration_raw else 0
+
+            # find the first mapped (target, field)
+            param = None
+            value = None
+            impact_field = "supply"
+
+            for field in ("supply", "price"):
+                raw = impact.get(field)
+                if raw is None:
+                    continue
+                mapped = _PDL_MAPPING.get((target, field))
+                if mapped is not None:
+                    pct = _parse_percent(str(raw))
+                    param = mapped
+                    value = round(1.0 + pct / 100.0, 6)
+                    impact_field = field
+                    break               # one param per event
+
+            events.append({
+                "id": eid,
+                "param": param,
+                "value": value,
+                "duration": duration,
+                "condition": condition,
+                "impact_field": impact_field,
+            })
+
+        # --- cascade timeline ---
+        cascade = self._get_cascade(cascade_id)
+        timeline: list[dict] = []
+        for entry in (cascade.get("timeline") or []):
+            timeline.append({
+                "at_day": _parse_duration(entry.get("at", "0d")),
+                "event_id": entry.get("event", ""),
+            })
+
+        return {"events": events, "timeline": timeline}
+
+
     def __repr__(self) -> str:
         return f"PDLLoader({self.path.name!r}, label={self.label!r})"
