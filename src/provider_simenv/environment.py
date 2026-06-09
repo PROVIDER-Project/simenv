@@ -16,23 +16,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from Melodie import Environment
 
+try:
+    from shock_registry import param_names, drought_param
+except ImportError:
+    from .shock_registry import param_names, drought_param
+
 if TYPE_CHECKING:
     from event_tracker import EventTracker
-
-
-# maps scenario param name -> (onset_field, end_field) on SupplyChainScenario
-_PARAM_TIMING_FIELDS: list[tuple[str, str, str]] = [
-    ("farm_capacity_bra", "shock_onset_farm_bra", "shock_end_farm_bra"),
-    ("farm_capacity_arg", "shock_onset_farm_arg", "shock_end_farm_arg"),
-    ("port_capacity_santos", "shock_onset_port_santos", "shock_end_port_santos"),
-    ("port_capacity_paranagua", "shock_onset_port_paranagua", "shock_end_port_paranagua"),
-    ("port_capacity_rotterdam", "shock_onset_port_rotterdam", "shock_end_port_rotterdam"),
-    ("port_capacity_hamburg", "shock_onset_port_hamburg", "shock_end_port_hamburg"),
-    ("fertilizer_price_factor", "shock_onset_fertilizer", "shock_end_fertilizer"),
-    ("energy_price_factor", "shock_onset_energy", "shock_end_energy"),
-    ("oil_mill_capacity", "shock_onset_oil_mill", "shock_end_oil_mill"),
-    ("feed_mill_capacity", "shock_onset_feed_mill", "shock_end_feed_mill"),
-]
 
 
 class SupplyChainEnvironment(Environment):
@@ -80,7 +70,7 @@ class SupplyChainEnvironment(Environment):
 
         # per-parameter shock activation scale
         self.shock_scales: dict[str, float] = {
-            param: 0.0 for param, _, _ in _PARAM_TIMING_FIELDS
+            param: 0.0 for param in param_names()
         }
 
 
@@ -94,21 +84,18 @@ class SupplyChainEnvironment(Environment):
         """
         if self._tracker is not None:
             self._tracker.step(period)
-            for param, _, _ in _PARAM_TIMING_FIELDS:
+            for param in self.shock_scales:
                 self.shock_scales[param] = self._tracker.get_shock_scale(param)
         else:
-            for param, onset_field, end_field in _PARAM_TIMING_FIELDS:
-                onset = getattr(self.scenario, onset_field)
-                end = getattr(self.scenario, end_field)
-                value = getattr(self.scenario, param)
-                has_shock = value != 1.0
-                self.shock_scales[param] = (1.0 if has_shock and onset <= period < end else 0.0)
+            for param in self.shock_scales:
+                self.shock_scales[param] = 0.0
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
 
         # drought severity: use racker value if available
-        bra_scale = self.shock_scales.get("farm_capacity_bra", 0.0)
-        bra_value = self.get_effective_value("farm_capacity_bra")
+        drought = drought_param()
+        bra_scale = self.shock_scales.get(drought, 0.0)
+        bra_value = self.get_effective_value(drought)
         self.drought_severity = (
             bra_scale * (1.0 - bra_value)
         )
@@ -126,11 +113,11 @@ class SupplyChainEnvironment(Environment):
         Return the effective value for this step.
 
         Tracker mode: aggregated from currently active events only.
-        Static mode: reads fixed value from the scenario.
+        No tracker (baseline / non-PDL): unshocked, always 1.0
         """
         if self._tracker is not None:
             return self._tracker.get_param_value(param)
-        return getattr(self.scenario, param, 1.0)
+        return 1.0
 
 
     def step(self):

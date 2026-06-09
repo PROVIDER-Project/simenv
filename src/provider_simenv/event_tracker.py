@@ -9,6 +9,8 @@ their cascade day is reached and the pdl condition is satisfied.("brazil_drought
 from __future__ import annotations
 from dataclasses import dataclass
 
+from shock_registry import aggregate
+
 @dataclass(frozen=True)
 class EventDef:
     """
@@ -40,16 +42,6 @@ class ActiveEvent:
     """
     activated_at: int
     event_def: EventDef
-
-
-# --- Aggregation constants ---
-_CAPACITY_PARAMS = {
-    "farm_capacity_bra", "farm_capacity_arg",
-    "port_capacity_santos", "port_capacity_paranagua",
-    "port_capacity_rotterdam", "port_capacity_hamburg",
-    "oil_mill_capacity", "feed_mill_capacity",
-}
-_PRICE_PARAMS = {"energy_price_factor", "fertilizer_price_factor"}
 
 
 # --- Event tracker ---
@@ -237,20 +229,17 @@ class EventTracker:
             price params -> max(values)
         """
         candidates: dict[str, list[float]] = {}
+        impact_fields: dict[str, str] = {}
 
         for active in self._active.values():
             edef = active.event_def
             if edef.param is not None and edef.value is not None:
                 candidates.setdefault(edef.param, []).append(edef.value)
+                impact_fields[edef.param] = edef.impact_field
 
         self._shock_scales.clear()
         self._param_values.clear()
 
         for param, values in candidates.items():
             self._shock_scales[param] = 1.0
-            if param in _CAPACITY_PARAMS:
-                self._param_values[param] = min(values)
-            elif param in _PRICE_PARAMS:
-                self._param_values[param] = max(values)
-            else:
-                self._param_values[param] = values[0]
+            self._param_values[param] = aggregate(impact_fields[param], values)

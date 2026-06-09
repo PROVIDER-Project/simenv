@@ -148,8 +148,8 @@ def test_capacity_params_aggregate_with_min():
 
 def test_price_params_aggregate_with_max():
     events = [
-        ev("a", param="energy_price_factor", value=1.5),
-        ev("b", param="energy_price_factor", value=3.0),
+        ev("a", param="energy_price_factor", value=1.5, impact_field="price"),
+        ev("b", param="energy_price_factor", value=3.0, impact_field="price"),
     ]
     t = EventTracker(events, [tl(0, "a"), tl(0, "b")])
     t.step(0)
