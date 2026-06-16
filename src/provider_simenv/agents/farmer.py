@@ -168,12 +168,12 @@ class Farmer(SupplyChainAgent):
         raises per-unit cost, which raises unit_price automatically.
         """
         env = self.model.environment
-        farm_capacity = env.get_effective_value("farm_capacity_bra")
+        farm_capacity = env.get_effective_value("brazil_farms", "supply")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:
             # fertilizer price factor raises effective fixed costs this step
-            fertilizer_factor = env.get_effective_value("fertilizer_price_factor")
+            fertilizer_factor = env.get_effective_value("fertilizer_supply", "price")
             effective_costs = self.fixed_costs * fertilizer_factor
             self.unit_price = (effective_costs / self.quantity_available) * (1.0 + self.margin)
         else:
@@ -220,7 +220,7 @@ class Farmer(SupplyChainAgent):
         farm_capacity_arg allows ARG-specific shocks to be modelled independently.
         Defaults to 1.0 = always unshocked.
         """
-        farm_capacity = self.model.environment.get_effective_value("farm_capacity_arg")
+        farm_capacity = self.model.environment.get_effective_value("argentina_farms", "supply")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:

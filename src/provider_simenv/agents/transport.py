@@ -109,12 +109,12 @@ class Transport(SupplyChainAgent):
     # cap at capacity, compute all-in unit_price (commodity + freight)
     # ------------------------------------------------------------------
 
-    def _move(self, upstream, scenario_param: str = ""):
+    def _move(self, upstream, shock_key: tuple[str, str] | None = None):
         """
         Pull an equal share of upstream output, ca at own capacity,
         and compute the all-in price passed to the next chain node.
 
-        scenario_param: scenario param whose effective value scales this agent's capacity, via env.get_effective_value()
+        shock_key: PDL (entity, field) whoe effective value scales this agent's capacity
         """
         margin = self.scenario.margin_transport
 
@@ -135,7 +135,7 @@ class Transport(SupplyChainAgent):
         volume_in = total_volume / n_self
 
         env = self.model.environment
-        effective_factor = env.get_effective_value(scenario_param) if scenario_param else 1.0
+        effective_factor = env.get_effective_value(*shock_key) if shock_key else 1.0
 
         # effective capacity after applying port capacity shock
         effective_capacity = self.capacity * effective_factor
@@ -151,7 +151,7 @@ class Transport(SupplyChainAgent):
         # price = commodity price + freight fee per unit
         # energy price factor raises transport operation costs
         if self.quantity_available > 0:
-            energy_factor = env.get_effective_value("energy_price_factor")
+            energy_factor = env.get_effective_value("gas_supply", "price")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -159,13 +159,13 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, scenario_param: str = "", exclude_arg=False, exclude_usa=False):
+    def _move_split(self, upstream_list, share: float, shock_key: tuple[str, str] | None = None, exclude_arg=False, exclude_usa=False):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
 
         :param share: fraction of total wholesaler output for this port (e.g. 0.7 for Santos, 0.3 for Paranagua).
-        :param scenario_param: scenario param whose effective value scales this agent's capacity.
+        :param shock_key: PDL (entity, field) whoe effective value scales this agent's capacity
         """
         margin = self.scenario.margin_transport
         active_upstream = upstream_list.filter(lambda a: a.active)
@@ -192,7 +192,7 @@ class Transport(SupplyChainAgent):
         volume_in = (routable_volume * share) / n_self
 
         env = self.model.environment
-        effective_factor = env.get_effective_value(scenario_param) if scenario_param else 1.0
+        effective_factor = env.get_effective_value(*shock_key) if shock_key else 1.0
         effective_capacity = self.capacity * effective_factor
 
         self.quantity_available = min(volume_in, effective_capacity)
@@ -204,7 +204,7 @@ class Transport(SupplyChainAgent):
         upstream_price = (total_value / total_volume) if total_volume > 0 else 0.0
 
         if self.quantity_available > 0:
-            energy_factor = env.get_effective_value("energy_price_factor")
+            energy_factor = env.get_effective_value("gas_supply", "price")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -244,7 +244,7 @@ class Transport(SupplyChainAgent):
         self._move_split(
             self.model.wholesalers,
             share=self.scenario.santos_share,
-            scenario_param="port_capacity_santos",
+            shock_key=("santos_port", "supply"),
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -257,7 +257,7 @@ class Transport(SupplyChainAgent):
         self._move_split(
             self.model.wholesalers,
             share=1.0 - self.scenario.santos_share,
-            scenario_param="port_capacity_paranagua",
+            shock_key=("paranagua_port", "supply"),
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -315,7 +315,7 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_arg
 
         if self.quantity_available > 0:
-            energy_factor = self.model.environment.get_effective_value("energy_price_factor")
+            energy_factor = self.model.environment.get_effective_value("gas_supply", "price")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -364,7 +364,7 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_usa
 
         if self.quantity_available > 0:
-            energy_factor = self.model.environment.get_effective_value("energy_price_factor")
+            energy_factor = self.model.environment.get_effective_value("gas_supply", "price")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -382,7 +382,7 @@ class Transport(SupplyChainAgent):
             + self.model.sea_lane_arg.filter(lambda a: a.active)
             + self.model.sea_lane_usa.filter(lambda a: a.active)
         )
-        self._move(combined, scenario_param="port_capacity_rotterdam")
+        self._move(combined, shock_key=("rotterdam_port", "supply"))
 
 
     def _step_eu_ham(self):
@@ -393,6 +393,6 @@ class Transport(SupplyChainAgent):
         """
         self._move(
             self.model.sea_lane_paranagua,
-            scenario_param="port_capacity_hamburg",
+            shock_key=("hamburg_port", "supply"),
         )
 

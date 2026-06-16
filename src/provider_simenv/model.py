@@ -122,7 +122,7 @@ class SupplyChainModel(Model):
         self._setup_with_role(self.processors, self.scenario.n_processors, ROLE_PROCESSOR)
         self._setup_with_role(self.feed_manufacturers, self.scenario.n_feed_manufacturers, ROLE_FEED_MANUFACTURER)
 
-        self._prev_shock_scales: dict[str, float] = {}
+        self._prev_shock_scales: dict[tuple[str, str], float] = {}
         self._prev_active_events: set[str] = set()
         self._heartbeat_interval: int = 30
 
@@ -150,17 +150,19 @@ class SupplyChainModel(Model):
         }
 
 
-    def _log_event(self, t: int, direction: str, param: str, snap: dict):
+    def _log_event(self, t: int, direction: str, key: tuple[str, str], snap: dict):
         """
         layer 1: emit one line per shock state transition
         """
-        value = self.environment.get_effective_value(param)
+        entity, field = key
+        label = f"{entity}/{field}"
+        value = self.environment.get_effective_value(entity, field)
         if direction == "ON":
             pct = (value - 1.0) * 100
             sign = "+" if pct > 0 else ""
-            print(f" ▸ DAY {t:03d} ON {param:<28s} {value:.2f} ({sign}{pct:.0f}%)")
+            print(f" ▸ DAY {t:03d} ON {label:<28s} {value:.2f} ({sign}{pct:.0f}%)")
         else:
-            print(f" ▸ DAY {t:03d} OFF {param:<28s} → 1.00")
+            print(f" ▸ DAY {t:03d} OFF {label:<28s} → 1.00")
 
 
     def _log_hearbeat(self, t: int, snap: dict):
@@ -208,10 +210,14 @@ class SupplyChainModel(Model):
             for eid in sorted(activated):
                 edef = tracker._events.get(eid)
                 reason = f"condition: {edef.condition}" if edef and edef.condition else "unconditional"
-                param_str = f" -> {edef.param}={edef.value:.2f}" if edef and edef.param else ""
+                if edef and edef.impacts:
+                    impact_str = " -> " + ", ".join(
+                        f"{edef.entity}/{f}={v:.2f}" for f, v in edef.impacts.items()
+                    )
+                else:
+                    impact_str = ""
                 dur_str = f", expires day {t + edef.duration}" if edef and edef.duration > 0 else ", permanent"
-                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{param_str}{dur_str})")
-
+                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{impact_str}{dur_str})")
             for eid in sorted(expired):
                 print(f" ® DAY {t:03d} EVENT OFF {eid:<35s} (duration elapsed)")
 
@@ -249,12 +255,12 @@ class SupplyChainModel(Model):
         current_scales = dict(self.environment.shock_scales)
 
         # layer 1: detect transitions
-        for param, scale in current_scales.items():
-            prev = self._prev_shock_scales.get(param, 0.0)
+        for key, scale in current_scales.items():
+            prev = self._prev_shock_scales.get(key, 0.0)
             if prev == 0.0 and scale > 0.0:
-                self._log_event(t, "ON", param, snap)
+                self._log_event(t, "ON", key, snap)
             elif prev > 0.0 and scale == 0.0:
-                self._log_event(t, "OFF", param, snap)
+                self._log_event(t, "OFF", key, snap)
 
         self._prev_shock_scales = current_scales
 

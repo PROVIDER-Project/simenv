@@ -14,7 +14,6 @@ import argparse
 import pandas as pd
 
 from Melodie import Config, Simulator
-from scipy.constants import value
 
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
@@ -139,10 +138,10 @@ if __name__ == "__main__":
         # build event registry for conditional runtime evaluation
         event_registry = loader.to_event_registry(args.cascade)
         n_total = len(event_registry["events"])
-        n_mapped = sum(1 for e in event_registry["events"] if e["param"] is not None)
+        n_shocking = sum(1 for e in event_registry["events"] if e["impacts"])
         n_conditional = sum(1 for e in event_registry["events"] if e["condition"])
-        print(f"[event_tracker] Registry: {n_total} events"
-              f"{n_mapped} mapped, {n_conditional} conditional)")
+        print(f"[event_tracker] Registry: {n_total} events "
+              f"{n_shocking} with shocks, {n_conditional} conditional)")
 
 
 

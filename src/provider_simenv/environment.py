@@ -16,13 +16,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from Melodie import Environment
 
-try:
-    from shock_registry import param_names, drought_param
-except ImportError:
-    from .shock_registry import param_names, drought_param
 
-if TYPE_CHECKING:
-    from event_tracker import EventTracker
+from .shock_registry import DROUGHT_KEY
+from .event_tracker import EventTracker
 
 
 class SupplyChainEnvironment(Environment):
@@ -37,7 +33,7 @@ class SupplyChainEnvironment(Environment):
     feed_price: float = 0.0
 
     # global shock intensity
-    # Agents should call get_shock_scale(param) instead of reading this directly.
+    # Agents should call get_shock_scale(entity, field) instead of reading this directly.
     shock_scale: float = 0.0
 
     # drought severity this step
@@ -68,10 +64,8 @@ class SupplyChainEnvironment(Environment):
         self.transport_utilisation = 0.0
         self.current_step = 0
 
-        # per-parameter shock activation scale
-        self.shock_scales: dict[str, float] = {
-            param: 0.0 for param in param_names()
-        }
+        # per (entity, field) shock activation scale.
+        self.shock_scales: dict[tuple[str, str], float] = {}
 
 
     def update_shock_scales(self, period: int):
@@ -84,31 +78,33 @@ class SupplyChainEnvironment(Environment):
         """
         if self._tracker is not None:
             self._tracker.step(period)
-            for param in self.shock_scales:
-                self.shock_scales[param] = self._tracker.get_shock_scale(param)
+            # seed the key once
+            if not self.shock_scales:
+                self.shock_scales = {key: 0.0 for key in self._tracker.known_keys()}
+            for key in self.shock_scales:
+                self.shock_scales[key] = self._tracker.get_shock_scale(*key)
         else:
-            for param in self.shock_scales:
-                self.shock_scales[param] = 0.0
+            for key in self.shock_scales:
+                self.shock_scales[key] = 0.0
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
 
-        # drought severity: use racker value if available
-        drought = drought_param()
-        bra_scale = self.shock_scales.get(drought, 0.0)
-        bra_value = self.get_effective_value(drought)
-        self.drought_severity = (
-            bra_scale * (1.0 - bra_value)
-        )
+        # Drought severity is defined as brazil_farms supply degradation (DROUGHT_KEY)
+        bra_scale = self.shock_scales.get(DROUGHT_KEY, 0.0)
+        bra_value = self.get_effective_value(*DROUGHT_KEY)
+        self.drought_severity = (bra_scale * (1.0 - bra_value))
 
 
-    def get_shock_scale(self, param: str) -> float:
+
+
+    def get_shock_scale(self, entity: str, field: str) -> float:
         """
         Return the current shock actibation scale for a scenario parameter.
         """
-        return self.shock_scales.get(param, 0.0)
+        return self.shock_scales.get((entity, field), 0.0)
 
 
-    def get_effective_value(self, param: str) -> float:
+    def get_effective_value(self, entity: str, field: str) -> float:
         """
         Return the effective value for this step.
 
@@ -116,7 +112,7 @@ class SupplyChainEnvironment(Environment):
         No tracker (baseline / non-PDL): unshocked, always 1.0
         """
         if self._tracker is not None:
-            return self._tracker.get_param_value(param)
+            return self._tracker.get_param_value(entity, field)
         return 1.0
 
 

@@ -71,12 +71,12 @@ class Process(SupplyChainAgent):
     # Shared helper: receive from upstream list, convert, compute price
     # ------------------------------------------------------------------
 
-    def _process(self, upstream_list, peer_list, scenario_param: str = ""):
+    def _process(self, upstream_list, peer_list, shock_key: tuple[str, str] | None = None):
         """
         Pull an equal share of upstream output, apply conversion_ratio,
         and compute unit_price accounting for yield loss.
 
-        scenario_param: scenario param whose effective value scales output.
+        shock_key: PDL (entity, field) whose effective value scales output.
                     Models indirect capacity reduction from soja shortage.
 
         For every 1 unit of output, (1 / conversion_ratio) input units
@@ -95,7 +95,7 @@ class Process(SupplyChainAgent):
             self.unit_price = 0.0
             return
 
-        effective_factor = self.model.environment.get_effective_value(scenario_param) if scenario_param else 1.0
+        effective_factor = self.model.environment.get_effective_value(*shock_key) if shock_key else 1.0
 
         total_input = sum(a.quantity_available for a in active_upstream)
 
@@ -135,7 +135,7 @@ class Process(SupplyChainAgent):
         self._process(
             upstream_list=combined_eu,
             peer_list=self.model.processors,
-            scenario_param="oil_mill_capacity",
+            shock_key=("eu_oil_mills", "supply"),
         )
 
     def _step_feed_manufacturer(self):
@@ -143,5 +143,5 @@ class Process(SupplyChainAgent):
         self._process(
             upstream_list=self.model.processors,
             peer_list=self.model.feed_manufacturers,
-            scenario_param="feed_mill_capacity",
+            shock_key=("feed_mills", "supply"),
         )

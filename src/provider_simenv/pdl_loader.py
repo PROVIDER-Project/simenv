@@ -9,10 +9,10 @@ Conversion rules
     supply impact: capacity = 1.0 + pct / 100   e.g. "-40%" -> 0.60
     price impact: price_factor = 1.0 + pct / 100   e.g. "+200%" -> 3.0
 
-Aggregation (when multiple events target the same entity)
-----------------------------------------------------------
-    capacity params -> take min()  # worst case supply degradation
-    price params -> take max()  # worst case price spike
+No translation to model param names happens here. Each event carries its PDL target entity
+and an impacts dict keyed by the PDL impact field.
+The (entity, field) pair is passed through unchanged. Aggregation across events that share a key is
+the EvenTracker's ob (shock_registry.aggregate)
 
 """
 
@@ -20,10 +20,6 @@ from pathlib import Path
 
 import yaml
 
-try:
-    from shock_registry import BINDING, aggregate
-except ImportError:
-    from .shock_registry import BINDING, aggregate
 
 
 
@@ -99,9 +95,12 @@ class PDLLoader:
 
     def to_event_registry(self, cascade_id: str | None = None) -> dict:
         """
-        Export event definitions and cascade timeline for the EventTracker.
+        Export event definitions and casecade timeline for the EventTracker.
 
-        All PDL events are included, events without a simenv param mapping get param=None / value=None
+        Every PDL event is included. Each event carries its 'target' entity and an 'impacts' dict
+        mapping each present impact field to its converted multiplier,
+            - {"supply": 0.30, "price": 1.80}
+        Events with no supply/price impact get impacts={}
         """
         events: list[dict] = []
         for event in (self._doc.get("events") or []):
@@ -114,30 +113,25 @@ class PDLLoader:
             duration_raw = impact.get("duration")
             duration = _parse_duration(duration_raw) if duration_raw else 0
 
-            # find the first mapped (target, field)
-            param = None
-            value = None
-            impact_field = "supply"
-
+            # Carry every supply/price impact through verbatim as a multiplier,
+            # keyed by its PDL field. Both are emitted when both are present,
+            # so one entity can shock supply and price independently.
+            # TODO: 'demand' is parsed but skipped: nothing consumes it yet and there is
+            #       no aggregation rule for it (future extension)
+            impacts: dict[str, float] = {}
             for field in ("supply", "price"):
                 raw = impact.get(field)
                 if raw is None:
                     continue
-                mapped = BINDING.get((target, field))
-                if mapped is not None:
-                    pct = _parse_percent(str(raw))
-                    param = mapped
-                    value = round(1.0 + pct / 100.0, 6)
-                    impact_field = field
-                    break               # one param per event
+                pct = _parse_percent(str(raw))
+                impacts[field] = round(1.0 + pct / 100.0, 6)
 
             events.append({
                 "id": eid,
-                "param": param,
-                "value": value,
+                "entity": target,
+                "impacts": impacts,
                 "duration": duration,
                 "condition": condition,
-                "impact_field": impact_field,
             })
 
         # --- cascade timeline ---
