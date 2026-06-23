@@ -159,13 +159,13 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, shock_key: tuple[str, str] | None = None, exclude_arg=False, exclude_usa=False):
+    def _move_split(self, upstream_list, share: float, shock_key: tuple[str, str] | None = None, origins: set[str] | None = None):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
 
-        :param share: fraction of total wholesaler output for this port (e.g. 0.7 for Santos, 0.3 for Paranagua).
-        :param shock_key: PDL (entity, field) whoe effective value scales this agent's capacity
+        :param origins: allow-list of origin tags to carry (e.g. {"bra"}). Each tag t reads the upstream t_volume field. None = carry all origins (full volume)
+        :param shock_key: PDL (entity, field) whose effective value scales this agent's capacity
         """
         margin = self.scenario.margin_transport
         active_upstream = upstream_list.filter(lambda a: a.active)
@@ -178,9 +178,14 @@ class Transport(SupplyChainAgent):
             return
 
         total_volume = sum(a.quantity_available for a in active_upstream)
-        arg_vol = sum(getattr(a, 'arg_volume', 0.0) for a in active_upstream) if exclude_arg else 0.0
-        usa_vol = sum(getattr(a, 'usa_volume', 0.0) for a in active_upstream) if exclude_usa else 0.0
-        routable_volume = total_volume - arg_vol - usa_vol
+        if origins is None:
+            routable_volume = total_volume
+        else:
+            routable_volume = sum(
+                getattr(a, f"{origin}_volume", 0.0)
+                for a in active_upstream
+                for origin in origins
+            )
 
         if routable_volume <= 0.0:
             self.quantity_available = 0.0
@@ -245,8 +250,7 @@ class Transport(SupplyChainAgent):
             self.model.wholesalers,
             share=self.scenario.santos_share,
             shock_key=("santos_port", "supply"),
-            exclude_arg=True,
-            exclude_usa=True,
+            origins={"bra"},
         )
 
     def _step_sa_paranagua(self):
@@ -258,8 +262,7 @@ class Transport(SupplyChainAgent):
             self.model.wholesalers,
             share=1.0 - self.scenario.santos_share,
             shock_key=("paranagua_port", "supply"),
-            exclude_arg=True,
-            exclude_usa=True,
+            origins={"bra"},
         )
 
     def _step_sea_santos(self):
