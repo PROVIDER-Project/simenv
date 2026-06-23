@@ -1,0 +1,5 @@
+# Visualization stack for GitHub issue #21 (QT-suitability PoC).
+# Self-contained: reads the sim's CSV output; never imports provider_simenv.
+PySide6>=6.6
+pandas>=2.0
+matplotlib>=3.7   # Phase 3 price-over-time side chart only
