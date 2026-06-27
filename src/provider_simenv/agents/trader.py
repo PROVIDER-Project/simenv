@@ -101,10 +101,8 @@ class Trader(SupplyChainAgent):
         lower average input cost propagates downstream automatically.
         """
 
-        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
-        all_farmers = active_bra + active_arg + active_usa
+        parts = self.model.upstream_parts("wholesalers")
+        all_farmers = self.model.upstream("wholesalers")
         n_wholesalers = len(self.model.wholesalers.filter(lambda w: w.active))
 
         if not all_farmers or n_wholesalers == 0:
@@ -119,7 +117,7 @@ class Trader(SupplyChainAgent):
         # Demand target: based on unshocked capacity, not current disrupted supply
         # Under no shock: demand == old push share
         # Under BRA shock: demand stays the same -> wholesaler actively pulls more from USA
-        normal_capacity = ( sum(f.base_yield for f in active_bra) + sum(f.base_yield for f in active_arg) + sum(f.base_yield for f in active_usa))
+        normal_capacity = sum(sum(f.base_yield for f in part) for part in parts)
         my_demand = min(normal_capacity / n_wholesalers, self.storage_capacity)
 
         # Greedy fill: pull from cheapest source first, up to each farmer's
@@ -172,7 +170,7 @@ class Trader(SupplyChainAgent):
         Price = (input_price + fixed_costs/stock) * (1 + margin).
         EU farmers then read from self.model.feed_traders in their step().
         """
-        manufacturers = self.model.feed_manufacturers.filter(lambda m: m.active)
+        manufacturers = self.model.upstream("feed_traders")
         n_traders = len(self.model.feed_traders.filter(lambda t: t.active))
 
         if not manufacturers or n_traders == 0:

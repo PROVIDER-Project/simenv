@@ -25,9 +25,8 @@ from provider_simenv.pdl_loader import PDLLoader
 
 def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> None:
     """
-    Read every Result_Simulator_*.csv file in output_dir, convert it to SQLite database
-    Uses sqlite3 + pandas directly - no SQAlchemy
-    The database is recreated from scratch on every run (replace mode)
+    Read every Result_Simulator_*.csv in output_dir and write them to a SQLite
+    database (sqlite3 + pandas, recreated from scratch on every run).
     """
     db_path = os.path.join(output_dir, db_name)
     pattern = os.path.join(output_dir, "Result_Simulator_*.csv")
@@ -161,11 +160,16 @@ if __name__ == "__main__":
     # attach event registry to model class so setup can inject the tracker into the env
     if args.pdl:
         SupplyChainModel._event_registry = event_registry
+        # also drive the agent roster from this PDL (not just the shocks), so a
+        # swapped PDL with new entities/regions instantiates the matching lists.
+        SupplyChainModel._pdl_path = args.pdl
 
     simulator.run()
 
     if hasattr(SupplyChainModel, "_event_registry"):
         del SupplyChainModel._event_registry
+    if hasattr(SupplyChainModel, "_pdl_path"):
+        del SupplyChainModel._pdl_path
 
     # post-process: merge CSVs -> SQLite for visualize_sql.py
     print("\n[main] Converting CSVs to SQLite...")

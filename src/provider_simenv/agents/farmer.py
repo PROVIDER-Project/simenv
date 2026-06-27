@@ -29,6 +29,21 @@ ROLE_ARG = "arg"
 ROLE_USA = "usa"
 ROLE_EU = "eu"
 
+# --- PDL bindings ---
+# Cross-entity dependency slots only. The "capacity" slot (the farmer's OWN
+# (entity, "supply")) is set entity-driven by the model builder from the PDL
+# entity each agent represents — it is no longer hardcoded here. What remains are
+# dependencies on OTHER entities, which can't come from the agent's own entity:
+#   fertilizer -> input dependency whose price scales effective fixed costs
+ROLE_BINDINGS: dict[str, dict[str, tuple[str, str]]] = {
+    ROLE_BRA: {
+        "fertilizer": ("fertilizer_supply", "price"),
+    },
+    ROLE_ARG: {},
+    ROLE_USA: {},   # alternative supplier, unaffected by SA shocks
+    ROLE_EU:  {},   # end consumer, reads no shocks
+}
+
 
 class Farmer(SupplyChainAgent):
     """
@@ -85,6 +100,7 @@ class Farmer(SupplyChainAgent):
 
     def post_setup(self):
         """Role-specific initialisation after role is assigned by model."""
+        self.binding = ROLE_BINDINGS.get(self.role, {})
         if self.role == ROLE_BRA:
             self.fixed_costs = self.scenario.fixed_costs_bra_farmer
             self.margin = self.scenario.margin_bra_farmer
@@ -167,13 +183,12 @@ class Farmer(SupplyChainAgent):
         Produce soja this step. Drought reduces output; lower output
         raises per-unit cost, which raises unit_price automatically.
         """
-        env = self.model.environment
-        farm_capacity = env.get_effective_value("brazil_farms", "supply")
+        farm_capacity = self.effective("capacity")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:
             # fertilizer price factor raises effective fixed costs this step
-            fertilizer_factor = env.get_effective_value("fertilizer_supply", "price")
+            fertilizer_factor = self.effective("fertilizer")
             effective_costs = self.fixed_costs * fertilizer_factor
             self.unit_price = (effective_costs / self.quantity_available) * (1.0 + self.margin)
         else:
@@ -220,7 +235,7 @@ class Farmer(SupplyChainAgent):
         farm_capacity_arg allows ARG-specific shocks to be modelled independently.
         Defaults to 1.0 = always unshocked.
         """
-        farm_capacity = self.model.environment.get_effective_value("argentina_farms", "supply")
+        farm_capacity = self.effective("capacity")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:
@@ -243,7 +258,7 @@ class Farmer(SupplyChainAgent):
         """
         active_eu = self.model.eu_farmers.filter(lambda f: f.active)
         n_eu = len(active_eu)
-        active_traders = self.model.feed_traders.filter(lambda t: t.active)
+        active_traders = self.model.upstream("eu_farmers")
         total_feed = sum(t.quantity_available for t in active_traders)
         self.feed_received = total_feed / n_eu if n_eu > 0 else 0.0
 

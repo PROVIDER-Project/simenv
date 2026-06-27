@@ -70,11 +70,8 @@ class SupplyChainEnvironment(Environment):
 
     def update_shock_scales(self, period: int):
         """
-        update per-parameter shock activation scales for the given day.
-
-        Two modes:
-            - Tracker mode (PDL with conditions): EventTracker evaluate conditions and durations at runtime.
-            - Static mode (no PDL, fallback): onset/end read from scenario fields
+        Update per-parameter shock activation scales for the given day. Tracker mode
+        evaluates PDL conditions/durations at runtime; static mode zeroes them.
         """
         if self._tracker is not None:
             self._tracker.step(period)
@@ -106,10 +103,8 @@ class SupplyChainEnvironment(Environment):
 
     def get_effective_value(self, entity: str, field: str) -> float:
         """
-        Return the effective value for this step.
-
-        Tracker mode: aggregated from currently active events only.
-        No tracker (baseline / non-PDL): unshocked, always 1.0
+        Return the effective value for this step. Tracker mode aggregates currently
+        active events; no tracker (baseline / non-PDL) is unshocked, always 1.0.
         """
         if self._tracker is not None:
             return self._tracker.get_param_value(entity, field)
@@ -118,24 +113,19 @@ class SupplyChainEnvironment(Environment):
 
     def step(self):
         """
-        Aggregate agent outputs into macro indicators
-        after all agents have acted in the current step.
-
-        soja_price: quantity-weighted average price across active wholesalers
-        feed_price: quantity-weighted average price across active feed traders
-        total_soja_supply: total tons produced by active BRA + USA farmers
-        transport_utilisation: mean utilisation of all transport agents
+        Aggregate agent outputs into macro indicators (soja/feed prices, total supply,
+        transport utilisation) after all agents have acted in the current step.
         """
         self.current_step += 1
 
-        # Soja supply (BRA + USA farmer output)
-        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
-        self.total_soja_supply = (
-            sum(f.quantity_available for f in active_bra)
-            + sum(f.quantity_available for f in active_arg)
-            + sum(f.quantity_available for f in active_usa)
+        # Soja supply: sum over the producer regions from the run's flow graph,
+        # so a swapped PDL's new region is counted. Producer order follows the
+        # roster, so the float grouping (and recorded value) is unchanged for s1.
+        from .topology import producer_lists
+        self.total_soja_supply = sum(
+            sum(f.quantity_available
+                for f in getattr(self.model, name).filter(lambda f: f.active))
+            for name in producer_lists(self.model._flow_adjacency)
         )
 
 

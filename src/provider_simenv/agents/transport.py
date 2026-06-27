@@ -38,6 +38,24 @@ ROLE_EU_RTM = "eu_rtm"
 ROLE_EU_HAM = "eu_ham"
 ROLE_SEA_USA = "sea_usa"
 
+# --- PDL bindings ---
+# Cross-entity dependency slots only. The "capacity" slot (the port's OWN
+# (entity, "supply")) is set entity-driven by the model builder from the PDL
+# entity each agent represents — no longer hardcoded here. What remains:
+#   energy -> gas price; scales freight operating costs (every transport role)
+# Sea lanes have no port-capacity shock; they (and the others) get no capacity
+# slot unless the builder assigns one, so effective("capacity") -> 1.0.
+ROLE_BINDINGS: dict[str, dict[str, tuple[str, str]]] = {
+    ROLE_SA_SANTOS:     {"energy": ("gas_supply", "price")},
+    ROLE_SA_PARANAGUA:  {"energy": ("gas_supply", "price")},
+    ROLE_SEA_SANTOS:    {"energy": ("gas_supply", "price")},
+    ROLE_SEA_PARANAGUA: {"energy": ("gas_supply", "price")},
+    ROLE_SEA_ARG:       {"energy": ("gas_supply", "price")},
+    ROLE_SEA_USA:       {"energy": ("gas_supply", "price")},
+    ROLE_EU_RTM:        {"energy": ("gas_supply", "price")},
+    ROLE_EU_HAM:        {"energy": ("gas_supply", "price")},
+}
+
 
 class Transport(SupplyChainAgent):
     """
@@ -64,6 +82,7 @@ class Transport(SupplyChainAgent):
         self.transit_steps: int = 0
 
     def post_setup(self):
+        self.binding = ROLE_BINDINGS.get(self.role, {})
         margin = self.scenario.margin_transport
 
         if self.role in (ROLE_SA_SANTOS, ROLE_SA_PARANAGUA):
@@ -73,7 +92,7 @@ class Transport(SupplyChainAgent):
         elif self.role in (ROLE_SEA_SANTOS, ROLE_SEA_PARANAGUA, ROLE_SEA_ARG, ROLE_SEA_USA):
             self.fixed_costs = self.scenario.fixed_costs_transport_sea
             self.capacity = 1000.0
-            self.transit_steps = 4      # ~4-week Atlantic crossing
+            self.transit_steps = 60      # ~2-month Atlantic crossing
 
         elif self.role in (ROLE_EU_RTM, ROLE_EU_HAM):
             self.fixed_costs = self.scenario.fixed_costs_transport_eu
@@ -109,12 +128,13 @@ class Transport(SupplyChainAgent):
     # cap at capacity, compute all-in unit_price (commodity + freight)
     # ------------------------------------------------------------------
 
-    def _move(self, upstream, shock_key: tuple[str, str] | None = None):
+    def _move(self, upstream):
         """
         Pull an equal share of upstream output, ca at own capacity,
         and compute the all-in price passed to the next chain node.
 
-        shock_key: PDL (entity, field) whoe effective value scales this agent's capacity
+        Capacity is scaled by this agent's "capacity" binding slot (the port
+        supply shock); roles without that slot run at full capacity (1.0).
         """
         margin = self.scenario.margin_transport
 
@@ -134,8 +154,7 @@ class Transport(SupplyChainAgent):
         total_volume = sum(a.quantity_available for a in active_upstream)
         volume_in = total_volume / n_self
 
-        env = self.model.environment
-        effective_factor = env.get_effective_value(*shock_key) if shock_key else 1.0
+        effective_factor = self.effective("capacity")
 
         # effective capacity after applying port capacity shock
         effective_capacity = self.capacity * effective_factor
@@ -151,7 +170,7 @@ class Transport(SupplyChainAgent):
         # price = commodity price + freight fee per unit
         # energy price factor raises transport operation costs
         if self.quantity_available > 0:
-            energy_factor = env.get_effective_value("gas_supply", "price")
+            energy_factor = self.effective("energy")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -159,16 +178,18 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, shock_key: tuple[str, str] | None = None, exclude_arg=False, exclude_usa=False):
+    def _move_split(self, upstream_list, share: float, exclude_arg=False, exclude_usa=False):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
 
         :param share: fraction of total wholesaler output for this port (e.g. 0.7 for Santos, 0.3 for Paranagua).
-        :param shock_key: PDL (entity, field) whoe effective value scales this agent's capacity
         """
         margin = self.scenario.margin_transport
-        active_upstream = upstream_list.filter(lambda a: a.active)
+        if hasattr(upstream_list, 'filter'):
+            active_upstream = upstream_list.filter(lambda a: a.active)
+        else:
+            active_upstream = upstream_list
         n_self = len(self._peer_list().filter(lambda a: a.active))
 
         if not active_upstream or n_self == 0:
@@ -191,8 +212,7 @@ class Transport(SupplyChainAgent):
         # each agent in this port takes an equal slice of the port's share
         volume_in = (routable_volume * share) / n_self
 
-        env = self.model.environment
-        effective_factor = env.get_effective_value(*shock_key) if shock_key else 1.0
+        effective_factor = self.effective("capacity")
         effective_capacity = self.capacity * effective_factor
 
         self.quantity_available = min(volume_in, effective_capacity)
@@ -204,7 +224,7 @@ class Transport(SupplyChainAgent):
         upstream_price = (total_value / total_volume) if total_volume > 0 else 0.0
 
         if self.quantity_available > 0:
-            energy_factor = env.get_effective_value("gas_supply", "price")
+            energy_factor = self.effective("energy")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -242,9 +262,8 @@ class Transport(SupplyChainAgent):
         Port capacity applied as throughput limit.
         """
         self._move_split(
-            self.model.wholesalers,
+            self.model.upstream("transport_sa_santos"),
             share=self.scenario.santos_share,
-            shock_key=("santos_port", "supply"),
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -255,9 +274,8 @@ class Transport(SupplyChainAgent):
         Port capacity applied as throughput limit.
         """
         self._move_split(
-            self.model.wholesalers,
+            self.model.upstream("transport_sa_paranagua"),
             share=1.0 - self.scenario.santos_share,
-            shock_key=("paranagua_port", "supply"),
             exclude_arg=True,
             exclude_usa=True,
         )
@@ -266,13 +284,13 @@ class Transport(SupplyChainAgent):
         """
         Ship soja fraom santos export port to EU (Rotterdam)
         """
-        self._move(self.model.transport_sa_santos)
+        self._move(self.model.upstream("sea_lane_santos"))
 
     def _step_sea_paranagua(self):
         """
         Ship soja from Paranagua export port to EU (Hamburg).
         """
-        self._move(self.model.transport_sa_paranagua)
+        self._move(self.model.upstream("sea_lane_paranagua"))
 
     def _step_sea_arg(self):
         """
@@ -283,7 +301,7 @@ class Transport(SupplyChainAgent):
         Price = wholesaler avg. price applied to ARG-origin portion.
         """
         margin = self.scenario.margin_transport
-        active_w = self.model.wholesalers.filter(lambda w: w.active)
+        active_w = self.model.upstream("sea_lane_arg")
         n_self = len(self.model.sea_lane_arg.filter(lambda a: a.active))
 
         if not active_w or n_self == 0:
@@ -315,7 +333,7 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_arg
 
         if self.quantity_available > 0:
-            energy_factor = self.model.environment.get_effective_value("gas_supply", "price")
+            energy_factor = self.effective("energy")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -332,7 +350,7 @@ class Transport(SupplyChainAgent):
         Price = wholesaler avg. price applied to USA-origin portion.
         """
         margin = self.scenario.margin_transport
-        active_w = self.model.wholesalers.filter(lambda w: w.active)
+        active_w = self.model.upstream("sea_lane_usa")
         n_self = len(self.model.sea_lane_usa.filter(lambda a: a.active))
 
         if not active_w or n_self == 0:
@@ -364,7 +382,7 @@ class Transport(SupplyChainAgent):
         upstream_price = total_value / total_usa
 
         if self.quantity_available > 0:
-            energy_factor = self.model.environment.get_effective_value("gas_supply", "price")
+            energy_factor = self.effective("energy")
             effective_costs = self.fixed_costs * energy_factor
             freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
             self.unit_price = upstream_price + freight_fee
@@ -377,12 +395,7 @@ class Transport(SupplyChainAgent):
         Receives soja from Santos sea lan, ARG direct, and USA direct.
         Port capacity shock (port_capacity_rotterdam) applied here.
         """
-        combined = (
-            self.model.sea_lane_santos.filter(lambda a: a.active)
-            + self.model.sea_lane_arg.filter(lambda a: a.active)
-            + self.model.sea_lane_usa.filter(lambda a: a.active)
-        )
-        self._move(combined, shock_key=("rotterdam_port", "supply"))
+        self._move(self.model.upstream("transport_eu_rtm"))
 
 
     def _step_eu_ham(self):
@@ -391,8 +404,5 @@ class Transport(SupplyChainAgent):
         Receives soja from Paranagua sea lane only.
         Port capacity shock (port_capacity_hamburg) applied here.
         """
-        self._move(
-            self.model.sea_lane_paranagua,
-            shock_key=("hamburg_port", "supply"),
-        )
+        self._move(self.model.upstream("transport_eu_ham"))
 

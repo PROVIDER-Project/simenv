@@ -22,6 +22,16 @@ from .base import SupplyChainAgent
 ROLE_PROCESSOR = "processor"
 ROLE_FEED_MANUFACTURER = "feed_manufacturer"
 
+# --- PDL bindings ---
+# The "capacity" slot (the stage's OWN (entity, "supply"), modelling indirect
+# capacity reduction from upstream shortage) is set entity-driven by the model
+# builder from each agent's PDL entity — no longer hardcoded here. These roles
+# have no cross-entity dependency slots, so the role binding is empty.
+ROLE_BINDINGS: dict[str, dict[str, tuple[str, str]]] = {
+    ROLE_PROCESSOR:         {},
+    ROLE_FEED_MANUFACTURER: {},
+}
+
 
 class Process(SupplyChainAgent):
     """
@@ -45,6 +55,7 @@ class Process(SupplyChainAgent):
 
     def post_setup(self):
         """Role-specific initialisation after role is assigned by model."""
+        self.binding = ROLE_BINDINGS.get(self.role, {})
         if self.role == ROLE_PROCESSOR:
             self.fixed_costs = self.scenario.fixed_costs_processor
             self.margin = self.scenario.margin_processor
@@ -71,13 +82,13 @@ class Process(SupplyChainAgent):
     # Shared helper: receive from upstream list, convert, compute price
     # ------------------------------------------------------------------
 
-    def _process(self, upstream_list, peer_list, shock_key: tuple[str, str] | None = None):
+    def _process(self, upstream_list, peer_list):
         """
         Pull an equal share of upstream output, apply conversion_ratio,
         and compute unit_price accounting for yield loss.
 
-        shock_key: PDL (entity, field) whose effective value scales output.
-                    Models indirect capacity reduction from soja shortage.
+        Output is scaled by this agent's "capacity" binding slot, modelling
+        indirect capacity reduction from upstream shortage.
 
         For every 1 unit of output, (1 / conversion_ratio) input units
         were consumed, so the input cost per output unit is:
@@ -95,7 +106,7 @@ class Process(SupplyChainAgent):
             self.unit_price = 0.0
             return
 
-        effective_factor = self.model.environment.get_effective_value(*shock_key) if shock_key else 1.0
+        effective_factor = self.effective("capacity")
 
         total_input = sum(a.quantity_available for a in active_upstream)
 
@@ -128,20 +139,14 @@ class Process(SupplyChainAgent):
     def _step_processor(self):
         """Receive soja from both EU entry ports (RTM + HAM), crush to meal.
         oil_mill_capacity applied as indirect capacity constraint."""
-        combined_eu = (
-            self.model.transport_eu_rtm.filter(lambda a: a.active)
-            + self.model.transport_eu_ham.filter(lambda a: a.active)
-        )
         self._process(
-            upstream_list=combined_eu,
+            upstream_list=self.model.upstream("processors"),
             peer_list=self.model.processors,
-            shock_key=("eu_oil_mills", "supply"),
         )
 
     def _step_feed_manufacturer(self):
         """Receive soja meal from processors, compound to animal feed."""
         self._process(
-            upstream_list=self.model.processors,
+            upstream_list=self.model.upstream("feed_manufacturers"),
             peer_list=self.model.feed_manufacturers,
-            shock_key=("feed_mills", "supply"),
         )
