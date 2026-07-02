@@ -17,8 +17,9 @@
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs/margin from scenario.
+  2. Model applies the archetype params from topology.py: role, bindings,
+     fixed_costs, margin, size_sigma, base_yield.
+  3. agent.post_setup() → derives size factor, initial quantity and price.
 """
 import numpy as np
 
@@ -28,7 +29,6 @@ ROLE_BRA = "bra"
 ROLE_ARG = "arg"
 ROLE_USA = "usa"
 ROLE_EU = "eu"
-
 
 class Farmer(SupplyChainAgent):
     """
@@ -65,8 +65,9 @@ class Farmer(SupplyChainAgent):
         self.feed_received: float = 0.0
         self.livestock_output: float = 0.0
 
-        # size heterogeneity
-        self. size_factor: float = 1.0
+        # size heterogeneity (size_sigma is set from archetype params by the model)
+        self.size_sigma: float = 0.0
+        self.size_factor: float = 1.0
 
     def _sample_size_factor(self, sigma: float) -> float:
         """
@@ -84,67 +85,23 @@ class Farmer(SupplyChainAgent):
         return float(rng.lognormal(mean=0.0, sigma=sigma))
 
     def post_setup(self):
-        """Role-specific initialisation after role is assigned by model."""
-        if self.role == ROLE_BRA:
-            self.fixed_costs = self.scenario.fixed_costs_bra_farmer
-            self.margin = self.scenario.margin_bra_farmer
-            self.base_yield = 100.0     # Placeholder
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, margin, size_sigma, base_yield).
 
-            # scale by size factor
-            # baseline unit_price is size-independent (for now)
-            # Heterogeneity emerges under shock: small farms lose output faster and exit the market
-            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_bra)
-            self.base_yield *= self.size_factor
-            self.fixed_costs *= self.size_factor
+        Producers (base_yield > 0) start priced cost-based at full yield.
+        Consumers (base_yield == 0, e.g. EU livestock) fall through with
+        quantity_available = 0 and unit_price 0.0 — they are buyers.
+        """
+        self.size_factor = self._sample_size_factor(self.size_sigma)
+        self.base_yield *= self.size_factor
+        self.fixed_costs *= self.size_factor
 
-            # Initial price: cost-based at full yield, no disruption
-            self.quantity_available = self.base_yield
-            if self.quantity_available > 0:
-                self.unit_price = (
-                    self.fixed_costs / self.quantity_available
-                ) * (1.0 + self.margin)
-
-        elif self.role == ROLE_USA:
-            self.fixed_costs = self.scenario.fixed_costs_usa_farmer
-            self.margin = self.scenario.margin_usa_farmer
-            self.base_yield = 100.0
-
-            # same size-factor mechanism as BRA
-            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_usa)
-            self.base_yield *= self.size_factor
-            self.fixed_costs *= self.size_factor
-
-            # initial price: cost-based at full yield, no disruption
-            # higher fixed_costs than BRA -> higher unit_price at baseline
-            self.quantity_available = self.base_yield
-            if self.quantity_available > 0:
-                self.unit_price = (
-                    self.fixed_costs / self.quantity_available
-                ) * (1.0 + self.margin)
-
-        elif self.role == ROLE_ARG:
-            self.fixed_costs = self.scenario.fixed_costs_arg_farmer
-            self.margin = self.scenario.margin_arg_farmer
-            self.base_yield = 100.0 # Placeholder; loaded from data later
-
-            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_arg)
-            self.base_yield *= self.size_factor
-            self.fixed_costs *= self.size_factor
-
-            self.quantity_available = self.base_yield
-            if self.quantity_available > 0:
-                self.unit_price = (
-                    self.fixed_costs / self.quantity_available
-                ) * (1.0 + self.margin)
-
-        elif self.role == ROLE_EU:
-            self.fixed_costs = self.scenario.fixed_costs_eu_farmer
-            self.size_factor = self._sample_size_factor(self.scenario.farm_size_sigma_eu)
-            self.fixed_costs *= self.size_factor
-            self.feed_received = 0.0
-            self.livestock_output = 0.0
-            self.unit_price = 0.0       # EU farmers are buyers
-            self.quantity_available = 0.0
+        self.quantity_available = self.base_yield
+        if self.quantity_available > 0:
+            self.unit_price = (
+                self.fixed_costs / self.quantity_available
+            ) * (1.0 + self.margin)
 
     def step(self, drought_severity: float = 0.0):
         if not self.active:
@@ -167,13 +124,12 @@ class Farmer(SupplyChainAgent):
         Produce soja this step. Drought reduces output; lower output
         raises per-unit cost, which raises unit_price automatically.
         """
-        env = self.model.environment
-        farm_capacity = env.get_effective_value("farm_capacity_bra")
+        farm_capacity = self.effective("capacity")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:
             # fertilizer price factor raises effective fixed costs this step
-            fertilizer_factor = env.get_effective_value("fertilizer_price_factor")
+            fertilizer_factor = self.effective("fertilizer")
             effective_costs = self.fixed_costs * fertilizer_factor
             self.unit_price = (effective_costs / self.quantity_available) * (1.0 + self.margin)
         else:
@@ -220,7 +176,7 @@ class Farmer(SupplyChainAgent):
         farm_capacity_arg allows ARG-specific shocks to be modelled independently.
         Defaults to 1.0 = always unshocked.
         """
-        farm_capacity = self.model.environment.get_effective_value("farm_capacity_arg")
+        farm_capacity = self.effective("capacity")
         self.quantity_available = self.base_yield * farm_capacity
 
         if self.quantity_available > 0:
@@ -243,7 +199,7 @@ class Farmer(SupplyChainAgent):
         """
         active_eu = self.model.eu_farmers.filter(lambda f: f.active)
         n_eu = len(active_eu)
-        active_traders = self.model.feed_traders.filter(lambda t: t.active)
+        active_traders = self.model.upstream("eu_farmers")
         total_feed = sum(t.quantity_available for t in active_traders)
         self.feed_received = total_feed / n_eu if n_eu > 0 else 0.0
 

@@ -14,33 +14,19 @@ import argparse
 import pandas as pd
 
 from Melodie import Config, Simulator
-from scipy.constants import value
 
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
 
-_PDL_TIMING_COLUMNS = {
-      "farm_capacity_bra":       ("shock_onset_farm_bra",       "shock_end_farm_bra"),
-      "farm_capacity_arg":       ("shock_onset_farm_arg",       "shock_end_farm_arg"),
-      "port_capacity_santos":    ("shock_onset_port_santos",    "shock_end_port_santos"),
-      "port_capacity_paranagua": ("shock_onset_port_paranagua", "shock_end_port_paranagua"),
-      "port_capacity_rotterdam": ("shock_onset_port_rotterdam", "shock_end_port_rotterdam"),
-      "port_capacity_hamburg":   ("shock_onset_port_hamburg",   "shock_end_port_hamburg"),
-      "fertilizer_price_factor": ("shock_onset_fertilizer",     "shock_end_fertilizer"),
-      "energy_price_factor":     ("shock_onset_energy",         "shock_end_energy"),
-      "oil_mill_capacity":       ("shock_onset_oil_mill",       "shock_end_oil_mill"),
-      "feed_mill_capacity":      ("shock_onset_feed_mill",      "shock_end_feed_mill"),
-}
 # --------------------
 # Helpers
 # --------------------
 
 def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> None:
     """
-    Read every Result_Simulator_*.csv file in output_dir, convert it to SQLite database
-    Uses sqlite3 + pandas directly - no SQAlchemy
-    The database is recreated from scratch on every run (replace mode)
+    Read every Result_Simulator_*.csv in output_dir and write them to a SQLite
+    database (sqlite3 + pandas, recreated from scratch on every run).
     """
     db_path = os.path.join(output_dir, db_name)
     pattern = os.path.join(output_dir, "Result_Simulator_*.csv")
@@ -124,67 +110,38 @@ if __name__ == "__main__":
     if os.path.exists(template_path):
         shutil.copy2(template_path, csv_path)
 
-    # PDL Injection: update shock columns in SimulatorScenarios.csv
+    # PDL Injection: a PDL run adds one shock scenario row (id=1) to SimulatorScenario.csv
+    # Shock values and timing are derived at runtime by the EventTracker from the PDL itself
     if args.pdl:
         loader = PDLLoader(args.pdl)
-        schedule = loader.to_cascade_schedule(args.cascade)
-        all_overrides = loader.to_scenario_overrides()
-        overrides = {
-            param: value
-            for param, value in all_overrides.items()
-            if param in schedule
-        }
 
-        print(f"\n[pdl_loader] Scenario : {loader.label}")
-        print(f"[pdl_loader] Source : {args.pdl}")
-        print(f"[pdl_loader] Cascade: {args.cascade or 'first cascade in file'}")
-        print("[pdl_loader] Overrides applied to SimulatorScenarios.csv (id > 0):")
-        for col, val in overrides.items():
-            print(f"{col} = {val}")
+        print(f"\n[pdl_loader] Scenario: {loader.label}")
+        print(f"\n[pdl_loader] Source: {args.pdl}")
+        print(f"\n[pdl_loader] Cascade: {args.cascade or 'first cascade in file'}")
 
         df = pd.read_csv(csv_path)
 
         # keep only the baseline row (id=0)
         baseline = df[df["id"] == 0].copy()
 
-        # build exactly one PDL scenario row from the baseline
+        # build exactly one PDL scenario row from the baseline (shocks injected at runtime)
         pdl_row = baseline.iloc[0].copy()
         pdl_row["id"] = 1
-
-        # apply shock value override
-        for col, val in overrides.items():
-            if col in df.columns:
-                pdl_row[col] = val
-            else:
-                print(f"[pdl_loader] WARNING: column {col} not found, skipping")
-
-        # apply cascade timing
-        print("[pdl_loader] Cascade timing applied to PDL scenario row (id=1):")
-        for param, timing in schedule.items():
-            fields = _PDL_TIMING_COLUMNS.get(param)
-            if fields is None:
-                continue
-            onset_col, end_col = fields
-            pdl_row[onset_col] = timing["onset"]
-            pdl_row[end_col] = timing["end"]
-            print(
-                f"    {param}: "
-                f"{onset_col}={timing['onset']}, {end_col}={timing['end']}"
-            )
 
         df = pd.concat([baseline, pdl_row.to_frame().T], ignore_index=True)
         for col in baseline.select_dtypes(include="int64").columns:
             df[col] = df[col].astype(int)
         df.to_csv(csv_path, index=False)
-        print(f"[pdl_loader] CSV updated (baseline + 1 PDL scenario). \n")
+        print(f"[pdl_loader] CSV updated (baseline + 1 PDL scenario row). \n")
 
-        # Build event registry for conditional runtime evaluation
+        # build event registry for conditional runtime evaluation
         event_registry = loader.to_event_registry(args.cascade)
         n_total = len(event_registry["events"])
-        n_mapped = sum(1 for e in event_registry["events"] if e["param"] is not None)
+        n_shocking = sum(1 for e in event_registry["events"] if e["impacts"])
         n_conditional = sum(1 for e in event_registry["events"] if e["condition"])
         print(f"[event_tracker] Registry: {n_total} events "
-              f"({n_mapped} mapped, {n_conditional} conditional)")
+              f"{n_shocking} with shocks, {n_conditional} conditional)")
+
 
 
     config = Config(
@@ -203,11 +160,16 @@ if __name__ == "__main__":
     # attach event registry to model class so setup can inject the tracker into the env
     if args.pdl:
         SupplyChainModel._event_registry = event_registry
+        # also drive the agent roster from this PDL (not just the shocks), so a
+        # swapped PDL with new entities/regions instantiates the matching lists.
+        SupplyChainModel._pdl_path = args.pdl
 
     simulator.run()
 
     if hasattr(SupplyChainModel, "_event_registry"):
         del SupplyChainModel._event_registry
+    if hasattr(SupplyChainModel, "_pdl_path"):
+        del SupplyChainModel._pdl_path
 
     # post-process: merge CSVs -> SQLite for visualize_sql.py
     print("\n[main] Converting CSVs to SQLite...")

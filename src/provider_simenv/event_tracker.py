@@ -9,19 +9,22 @@ their cascade day is reached and the pdl condition is satisfied.("brazil_drought
 from __future__ import annotations
 from dataclasses import dataclass
 
+from .shock_registry import aggregate
+
 @dataclass(frozen=True)
 class EventDef:
     """
-    Single PDL event definition, pre-mapped to simenv params.
-    Events without a simenv param (param: None) are also tracked.
-    Other events may depend on them.
+    Single PDL event definition.
+    Keys are the PDL (entity, impact_field) pairs, passed through unchanged.
+    No translation to simenv param names.
+    Events with no supply(price impact (impacts={}) are still tracked,
+    so other events can depend on them via conditions.
     """
     id: str
-    param: str | None       # simenv param name, None if unmapped
-    value: float | None     # converted impact value
-    duration: int           # duration (days)
-    condition: str          # condition string, "" = unconditional
-    impact_field: str       # supply || price
+    entity: str | None
+    impacts: dict[str, float]
+    duration: int
+    condition: str
 
 
 @dataclass(frozen=True)
@@ -40,16 +43,6 @@ class ActiveEvent:
     """
     activated_at: int
     event_def: EventDef
-
-
-# --- Aggregation constants ---
-_CAPACITY_PARAMS = {
-    "farm_capacity_bra", "farm_capacity_arg",
-    "port_capacity_santos", "port_capacity_paranagua",
-    "port_capacity_rotterdam", "port_capacity_hamburg",
-    "oil_mill_capacity", "feed_mill_capacity",
-}
-_PRICE_PARAMS = {"energy_price_factor", "fertilizer_price_factor"}
 
 
 # --- Event tracker ---
@@ -71,11 +64,10 @@ class EventTracker:
         for e in events:
             self._events[e["id"]] = EventDef(
                 id=e["id"],
-                param=e.get("param"),
-                value=e.get("value"),
+                entity=e.get("entity"),
+                impacts=e.get("impacts") or {},
                 duration=e.get("duration", 0),
-                condition=e.get("condition", ""),
-                impact_field=e.get("impact_field", "supply"),
+                condition=e.get("condition"),
             )
 
         # timeline sorted by day
@@ -91,8 +83,8 @@ class EventTracker:
         self._current_day: int = -1
 
         # derived shock state (re-calc every step)
-        self._shock_scales: dict[str, float] = {}
-        self._param_values: dict[str, float] = {}
+        self._shock_scales: dict[tuple[str, str], float] = {}
+        self._param_values: dict[tuple[str, str], float] = {}
 
 
     def step(self, day: int) -> None:
@@ -155,19 +147,33 @@ class EventTracker:
         self._recompute_scales()
 
 
-    def get_shock_scale(self, param: str) -> float:
+    def get_shock_scale(self, entity: str, field: str) -> float:
         """
         1.0 if param has any active shock, 0.0 otherwise.
         """
-        return self._shock_scales.get(param, 0.0)
+        return self._shock_scales.get((entity, field), 0.0)
 
 
-    def get_param_value(self, param: str) -> float:
+    def get_param_value(self, entity: str, field: str) -> float:
         """
         Aggregated shock value from active events targeting this param.
         Returns 1.0 if no active events targeting this param.
         """
-        return self._param_values.get(param, 1.0)
+        return self._param_values.get((entity, field), 1.0)
+
+
+    def known_keys(self) -> set[tuple[str, str]]:
+        """
+        Every (entity, field) key the loaded events can emit. Lets the environment
+        seed/iterate shock state without a static param list.
+        """
+        keys: set[tuple[str, str]] = set()
+        for edef in self._events.values():
+            if edef.entity is None:
+                continue
+            for field in edef.impacts:
+                keys.add((edef.entity, field))
+        return keys
 
 
     def is_event_active(self, event_id: str) -> int:
@@ -240,17 +246,14 @@ class EventTracker:
 
         for active in self._active.values():
             edef = active.event_def
-            if edef.param is not None and edef.value is not None:
-                candidates.setdefault(edef.param, []).append(edef.value)
+            if edef.entity is None:
+                continue
+            for field, value in edef.impacts.items():
+                candidates.setdefault((edef.entity, field), []).append(value)
 
         self._shock_scales.clear()
         self._param_values.clear()
 
-        for param, values in candidates.items():
-            self._shock_scales[param] = 1.0
-            if param in _CAPACITY_PARAMS:
-                self._param_values[param] = min(values)
-            elif param in _PRICE_PARAMS:
-                self._param_values[param] = max(values)
-            else:
-                self._param_values[param] = values[0]
+        for (entity, field), values in candidates.items():
+            self._shock_scales[(entity, field)] = 1.0
+            self._param_values[(entity, field)] = aggregate(field, values)

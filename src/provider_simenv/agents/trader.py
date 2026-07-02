@@ -9,8 +9,9 @@ agents/trader.py — Pure intermediary / trading actors.
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs/margin from scenario.
+  2. Model applies the archetype params from topology.py: role, fixed_costs,
+     margin, storage_capacity (wholesaler).
+  3. agent.post_setup() → aliases markup, resets per-step flow state.
 """
 
 from .base import SupplyChainAgent
@@ -48,24 +49,16 @@ class Trader(SupplyChainAgent):
         self.storage_utilization: float = 0.0   # stock / storage_capacity
 
     def post_setup(self):
-        """Role-specific initialisation."""
-        if self.role == ROLE_WHOLESALER:
-            self.fixed_costs = self.scenario.fixed_costs_wholesaler
-            self.margin = self.scenario.margin_wholesaler
-            self.markup = self.margin
-            self.storage_capacity = self.scenario.wholesaler_storage_capacity
-            self.stock = 0.0
-            self.quantity_available = 0.0
-            self.unit_price = 0.0
-            self.storage_utilization = 0.0
-
-        elif self.role == ROLE_FEED_TRADER:
-            self.fixed_costs = self.scenario.fixed_costs_feed_trader
-            self.margin = self.scenario.margin_feed_trader
-            self.markup = self.margin
-            self.stock = 0.0
-            self.quantity_available = 0.0
-            self.unit_price = 0.0
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, margin; storage_capacity for wholesalers): alias the
+        markup and reset per-step flow state.
+        """
+        self.markup = self.margin
+        self.stock = 0.0
+        self.quantity_available = 0.0
+        self.unit_price = 0.0
+        self.storage_utilization = 0.0
 
     def step(self):
         if not self.active:
@@ -101,10 +94,8 @@ class Trader(SupplyChainAgent):
         lower average input cost propagates downstream automatically.
         """
 
-        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
-        all_farmers = active_bra + active_arg + active_usa
+        parts = self.model.upstream_parts("wholesalers")
+        all_farmers = self.model.upstream("wholesalers")
         n_wholesalers = len(self.model.wholesalers.filter(lambda w: w.active))
 
         if not all_farmers or n_wholesalers == 0:
@@ -119,7 +110,7 @@ class Trader(SupplyChainAgent):
         # Demand target: based on unshocked capacity, not current disrupted supply
         # Under no shock: demand == old push share
         # Under BRA shock: demand stays the same -> wholesaler actively pulls more from USA
-        normal_capacity = ( sum(f.base_yield for f in active_bra) + sum(f.base_yield for f in active_arg) + sum(f.base_yield for f in active_usa))
+        normal_capacity = sum(sum(f.base_yield for f in part) for part in parts)
         my_demand = min(normal_capacity / n_wholesalers, self.storage_capacity)
 
         # Greedy fill: pull from cheapest source first, up to each farmer's
@@ -172,7 +163,7 @@ class Trader(SupplyChainAgent):
         Price = (input_price + fixed_costs/stock) * (1 + margin).
         EU farmers then read from self.model.feed_traders in their step().
         """
-        manufacturers = self.model.feed_manufacturers.filter(lambda m: m.active)
+        manufacturers = self.model.upstream("feed_traders")
         n_traders = len(self.model.feed_traders.filter(lambda t: t.active))
 
         if not manufacturers or n_traders == 0:

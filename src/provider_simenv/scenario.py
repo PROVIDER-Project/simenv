@@ -13,47 +13,8 @@ class SupplyChainScenario(Scenario):
     All numeric fields are read by Melodie from the scenarios table.
     """
 
-    # --- KG shock coefficients ---
-    farm_capacity_bra: float = 1.0  # BRA soja farm output multiplier (0.7 = 30% drought loss)
-
-    port_capacity_santos: float = 1.0    # Santos port throughput multiplier
-    port_capacity_paranagua: float = 1.0 # Paranagua port throughput multiplier
-    port_capacity_rotterdam: float = 1.0    # Rotterdam port throughput multiplier
-    port_capacity_hamburg: float = 1.0      # Hamburg port throughput multiplier
-    santos_share: float = 0.7   # 0.7 = 70% of BRA exports via Santos
-
-    fertilizer_price_factor: float = 1.0 # multiplier on SA farmer fixed costs (1.3 = + 30%)
-    energy_price_factor: float = 1.0    # multiplier on all transport fixed costs (1.5 = + 50%)
-
-    oil_mill_capacity: float = 1.0  # EU processor output multiplier (0.95 = slight soja shortage)
-    feed_mill_capacity: float = 1.0     # feed manufacturer output multiplier
-
-    shock_ramp_steps: int = 0
-
-    # --- Per-parameter onset and end days ---
-    # onset: simulation day the shock activates (inclusive)
-    # end:   simulation day the shock deactivates (exclusive)
-    # Active window: onset <= t < end
-    shock_onset_farm_bra: int = 0
-    shock_end_farm_bra: int = 365
-    shock_onset_farm_arg: int = 0
-    shock_end_farm_arg: int = 365
-    shock_onset_port_santos: int = 0
-    shock_end_port_santos: int = 365
-    shock_onset_port_paranagua: int = 0
-    shock_end_port_paranagua: int = 365
-    shock_onset_port_rotterdam: int = 0
-    shock_end_port_rotterdam: int = 365
-    shock_onset_port_hamburg: int = 0
-    shock_end_port_hamburg: int = 365
-    shock_onset_fertilizer: int = 0
-    shock_end_fertilizer: int = 365
-    shock_onset_energy: int = 0
-    shock_end_energy: int = 365
-    shock_onset_oil_mill: int = 0
-    shock_end_oil_mill: int = 365
-    shock_onset_feed_mill: int = 0
-    shock_end_feed_mill: int = 365
+    # --- Supply chain routing ---
+    santos_share: float = 0.7   # 70% of BRA exports via Santos
 
     # --- Agent population size ---
     n_bra_farmers: int = 10         # South American Farmers
@@ -133,6 +94,5 @@ class SupplyChainScenario(Scenario):
     n_arg_farmers: int = 5
     fixed_costs_arg_farmer: float = 42000.0
     margin_arg_farmer: float = 0.10
-    farm_capacity_arg: float = 1.0  # ARG output multiplier (1.0 = unshocked)
 
 

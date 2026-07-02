@@ -48,5 +48,25 @@ class SupplyChainAgent(Agent):
         self.unit_price: float = 0.0
         self.active: bool = True
 
+        # PDL bindings: semantic slot -> (entity, impact_field).
+        # Applied by model.setup() from Archetype.params["bindings"] in
+        # topology.py (cross-entity slots), plus the entity-driven "capacity" slot.
+        self.binding: dict[str, tuple[str, str]] = {}
+
     def step(self):
         pass
+
+    def effective(self, slot: str) -> float:
+        """
+        Effective shock multiplier for a semantic binding slot.
+
+        Resolves the slot to its PDL (entity, impact_field) via self.binding and
+        reads the current value from the environment. Returns 1.0 (unshocked)
+        when the slot is not bound for this role — so agents that don't read a
+        given shock, or PDLs that omit the entity, run unaffected rather than
+        raising. This is the single home of the absent-key -> 1.0 default.
+        """
+        key = self.binding.get(slot)
+        if key is None:
+            return 1.0
+        return self.model.environment.get_effective_value(*key)

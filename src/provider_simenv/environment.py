@@ -16,23 +16,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from Melodie import Environment
 
-if TYPE_CHECKING:
-    from event_tracker import EventTracker
 
-
-# maps scenario param name -> (onset_field, end_field) on SupplyChainScenario
-_PARAM_TIMING_FIELDS: list[tuple[str, str, str]] = [
-    ("farm_capacity_bra", "shock_onset_farm_bra", "shock_end_farm_bra"),
-    ("farm_capacity_arg", "shock_onset_farm_arg", "shock_end_farm_arg"),
-    ("port_capacity_santos", "shock_onset_port_santos", "shock_end_port_santos"),
-    ("port_capacity_paranagua", "shock_onset_port_paranagua", "shock_end_port_paranagua"),
-    ("port_capacity_rotterdam", "shock_onset_port_rotterdam", "shock_end_port_rotterdam"),
-    ("port_capacity_hamburg", "shock_onset_port_hamburg", "shock_end_port_hamburg"),
-    ("fertilizer_price_factor", "shock_onset_fertilizer", "shock_end_fertilizer"),
-    ("energy_price_factor", "shock_onset_energy", "shock_end_energy"),
-    ("oil_mill_capacity", "shock_onset_oil_mill", "shock_end_oil_mill"),
-    ("feed_mill_capacity", "shock_onset_feed_mill", "shock_end_feed_mill"),
-]
+from .shock_registry import DROUGHT_KEY
+from .event_tracker import EventTracker
 
 
 class SupplyChainEnvironment(Environment):
@@ -47,7 +33,7 @@ class SupplyChainEnvironment(Environment):
     feed_price: float = 0.0
 
     # global shock intensity
-    # Agents should call get_shock_scale(param) instead of reading this directly.
+    # Agents should call get_shock_scale(entity, field) instead of reading this directly.
     shock_scale: float = 0.0
 
     # drought severity this step
@@ -78,81 +64,68 @@ class SupplyChainEnvironment(Environment):
         self.transport_utilisation = 0.0
         self.current_step = 0
 
-        # per-parameter shock activation scale
-        self.shock_scales: dict[str, float] = {
-            param: 0.0 for param, _, _ in _PARAM_TIMING_FIELDS
-        }
+        # per (entity, field) shock activation scale.
+        self.shock_scales: dict[tuple[str, str], float] = {}
 
 
     def update_shock_scales(self, period: int):
         """
-        update per-parameter shock activation scales for the given day.
-
-        Two modes:
-            - Tracker mode (PDL with conditions): EventTracker evaluate conditions and durations at runtime.
-            - Static mode (no PDL, fallback): onset/end read from scenario fields
+        Update per-parameter shock activation scales for the given day. Tracker mode
+        evaluates PDL conditions/durations at runtime; static mode zeroes them.
         """
         if self._tracker is not None:
             self._tracker.step(period)
-            for param, _, _ in _PARAM_TIMING_FIELDS:
-                self.shock_scales[param] = self._tracker.get_shock_scale(param)
+            # seed the key once
+            if not self.shock_scales:
+                self.shock_scales = {key: 0.0 for key in self._tracker.known_keys()}
+            for key in self.shock_scales:
+                self.shock_scales[key] = self._tracker.get_shock_scale(*key)
         else:
-            for param, onset_field, end_field in _PARAM_TIMING_FIELDS:
-                onset = getattr(self.scenario, onset_field)
-                end = getattr(self.scenario, end_field)
-                value = getattr(self.scenario, param)
-                has_shock = value != 1.0
-                self.shock_scales[param] = (1.0 if has_shock and onset <= period < end else 0.0)
+            for key in self.shock_scales:
+                self.shock_scales[key] = 0.0
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
 
-        # drought severity: use racker value if available
-        bra_scale = self.shock_scales.get("farm_capacity_bra", 0.0)
-        bra_value = self.get_effective_value("farm_capacity_bra")
-        self.drought_severity = (
-            bra_scale * (1.0 - bra_value)
-        )
+        # Drought severity is defined as brazil_farms supply degradation (DROUGHT_KEY)
+        bra_scale = self.shock_scales.get(DROUGHT_KEY, 0.0)
+        bra_value = self.get_effective_value(*DROUGHT_KEY)
+        self.drought_severity = (bra_scale * (1.0 - bra_value))
 
 
-    def get_shock_scale(self, param: str) -> float:
+
+
+    def get_shock_scale(self, entity: str, field: str) -> float:
         """
         Return the current shock actibation scale for a scenario parameter.
         """
-        return self.shock_scales.get(param, 0.0)
+        return self.shock_scales.get((entity, field), 0.0)
 
 
-    def get_effective_value(self, param: str) -> float:
+    def get_effective_value(self, entity: str, field: str) -> float:
         """
-        Return the effective value for this step.
-
-        Tracker mode: aggregated from currently active events only.
-        Static mode: reads fixed value from the scenario.
+        Return the effective value for this step. Tracker mode aggregates currently
+        active events; no tracker (baseline / non-PDL) is unshocked, always 1.0.
         """
         if self._tracker is not None:
-            return self._tracker.get_param_value(param)
-        return getattr(self.scenario, param, 1.0)
+            return self._tracker.get_param_value(entity, field)
+        return 1.0
 
 
     def step(self):
         """
-        Aggregate agent outputs into macro indicators
-        after all agents have acted in the current step.
-
-        soja_price: quantity-weighted average price across active wholesalers
-        feed_price: quantity-weighted average price across active feed traders
-        total_soja_supply: total tons produced by active BRA + USA farmers
-        transport_utilisation: mean utilisation of all transport agents
+        Aggregate agent outputs into macro indicators (soja/feed prices, total supply,
+        transport utilisation) after all agents have acted in the current step.
         """
         self.current_step += 1
 
-        # Soja supply (BRA + USA farmer output)
-        active_bra = self.model.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.model.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.model.usa_farmers.filter(lambda f: f.active)
-        self.total_soja_supply = (
-            sum(f.quantity_available for f in active_bra)
-            + sum(f.quantity_available for f in active_arg)
-            + sum(f.quantity_available for f in active_usa)
+        # Soja supply: sum over the producer regions from the run's flow graph,
+        # so a swapped PDL's new region is counted. Producer order follows the
+        # roster, so the float grouping (and recorded value) is unchanged for s1.
+        from .topology import producer_lists
+        self.total_soja_supply = sum(
+            sum(f.quantity_available
+                for f in getattr(self.model, name).filter(lambda f: f.active))
+            for name in producer_lists(self.model._flow_adjacency)
         )
 
 

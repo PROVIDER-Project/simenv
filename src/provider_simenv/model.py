@@ -28,16 +28,9 @@ Step order each timestep:
 """
 import fontTools.misc.arrayTools
 from Melodie import Model
+from pathlib import Path
 from .event_tracker import EventTracker
-from .agents import (
-    Farmer, Trader, Transport, Process,
-    ROLE_BRA, ROLE_ARG, ROLE_USA, ROLE_EU,
-    ROLE_WHOLESALER, ROLE_FEED_TRADER,
-    ROLE_SA_SANTOS, ROLE_SA_PARANAGUA,
-    ROLE_SEA_SANTOS, ROLE_SEA_PARANAGUA, ROLE_SEA_ARG, ROLE_SEA_USA,
-    ROLE_EU_RTM, ROLE_EU_HAM,
-    ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER,
-)
+from .topology import build_roster
 from .environment import SupplyChainEnvironment
 from .data_collector import SupplyChainDataCollector
 
@@ -46,131 +39,144 @@ class SupplyChainModel(Model):
 
     def create(self):
         """
-        Instantiate all Melodie components.
-
-        create_environment(cls): create our env object
-        create_data_collector(cls): create our data collector object
-        create_agent_list(cls): create an AgentList for one type
-        .setup_agents(n): populates it with n agents and calls setup() on each one
+        Instantiate the env, data collector, and one AgentList per roster archetype.
+        Replaces the old hardcoded create_agent_list calls.
         """
         self.environment = self.create_environment(SupplyChainEnvironment)
         self.data_collector = self.create_data_collector(SupplyChainDataCollector)
 
-        # Farmer lists
-        self.bra_farmers = self.create_agent_list(Farmer)
-        self.arg_farmers = self.create_agent_list(Farmer)
-        self.usa_farmers = self.create_agent_list(Farmer)
-        self.eu_farmers = self.create_agent_list(Farmer)
-
-        # Trader lists
-        self.wholesalers = self.create_agent_list(Trader)
-        self.feed_traders = self.create_agent_list(Trader)
-
-        # SA land transport (two ports)
-        self.transport_sa_santos = self.create_agent_list(Transport)
-        self.transport_sa_paranagua = self.create_agent_list(Transport)
-
-        # sea lanes: Santos -> Rotterdam, Paranagua -> Hamburg, ARG direct -> Rotterdam
-        self.sea_lane_santos = self.create_agent_list(Transport)
-        self.sea_lane_paranagua = self.create_agent_list(Transport)
-        self.sea_lane_arg = self.create_agent_list(Transport)
-        self.sea_lane_usa = self.create_agent_list(Transport)
-
-        # EU entry points (Rotterdam: STO+ARG+USA, Hamburg: PRG only)
-        self.transport_eu_rtm = self.create_agent_list(Transport)
-        self.transport_eu_ham = self.create_agent_list(Transport)
-
-        self.processors = self.create_agent_list(Process)
-        self.feed_manufacturers = self.create_agent_list(Process)
+        # PDL-driven roster: one AgentList per archetype, bound to its model
+        # attribute name (self.bra_farmers, ...) so the rest of the model still
+        # references lists by name. Replaces the old 16 hardcoded calls.
+        self._roster = build_roster(self._roster_pdl_path())
+        for entry in self._roster:
+            arc = entry.archetype
+            setattr(self, arc.name, self.create_agent_list(arc.agent_class))
 
 
-    def _setup_with_role(self, agent_list, n, role):
+    def _roster_pdl_path(self) -> str:
         """
-        Helper: create n agents, assign role, thn run role-specific init.
+        PDL the roster is derived from: the class _pdl_path set by main.py for a
+        swapped PDL, else the shipped scenario so the model runs standalone.
         """
-        agent_list.setup_agents(n)
-        for agent in agent_list.agents:
-            agent.role = role
-            agent.post_setup()
+        default = Path(__file__).parent / "scenarios" / "s1-soja.pdl.yaml"
+        return getattr(self.__class__, "_pdl_path", str(default))
 
 
     def setup(self):
         """
-        Populate all AgentLists and assign roles.
-
-        Uses _setup_with_role() so the pattern is written once, not repeated nine times.
+        Populate every AgentList in the derived roster, assign roles, and apply
+        each archetype's declared params — bindings, literal attrs, and
+        scenario-sourced attrs — so agents carry no role-specific init.
         """
-        self._setup_with_role(self.bra_farmers, self.scenario.n_bra_farmers, ROLE_BRA)
-        self._setup_with_role(self.arg_farmers, self.scenario.n_arg_farmers, ROLE_ARG)
-        self._setup_with_role(self.usa_farmers, self.scenario.n_usa_farmers, ROLE_USA)
-        self._setup_with_role(self.eu_farmers, self.scenario.n_eu_farmers, ROLE_EU)
+        for entry in self._roster:
+            arc = entry.archetype
+            agent_list = getattr(self, arc.name)
+            agent_list.setup_agents(getattr(self.scenario, arc.count_attr))
+            # entity-driven capacity binding: an agent reads its own entity's supply shock.
+            capacity_key = (entry.entity_ids[0], "supply") if len(entry.entity_ids) == 1 else None
+            bindings = arc.params.get("bindings", {})
+            attrs = arc.params.get("attrs", {})
+            scenario_attrs = arc.params.get("scenario_attrs", {})
+            for agent in agent_list.agents:
+                agent.role = arc.role
+                agent.binding = dict(bindings)   # per-agent copy of the declared slots
+                for attr, value in attrs.items():
+                    setattr(agent, attr, value)
+                for attr, scenario_attr in scenario_attrs.items():
+                    setattr(agent, attr, getattr(self.scenario, scenario_attr))
+                agent.post_setup()
+                if capacity_key is not None:
+                    agent.binding = {**agent.binding, "capacity": capacity_key}
 
-        self._setup_with_role(self.wholesalers, self.scenario.n_wholesalers, ROLE_WHOLESALER)
-        self._setup_with_role(self.feed_traders, self.scenario.n_feed_traders, ROLE_FEED_TRADER)
-
-        self._setup_with_role(self.transport_sa_santos, self.scenario.n_transport_sa_santos, ROLE_SA_SANTOS)
-        self._setup_with_role(self.transport_sa_paranagua, self.scenario.n_transport_sa_paranagua, ROLE_SA_PARANAGUA)
-
-        self._setup_with_role(self.sea_lane_santos, self.scenario.n_sea_lane_santos, ROLE_SEA_SANTOS)
-        self._setup_with_role(self.sea_lane_paranagua, self.scenario.n_sea_lane_paranagua, ROLE_SEA_PARANAGUA)
-        self._setup_with_role(self.sea_lane_arg, self.scenario.n_sea_lane_arg, ROLE_SEA_ARG)
-        self._setup_with_role(self.sea_lane_usa, self.scenario.n_sea_lane_usa, ROLE_SEA_USA)
-
-        self._setup_with_role(self.transport_eu_rtm, self.scenario.n_transport_eu_rtm, ROLE_EU_RTM)
-        self._setup_with_role(self.transport_eu_ham, self.scenario.n_transport_eu_ham, ROLE_EU_HAM)
-
-        self._setup_with_role(self.processors, self.scenario.n_processors, ROLE_PROCESSOR)
-        self._setup_with_role(self.feed_manufacturers, self.scenario.n_feed_manufacturers, ROLE_FEED_MANUFACTURER)
-
-        self._prev_shock_scales: dict[str, float] = {}
+        self._prev_shock_scales: dict[tuple[str, str], float] = {}
         self._prev_active_events: set[str] = set()
         self._heartbeat_interval: int = 30
+
+        # Flow wiring and step order, both derived from the PDL graph. A new
+        # producer region in a swapped PDL wires in here with no code change.
+        from .topology import build_flow_adjacency, execution_order
+        self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
+        self._execution_order: list[str] = execution_order(self._flow_adjacency)
+
+
+    def upstream_parts(self, name: str) -> list:
+        """Active upstream lists feeding `name`, one per source, in flow order.
+        Kept ungrouped for callers that need per-source totals."""
+        return [getattr(self, src).filter(lambda a: a.active)
+                for src in self._flow_adjacency.get(name, ())]
+
+    def upstream(self, name: str):
+        """Active upstream agents feeding `name`, concatenated in flow order.
+        None if `name` is a source node (e.g. a producer)."""
+        combined = None
+        for part in self.upstream_parts(name):
+            combined = part if combined is None else combined + part
+        return combined
 
 
     def _collect_snapshot(self) -> dict:
         """
-        Gather current prices and volumes for logging
+        Headline prices/volumes for console logging, derived from the run's flow
+        graph: producers are the source lists, ports the lists feeding a sea crossing.
         """
-        active_bra = self.bra_farmers.filter(lambda f: f.active)
-        active_arg = self.arg_farmers.filter(lambda f: f.active)
-        active_usa = self.usa_farmers.filter(lambda f: f.active)
-        bra_vol = sum(f.quantity_available for f in active_bra)
-        arg_vol = sum(f.quantity_available for f in active_arg)
-        usa_vol = sum(f.quantity_available for f in active_usa)
+        from .topology import producer_lists, export_port_lists
+
+        role_of = {e.archetype.name: e.archetype.role for e in self._roster}
+        producers = producer_lists(self._flow_adjacency)
+
+        def vw_price(name: str) -> float:
+            active = getattr(self, name).filter(lambda a: a.active)
+            vol = sum(a.quantity_available for a in active)
+            return (sum(a.unit_price * a.quantity_available for a in active) / vol) if vol > 0 else 0.0
+
+        def volume(name: str) -> float:
+            return sum(a.quantity_available for a in getattr(self, name).filter(lambda a: a.active))
+
+        # label by role when it's unique among producers, else by list name, so
+        # the shipped PDL stays BRA/ARG/USA but split same-role regions (an extra
+        # arg-role china_farms) don't collide.
+        role_n = {r: sum(1 for n in producers if role_of.get(n, n) == r)
+                  for r in {role_of.get(n, n) for n in producers}}
+
+        def plabel(name: str) -> str:
+            role = role_of.get(name, name)
+            return (role if role_n[role] == 1 else name).upper()
+
         return {
-            "bra_px": (sum(f.unit_price * f.quantity_available for f in active_bra) / bra_vol) if bra_vol > 0 else 0.0,
-            "arg_px": (sum(f.unit_price * f.quantity_available for f in active_arg) / arg_vol) if arg_vol > 0 else 0.0,
-            "usa_px": (sum(f.unit_price * f.quantity_available for f in active_usa) / usa_vol) if usa_vol > 0 else 0.0,
+            "producers": {plabel(n): vw_price(n) for n in producers},
+            "ports": {role_of.get(n, n).upper(): volume(n) for n in export_port_lists(self._flow_adjacency)},
             "soja_px": self.environment.soja_price,
             "feed_px": self.environment.feed_price,
             "supply": self.environment.total_soja_supply,
-            "sto_vol": sum(a.quantity_available for a in self.transport_sa_santos.filter(lambda a: a.active)),
-            "prg_vol": sum(a.quantity_available for a in self.transport_sa_paranagua.filter(lambda a: a.active)),
             "n_active_shocks": sum(1 for v in self.environment.shock_scales.values() if v > 0),
         }
 
 
-    def _log_event(self, t: int, direction: str, param: str, snap: dict):
+    def _log_event(self, t: int, direction: str, key: tuple[str, str], snap: dict):
         """
-        layer 1: emit one line per shock state transition
+        Emit one line per shock state transition.
         """
-        value = self.environment.get_effective_value(param)
+        entity, field = key
+        label = f"{entity}/{field}"
+        value = self.environment.get_effective_value(entity, field)
         if direction == "ON":
             pct = (value - 1.0) * 100
             sign = "+" if pct > 0 else ""
-            print(f" ▸ DAY {t:03d} ON {param:<28s} {value:.2f} ({sign}{pct:.0f}%)")
+            print(f" ▸ DAY {t:03d} ON {label:<28s} {value:.2f} ({sign}{pct:.0f}%)")
         else:
-            print(f" ▸ DAY {t:03d} OFF {param:<28s} → 1.00")
+            print(f" ▸ DAY {t:03d} OFF {label:<28s} → 1.00")
 
 
     def _log_hearbeat(self, t: int, snap: dict):
         """
-        layer 2: periodic state summary
+        Periodic state summary.
         """
+        prod = " ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         print(
             f" ... day {t:03d}   "
             f"shocks={snap['n_active_shocks']}  "
-            f"BRA={snap['bra_px']:.0f} ARG={snap['arg_px']:.0f} USA={snap['usa_px']:.0f} "
+            f"{prod} "
             f"soja={snap['soja_px']:.0f} feed={snap['feed_px']:.0f} "
             f"supply={snap['supply']:.0f}t"
             )
@@ -178,17 +184,19 @@ class SupplyChainModel(Model):
 
     def _log_scenario_summary(self, id_scenario: int, total_days: int):
         """
-        layer 3: end of scenario summary
+        End-of-scenario summary.
         """
         snap = self._collect_snapshot()
         n_shocks = snap["n_active_shocks"]
         print()
         print(f"  ┌─ Scenario {id_scenario} complete ─{'─' * 50}┐")
+        prod = "  ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
+        ports = "  ".join(f"{k}={v:.0f}t" for k, v in snap["ports"].items())
+        prices_line = f"  Final prices: {prod}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}"
+        supply_line = f"  Final supply: {snap['supply']:.0f}t  {ports}"
         print(f"  │  Days: {total_days}  |  Active shocks remaining: {n_shocks:<21}│")
-        print(f"  │  Final prices: BRA={snap['bra_px']:.0f}  ARG={snap['arg_px']:.0f}  "
-              f"USA={snap['usa_px']:.0f}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}{'':>4}│")
-        print(f"  │  Final supply: {snap['supply']:.0f}t  "
-              f"STO={snap['sto_vol']:.0f}t  PRG={snap['prg_vol']:.0f}t{'':>22}│")
+        print(f"  │{prices_line:<63}│")
+        print(f"  │{supply_line:<63}│")
         print(f"  └{'─' * 63}┘")
         print()
 
@@ -208,38 +216,23 @@ class SupplyChainModel(Model):
             for eid in sorted(activated):
                 edef = tracker._events.get(eid)
                 reason = f"condition: {edef.condition}" if edef and edef.condition else "unconditional"
-                param_str = f" -> {edef.param}={edef.value:.2f}" if edef and edef.param else ""
+                if edef and edef.impacts:
+                    impact_str = " -> " + ", ".join(
+                        f"{edef.entity}/{f}={v:.2f}" for f, v in edef.impacts.items()
+                    )
+                else:
+                    impact_str = ""
                 dur_str = f", expires day {t + edef.duration}" if edef and edef.duration > 0 else ", permanent"
-                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{param_str}{dur_str})")
-
+                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{impact_str}{dur_str})")
             for eid in sorted(expired):
                 print(f" ® DAY {t:03d} EVENT OFF {eid:<35s} (duration elapsed)")
 
             self._prev_active_events = current_events
 
-        # Production
-        self.bra_farmers.method_foreach('step', ())
-        self.arg_farmers.method_foreach('step', ())
-        self.usa_farmers.method_foreach('step', ())
-        self.wholesalers.method_foreach('step', ())
-
-        # Transport
-        self.transport_sa_santos.method_foreach('step', ())
-        self.transport_sa_paranagua.method_foreach('step', ())
-        self.sea_lane_santos.method_foreach('step', ())
-        self.sea_lane_paranagua.method_foreach('step', ())
-        self.sea_lane_arg.method_foreach('step', ())
-        self.sea_lane_usa.method_foreach('step', ())
-        self.transport_eu_rtm.method_foreach('step', ())
-        self.transport_eu_ham.method_foreach('step', ())
-
-        # Processing & distribution
-        self.processors.method_foreach('step', ())
-        self.feed_manufacturers.method_foreach('step', ())
-        self.feed_traders.method_foreach('step', ())
-
-        # End consumption
-        self.eu_farmers.method_foreach('step', ())
+        # Step each list after its upstream sources, in the order derived from
+        # the wiring graph (topology.execution_order, cached in setup).
+        for name in self._execution_order:
+            getattr(self, name).method_foreach('step', ())
 
         # Global state update
         self.environment.step()
@@ -248,17 +241,17 @@ class SupplyChainModel(Model):
         snap = self._collect_snapshot()
         current_scales = dict(self.environment.shock_scales)
 
-        # layer 1: detect transitions
-        for param, scale in current_scales.items():
-            prev = self._prev_shock_scales.get(param, 0.0)
+        # detect shock state transitions
+        for key, scale in current_scales.items():
+            prev = self._prev_shock_scales.get(key, 0.0)
             if prev == 0.0 and scale > 0.0:
-                self._log_event(t, "ON", param, snap)
+                self._log_event(t, "ON", key, snap)
             elif prev > 0.0 and scale == 0.0:
-                self._log_event(t, "OFF", param, snap)
+                self._log_event(t, "OFF", key, snap)
 
         self._prev_shock_scales = current_scales
 
-        # layer 2: heartbeat every N days + always on day 0
+        # heartbeat every N days + always on day 0
         if t == 0 or t % self._heartbeat_interval == 0:
             self._log_hearbeat(t, snap)
 
@@ -280,14 +273,41 @@ class SupplyChainModel(Model):
                 timeline=registry["timeline"],
             )
 
+    def _all_agent_lists(self) -> list:
+        """Every AgentList in the model, from the PDL-derived roster. Order is
+        irrelevant; callers aggregate into sets/dicts."""
+        return [getattr(self, entry.archetype.name) for entry in self._roster]
+
+    def _crosscheck_bindings(self) -> None:
+        """
+        Warn (don't fail) when an agent is bound to a PDL (entity, field) the loaded
+        scenario never shocks, so those agents run unshocked; surfaces region-swap typos.
+        """
+        tracker = self.environment._tracker
+        if tracker is None:
+            return  # baseline / non-PDL run: nothing to cross-check
+        known = tracker.known_keys()
+
+        bound: dict[tuple[str, str], set[str]] = {}
+        for agent_list in self._all_agent_lists():
+            for agent in agent_list.agents:
+                for key in agent.binding.values():
+                    bound.setdefault(key, set()).add(agent.role)
+
+        for key, roles in sorted(bound.items()):
+            if key not in known:
+                entity, field = key
+                roles_str = ", ".join(sorted(roles))
+                print(f" [WARN] binding {entity}/{field} not shocked by loaded PDL "
+                      f"- roles [{roles_str}] run unshocked")
+
     def run(self):
         """
-        Main simulation loop. Melodie calls this after create() and setup().
-
-        self.iterator(n): yields period 0..n-1, handles any visualiser updates per step
-        agent_list.method_foreach(method_name, args): calls method_name on every agent in the list; args must be a tuple.
+        Main simulation loop, called by Melodie after create() and setup(): init
+        tracker, cross-check bindings, step each period, then summarise and save.
         """
         self._init_event_tracker()
+        self._crosscheck_bindings()
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)
         self._log_scenario_summary(self.scenario.id, self.scenario.period_num)
@@ -295,13 +315,8 @@ class SupplyChainModel(Model):
 
     def run_stepwise(self):
             """
-            Generator variant for external step-by-step control (e.g. RL agents)
-
-            Yields a state snapshot dict after every step. The caller drives the loop:
-
-                for state in model.run_stepwise():
-                    print(state['soja_price'])
-                    # TODO: RL actions here
+            Generator variant for external step-by-step control (e.g. RL agents).
+            Yields a state snapshot dict after every step; the caller drives the loop.
             """
             from .db_config import PostgresDBConfig
             from .tick_writer import TickWriter
@@ -310,6 +325,7 @@ class SupplyChainModel(Model):
             tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
 
             self._init_event_tracker()
+            self._crosscheck_bindings()
 
             for t in range(self.scenario.period_num):
                 self._do_step(t)

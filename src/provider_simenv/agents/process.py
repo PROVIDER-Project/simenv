@@ -13,15 +13,15 @@ Price logic accounts for the yield loss in conversion:
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs/margin from scenario.
+  2. Model applies the archetype params from topology.py: role, fixed_costs,
+     margin, conversion_ratio.
+  3. agent.post_setup() → resets per-step flow state.
 """
 
 from .base import SupplyChainAgent
 
 ROLE_PROCESSOR = "processor"
 ROLE_FEED_MANUFACTURER = "feed_manufacturer"
-
 
 class Process(SupplyChainAgent):
     """
@@ -44,17 +44,10 @@ class Process(SupplyChainAgent):
         self.conversion_ratio: float = 1.0
 
     def post_setup(self):
-        """Role-specific initialisation after role is assigned by model."""
-        if self.role == ROLE_PROCESSOR:
-            self.fixed_costs = self.scenario.fixed_costs_processor
-            self.margin = self.scenario.margin_processor
-            self.conversion_ratio = 0.8     # ~80 % meal yield from raw soja
-
-        elif self.role == ROLE_FEED_MANUFACTURER:
-            self.fixed_costs = self.scenario.fixed_costs_feed_manufacturer
-            self.margin = self.scenario.margin_feed_manufacturer
-            self.conversion_ratio = 1.0     # No significant yield loss yet
-
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, margin, conversion_ratio): reset per-step flow state.
+        """
         self.input_received = 0.0
         self.quantity_available = 0.0
         self.unit_price = 0.0
@@ -71,13 +64,13 @@ class Process(SupplyChainAgent):
     # Shared helper: receive from upstream list, convert, compute price
     # ------------------------------------------------------------------
 
-    def _process(self, upstream_list, peer_list, scenario_param: str = ""):
+    def _process(self, upstream_list, peer_list):
         """
         Pull an equal share of upstream output, apply conversion_ratio,
         and compute unit_price accounting for yield loss.
 
-        scenario_param: scenario param whose effective value scales output.
-                    Models indirect capacity reduction from soja shortage.
+        Output is scaled by this agent's "capacity" binding slot, modelling
+        indirect capacity reduction from upstream shortage.
 
         For every 1 unit of output, (1 / conversion_ratio) input units
         were consumed, so the input cost per output unit is:
@@ -95,7 +88,7 @@ class Process(SupplyChainAgent):
             self.unit_price = 0.0
             return
 
-        effective_factor = self.model.environment.get_effective_value(scenario_param) if scenario_param else 1.0
+        effective_factor = self.effective("capacity")
 
         total_input = sum(a.quantity_available for a in active_upstream)
 
@@ -128,20 +121,14 @@ class Process(SupplyChainAgent):
     def _step_processor(self):
         """Receive soja from both EU entry ports (RTM + HAM), crush to meal.
         oil_mill_capacity applied as indirect capacity constraint."""
-        combined_eu = (
-            self.model.transport_eu_rtm.filter(lambda a: a.active)
-            + self.model.transport_eu_ham.filter(lambda a: a.active)
-        )
         self._process(
-            upstream_list=combined_eu,
+            upstream_list=self.model.upstream("processors"),
             peer_list=self.model.processors,
-            scenario_param="oil_mill_capacity",
         )
 
     def _step_feed_manufacturer(self):
         """Receive soja meal from processors, compound to animal feed."""
         self._process(
-            upstream_list=self.model.processors,
+            upstream_list=self.model.upstream("feed_manufacturers"),
             peer_list=self.model.feed_manufacturers,
-            scenario_param="feed_mill_capacity",
         )
