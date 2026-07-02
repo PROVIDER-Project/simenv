@@ -13,25 +13,15 @@ Price logic accounts for the yield loss in conversion:
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs/margin from scenario.
+  2. Model applies the archetype params from topology.py: role, fixed_costs,
+     margin, conversion_ratio.
+  3. agent.post_setup() → resets per-step flow state.
 """
 
 from .base import SupplyChainAgent
 
 ROLE_PROCESSOR = "processor"
 ROLE_FEED_MANUFACTURER = "feed_manufacturer"
-
-# --- PDL bindings ---
-# The "capacity" slot (the stage's OWN (entity, "supply"), modelling indirect
-# capacity reduction from upstream shortage) is set entity-driven by the model
-# builder from each agent's PDL entity — no longer hardcoded here. These roles
-# have no cross-entity dependency slots, so the role binding is empty.
-ROLE_BINDINGS: dict[str, dict[str, tuple[str, str]]] = {
-    ROLE_PROCESSOR:         {},
-    ROLE_FEED_MANUFACTURER: {},
-}
-
 
 class Process(SupplyChainAgent):
     """
@@ -54,18 +44,10 @@ class Process(SupplyChainAgent):
         self.conversion_ratio: float = 1.0
 
     def post_setup(self):
-        """Role-specific initialisation after role is assigned by model."""
-        self.binding = ROLE_BINDINGS.get(self.role, {})
-        if self.role == ROLE_PROCESSOR:
-            self.fixed_costs = self.scenario.fixed_costs_processor
-            self.margin = self.scenario.margin_processor
-            self.conversion_ratio = 0.8     # ~80 % meal yield from raw soja
-
-        elif self.role == ROLE_FEED_MANUFACTURER:
-            self.fixed_costs = self.scenario.fixed_costs_feed_manufacturer
-            self.margin = self.scenario.margin_feed_manufacturer
-            self.conversion_ratio = 1.0     # No significant yield loss yet
-
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, margin, conversion_ratio): reset per-step flow state.
+        """
         self.input_received = 0.0
         self.quantity_available = 0.0
         self.unit_price = 0.0

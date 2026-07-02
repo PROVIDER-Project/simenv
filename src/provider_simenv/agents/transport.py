@@ -23,8 +23,9 @@ sea_paranagua arrives at eu_ham.
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs from scenario, sets capacity.
+  2. Model applies the archetype params from topology.py: role, energy
+     binding, fixed_costs, capacity, transit_steps.
+  3. agent.post_setup() → starts at full capacity with the initial service fee.
 """
 
 from .base import SupplyChainAgent
@@ -37,25 +38,6 @@ ROLE_SEA_ARG = "sea_arg"
 ROLE_EU_RTM = "eu_rtm"
 ROLE_EU_HAM = "eu_ham"
 ROLE_SEA_USA = "sea_usa"
-
-# --- PDL bindings ---
-# Cross-entity dependency slots only. The "capacity" slot (the port's OWN
-# (entity, "supply")) is set entity-driven by the model builder from the PDL
-# entity each agent represents — no longer hardcoded here. What remains:
-#   energy -> gas price; scales freight operating costs (every transport role)
-# Sea lanes have no port-capacity shock; they (and the others) get no capacity
-# slot unless the builder assigns one, so effective("capacity") -> 1.0.
-ROLE_BINDINGS: dict[str, dict[str, tuple[str, str]]] = {
-    ROLE_SA_SANTOS:     {"energy": ("gas_supply", "price")},
-    ROLE_SA_PARANAGUA:  {"energy": ("gas_supply", "price")},
-    ROLE_SEA_SANTOS:    {"energy": ("gas_supply", "price")},
-    ROLE_SEA_PARANAGUA: {"energy": ("gas_supply", "price")},
-    ROLE_SEA_ARG:       {"energy": ("gas_supply", "price")},
-    ROLE_SEA_USA:       {"energy": ("gas_supply", "price")},
-    ROLE_EU_RTM:        {"energy": ("gas_supply", "price")},
-    ROLE_EU_HAM:        {"energy": ("gas_supply", "price")},
-}
-
 
 class Transport(SupplyChainAgent):
     """
@@ -82,25 +64,15 @@ class Transport(SupplyChainAgent):
         self.transit_steps: int = 0
 
     def post_setup(self):
-        self.binding = ROLE_BINDINGS.get(self.role, {})
-        margin = self.scenario.margin_transport
-
-        if self.role in (ROLE_SA_SANTOS, ROLE_SA_PARANAGUA):
-            self.fixed_costs = self.scenario.fixed_costs_transport_sa
-            self.capacity = 500.0
-
-        elif self.role in (ROLE_SEA_SANTOS, ROLE_SEA_PARANAGUA, ROLE_SEA_ARG, ROLE_SEA_USA):
-            self.fixed_costs = self.scenario.fixed_costs_transport_sea
-            self.capacity = 1000.0
-            self.transit_steps = 60      # ~2-month Atlantic crossing
-
-        elif self.role in (ROLE_EU_RTM, ROLE_EU_HAM):
-            self.fixed_costs = self.scenario.fixed_costs_transport_eu
-            self.capacity = 500.0
-
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, capacity, transit_steps): start at full capacity with
+        the cost-based initial service fee.
+        """
         self.quantity_available = self.capacity
         # Initial service fee at full capacity
         if self.capacity > 0:
+            margin = self.scenario.margin_transport
             self.unit_price = (self.fixed_costs / self.capacity) * (1.0 + margin)
 
     def step(self):

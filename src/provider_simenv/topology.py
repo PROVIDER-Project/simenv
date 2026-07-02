@@ -17,8 +17,10 @@ The model imports build_roster / build_flow_adjacency / execution_order to drive
 create(), setup(), and the per-step loop.
 """
 from __future__ import annotations
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 
 from .agents import (
     Farmer, Trader, Transport, Process,
@@ -42,26 +44,99 @@ class Archetype:
     agent_class: type
     role: str
     count_attr: str        # scenario attribute holding the instance count
+    # Declarative agent init, applied to instances by model.setup(); agents
+    # never read it. Keys (all optional):
+    #   "bindings"        semantic slot -> PDL (entity, impact_field) verbatim.
+    #                     Cross-entity dependencies only — the "capacity" slot
+    #                     (an agent's OWN entity) stays entity-driven in setup().
+    #   "scenario_attrs"  agent attribute <- scenario attribute name
+    #   "attrs"           agent attribute <- literal value
+    # compare=False keeps eq/hash on the identity fields: a dict field would
+    # make the frozen class unhashable, and build_roster keys dicts by Archetype.
+    params: Mapping[str, Any] = field(default_factory=dict, compare=False)
+
+
+# ---------------------------------------------------------------------------
+# Archetype params: the ROLE_BINDINGS tables and post_setup `if role ==` values
+# that used to live in the agent files. Bindings are cross-entity dependency
+# slots only (fertilizer -> input cost scaling, energy -> freight cost scaling).
+# Fragments are shared by reference across archetypes.
+# ---------------------------------------------------------------------------
+
+_ENERGY = {"energy": ("gas_supply", "price")}   # gas price scales freight operating costs
+
+_FARMER_BRA = {
+    "bindings":       {"fertilizer": ("fertilizer_supply", "price")},
+    "scenario_attrs": {"fixed_costs": "fixed_costs_bra_farmer",
+                       "margin":      "margin_bra_farmer",
+                       "size_sigma":  "farm_size_sigma_bra"},
+    "attrs":          {"base_yield": 100.0},    # placeholder; loaded from data later
+}
+_FARMER_ARG = {
+    "scenario_attrs": {"fixed_costs": "fixed_costs_arg_farmer",
+                       "margin":      "margin_arg_farmer",
+                       "size_sigma":  "farm_size_sigma_arg"},
+    "attrs":          {"base_yield": 100.0},
+}
+_FARMER_USA = {
+    "scenario_attrs": {"fixed_costs": "fixed_costs_usa_farmer",
+                       "margin":      "margin_usa_farmer",
+                       "size_sigma":  "farm_size_sigma_usa"},
+    "attrs":          {"base_yield": 100.0},
+}
+_FARMER_EU = {    # end consumer: no margin; base_yield stays 0.0 -> buyer init
+    "scenario_attrs": {"fixed_costs": "fixed_costs_eu_farmer",
+                       "size_sigma":  "farm_size_sigma_eu"},
+}
+_TRANSPORT_SA = {
+    "bindings":       _ENERGY,
+    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_sa"},
+    "attrs":          {"capacity": 500.0},
+}
+_TRANSPORT_EU = {
+    "bindings":       _ENERGY,
+    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_eu"},
+    "attrs":          {"capacity": 500.0},
+}
+_PROCESSOR = {
+    "scenario_attrs": {"fixed_costs": "fixed_costs_processor",
+                       "margin":      "margin_processor"},
+    "attrs":          {"conversion_ratio": 0.8},    # ~80 % meal yield from raw soja
+}
+_FEED_MFR = {
+    "scenario_attrs": {"fixed_costs": "fixed_costs_feed_manufacturer",
+                       "margin":      "margin_feed_manufacturer"},
+    "attrs":          {"conversion_ratio": 1.0},    # no significant yield loss yet
+}
+_WHOLESALER = {
+    "scenario_attrs": {"fixed_costs":      "fixed_costs_wholesaler",
+                       "margin":           "margin_wholesaler",
+                       "storage_capacity": "wholesaler_storage_capacity"},
+}
+_FEED_TRADER = {
+    "scenario_attrs": {"fixed_costs": "fixed_costs_feed_trader",
+                       "margin":      "margin_feed_trader"},
+}
 
 
 # generic kind library: (type, sector) -> default archetype
 KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
-    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_ARG, "n_arg_farmers"),
-    ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos"),
-    ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors"),
-    ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_EU, "n_eu_farmers"),
+    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_ARG, "n_arg_farmers", _FARMER_ARG),
+    ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos", _TRANSPORT_SA),
+    ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors", _PROCESSOR),
+    ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_EU, "n_eu_farmers", _FARMER_EU),
 }
 
 # id overrides: tuned role/count, or type+sector collisions
 ID_OVERRIDES: dict[str, Archetype] = {
-    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_BRA, "n_bra_farmers"),
-    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_USA, "n_usa_farmers"),
+    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_BRA, "n_bra_farmers", _FARMER_BRA),
+    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_USA, "n_usa_farmers", _FARMER_USA),
     # argentina_farms -> region/agriculture default (arg_farmers)
-    "paranagua_port": Archetype("transport_sa_paranagua", Transport, ROLE_SA_PARANAGUA, "n_transport_sa_paranagua"),
-    "rotterdam_port": Archetype("transport_eu_rtm", Transport, ROLE_EU_RTM, "n_transport_eu_rtm"),
-    "hamburg_port":   Archetype("transport_eu_ham", Transport, ROLE_EU_HAM, "n_transport_eu_ham"),
+    "paranagua_port": Archetype("transport_sa_paranagua", Transport, ROLE_SA_PARANAGUA, "n_transport_sa_paranagua", _TRANSPORT_SA),
+    "rotterdam_port": Archetype("transport_eu_rtm", Transport, ROLE_EU_RTM, "n_transport_eu_rtm", _TRANSPORT_EU),
+    "hamburg_port":   Archetype("transport_eu_ham", Transport, ROLE_EU_HAM, "n_transport_eu_ham", _TRANSPORT_EU),
     # santos_port -> infrastructure/logistics default (transport_sa_santos)
-    "feed_mills":     Archetype("feed_manufacturers", Process, ROLE_FEED_MANUFACTURER, "n_feed_manufacturers"),
+    "feed_mills":     Archetype("feed_manufacturers", Process, ROLE_FEED_MANUFACTURER, "n_feed_manufacturers", _FEED_MFR),
     # eu_oil_mills -> manufacturer/processing default (processors)
 }
 
@@ -72,8 +147,8 @@ EXCLUDE: frozenset[str] = frozenset({
 
 # synthetic agents (no PDL entity), always created
 SYNTHETIC: list[Archetype] = [
-    Archetype("wholesalers", Trader, ROLE_WHOLESALER, "n_wholesalers"),
-    Archetype("feed_traders", Trader, ROLE_FEED_TRADER, "n_feed_traders"),
+    Archetype("wholesalers", Trader, ROLE_WHOLESALER, "n_wholesalers", _WHOLESALER),
+    Archetype("feed_traders", Trader, ROLE_FEED_TRADER, "n_feed_traders", _FEED_TRADER),
 ]
 
 
@@ -107,6 +182,13 @@ LOCATION_CONTINENT: dict[str, str] = {
 # sea-crossing defaults (the old sea-role post_setup values)
 SEA_CAPACITY: float = 1000.0
 SEA_FREIGHT_ATTR: str = "fixed_costs_transport_sea"
+
+# sea-lane archetype params, single-sourced from the SeaEdge defaults above
+_SEA_LANE = {
+    "bindings":       _ENERGY,
+    "scenario_attrs": {"fixed_costs": SEA_FREIGHT_ATTR},
+    "attrs":          {"capacity": SEA_CAPACITY, "transit_steps": 60},   # ~2-month Atlantic crossing
+}
 
 
 @dataclass(frozen=True)
@@ -145,10 +227,10 @@ def derive_sea_edges(pdl_path: str | Path) -> list[SeaEdge]:
 # reproduces the current roster.
 # ---------------------------------------------------------------------------
 TRANSITIONAL_SEA: dict[tuple[str, str], Archetype] = {
-    ("santos_port", "rotterdam_port"):     Archetype("sea_lane_santos", Transport, ROLE_SEA_SANTOS, "n_sea_lane_santos"),
-    ("paranagua_port", "hamburg_port"):    Archetype("sea_lane_paranagua", Transport, ROLE_SEA_PARANAGUA, "n_sea_lane_paranagua"),
-    ("argentina_farms", "rotterdam_port"): Archetype("sea_lane_arg", Transport, ROLE_SEA_ARG, "n_sea_lane_arg"),
-    ("us_gulf_ports", "rotterdam_port"):   Archetype("sea_lane_usa", Transport, ROLE_SEA_USA, "n_sea_lane_usa"),
+    ("santos_port", "rotterdam_port"):     Archetype("sea_lane_santos", Transport, ROLE_SEA_SANTOS, "n_sea_lane_santos", _SEA_LANE),
+    ("paranagua_port", "hamburg_port"):    Archetype("sea_lane_paranagua", Transport, ROLE_SEA_PARANAGUA, "n_sea_lane_paranagua", _SEA_LANE),
+    ("argentina_farms", "rotterdam_port"): Archetype("sea_lane_arg", Transport, ROLE_SEA_ARG, "n_sea_lane_arg", _SEA_LANE),
+    ("us_gulf_ports", "rotterdam_port"):   Archetype("sea_lane_usa", Transport, ROLE_SEA_USA, "n_sea_lane_usa", _SEA_LANE),
 }
 
 

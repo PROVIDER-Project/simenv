@@ -9,8 +9,9 @@ agents/trader.py — Pure intermediary / trading actors.
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
-  2. agent.role = …    → Model assigns the role.
-  3. agent.post_setup() → Reads fixed_costs/margin from scenario.
+  2. Model applies the archetype params from topology.py: role, fixed_costs,
+     margin, storage_capacity (wholesaler).
+  3. agent.post_setup() → aliases markup, resets per-step flow state.
 """
 
 from .base import SupplyChainAgent
@@ -48,24 +49,16 @@ class Trader(SupplyChainAgent):
         self.storage_utilization: float = 0.0   # stock / storage_capacity
 
     def post_setup(self):
-        """Role-specific initialisation."""
-        if self.role == ROLE_WHOLESALER:
-            self.fixed_costs = self.scenario.fixed_costs_wholesaler
-            self.margin = self.scenario.margin_wholesaler
-            self.markup = self.margin
-            self.storage_capacity = self.scenario.wholesaler_storage_capacity
-            self.stock = 0.0
-            self.quantity_available = 0.0
-            self.unit_price = 0.0
-            self.storage_utilization = 0.0
-
-        elif self.role == ROLE_FEED_TRADER:
-            self.fixed_costs = self.scenario.fixed_costs_feed_trader
-            self.margin = self.scenario.margin_feed_trader
-            self.markup = self.margin
-            self.stock = 0.0
-            self.quantity_available = 0.0
-            self.unit_price = 0.0
+        """
+        Derived initialisation from the archetype params the model applied
+        (fixed_costs, margin; storage_capacity for wholesalers): alias the
+        markup and reset per-step flow state.
+        """
+        self.markup = self.margin
+        self.stock = 0.0
+        self.quantity_available = 0.0
+        self.unit_price = 0.0
+        self.storage_utilization = 0.0
 
     def step(self):
         if not self.active:

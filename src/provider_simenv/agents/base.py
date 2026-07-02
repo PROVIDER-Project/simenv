@@ -49,7 +49,8 @@ class SupplyChainAgent(Agent):
         self.active: bool = True
 
         # PDL bindings: semantic slot -> (entity, impact_field).
-        # Populated by each concrete class's post_setup() from its ROLE_BINDINGS table.
+        # Applied by model.setup() from Archetype.params["bindings"] in
+        # topology.py (cross-entity slots), plus the entity-driven "capacity" slot.
         self.binding: dict[str, tuple[str, str]] = {}
 
     def step(self):
