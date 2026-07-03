@@ -24,7 +24,7 @@ from typing import Any
 
 from .agents import (
     Farmer, Trader, Transport, Process,
-    ROLE_BRA, ROLE_ARG, ROLE_USA, ROLE_EU,
+    ROLE_PRODUCER, ROLE_EU,
     ROLE_WHOLESALER, ROLE_FEED_TRADER,
     ROLE_SA_SANTOS, ROLE_SA_PARANAGUA, ROLE_EU_RTM, ROLE_EU_HAM,
     ROLE_SEA_SANTOS, ROLE_SEA_PARANAGUA, ROLE_SEA_ARG, ROLE_SEA_USA,
@@ -121,7 +121,7 @@ _FEED_TRADER = {
 
 # generic kind library: (type, sector) -> default archetype
 KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
-    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_ARG, "n_arg_farmers", _FARMER_ARG),
+    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_PRODUCER, "n_arg_farmers", _FARMER_ARG),
     ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos", _TRANSPORT_SA),
     ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors", _PROCESSOR),
     ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_EU, "n_eu_farmers", _FARMER_EU),
@@ -129,8 +129,8 @@ KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
 
 # id overrides: tuned role/count, or type+sector collisions
 ID_OVERRIDES: dict[str, Archetype] = {
-    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_BRA, "n_bra_farmers", _FARMER_BRA),
-    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_USA, "n_usa_farmers", _FARMER_USA),
+    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_PRODUCER, "n_bra_farmers", _FARMER_BRA),
+    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_PRODUCER, "n_usa_farmers", _FARMER_USA),
     # argentina_farms -> region/agriculture default (arg_farmers)
     "paranagua_port": Archetype("transport_sa_paranagua", Transport, ROLE_SA_PARANAGUA, "n_transport_sa_paranagua", _TRANSPORT_SA),
     "rotterdam_port": Archetype("transport_eu_rtm", Transport, ROLE_EU_RTM, "n_transport_eu_rtm", _TRANSPORT_EU),
@@ -240,7 +240,7 @@ class RosterEntry:
     entity_ids: tuple[str, ...]   # PDL entities represented; () for synthetic / sea edges
 
 
-PRODUCER_ROLES: frozenset[str] = frozenset({ROLE_BRA, ROLE_ARG, ROLE_USA})
+PRODUCER_ROLES: frozenset[str] = frozenset({ROLE_PRODUCER})
 
 
 def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
@@ -377,7 +377,7 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
 
     producers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer
-                 and e.archetype.role in (ROLE_BRA, ROLE_ARG, ROLE_USA)}
+                 and e.archetype.role in (ROLE_PRODUCER)}
     consumers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer and e.archetype.role == ROLE_EU}
     producer_e = {eid for eid, nm in name_of.items() if nm in producers}

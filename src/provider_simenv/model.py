@@ -75,11 +75,13 @@ class SupplyChainModel(Model):
             agent_list.setup_agents(getattr(self.scenario, arc.count_attr))
             # entity-driven capacity binding: an agent reads its own entity's supply shock.
             capacity_key = (entry.entity_ids[0], "supply") if len(entry.entity_ids) == 1 else None
+            origin = entry.entity_ids[0] if len(entry.entity_ids) == 1 else ""
             bindings = arc.params.get("bindings", {})
             attrs = arc.params.get("attrs", {})
             scenario_attrs = arc.params.get("scenario_attrs", {})
             for agent in agent_list.agents:
                 agent.role = arc.role
+                agent.origin = origin
                 agent.binding = dict(bindings)   # per-agent copy of the declared slots
                 for attr, value in attrs.items():
                     setattr(agent, attr, value)

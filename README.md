@@ -145,7 +145,6 @@ Scenarios are defined in `data/input/SimulatorScenarios.csv`. Each row is one sc
 | `shock_onset_step` | Step at which shock starts ramping in |
 | `shock_ramp_steps` | Steps to ramp from baseline to full shock value |
 | `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default: 20 000 t) |
-| `usa_surplus_factor` | USA idle capacity multiplier — `1.5` = 50% reserve above base yield |
 | `period_num` | Number of simulation steps (default: 52) |
 
 ---

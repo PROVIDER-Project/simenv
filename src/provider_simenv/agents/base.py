@@ -48,6 +48,10 @@ class SupplyChainAgent(Agent):
         self.unit_price: float = 0.0
         self.active: bool = True
 
+        # PDL entity id this agent represents. Set by model.setup() from the roster's entity_ids.
+        # "" for synthetic hubs (wholesaler/feed_traders)
+        self.origin: str = ""
+
         # PDL bindings: semantic slot -> (entity, impact_field).
         # Applied by model.setup() from Archetype.params["bindings"] in
         # topology.py (cross-entity slots), plus the entity-driven "capacity" slot.
