@@ -151,6 +151,105 @@ COUNTRY_POLYGONS: list[list[tuple[float, float]]] = [
     ring for rings in COUNTRY_SHAPES.values() for ring in rings
 ]
 
+# --- Country label layout (centroid, area tier) ---------------------------
+
+_COUNTRY_SHORT: dict[str, str] = {
+    "United States of America": "United States",
+    "United Kingdom": "UK",
+    "Dem. Rep. Congo": "DR Congo",
+    "Central African Rep.": "CAR",
+    "Dominican Rep.": "Dominican Rep.",
+    "Eq. Guinea": "Eq. Guinea",
+    "S. Geo. and the Is.": "S. Georgia",
+    "St. Vin. and Gren.": "St Vincent",
+    "St. Kitts and Nevis": "St Kitts",
+    "Antigua and Barb.": "Antigua",
+    "Turks and Caicos Is.": "Turks & Caicos",
+    "British Virgin Is.": "British Virgin Is.",
+    "U.S. Virgin Is.": "U.S. Virgin Is.",
+    "St. Pierre and Miquelon": "St Pierre",
+    "Bosnia and Herz.": "Bosnia",
+    "North Macedonia": "N. Macedonia",
+    "Côte d'Ivoire": "Côte d'Ivoire",
+    "São Tomé and Principe": "São Tomé",
+}
+
+
+def _ring_area(ring: list[tuple[float, float]]) -> float:
+    if len(ring) < 3:
+        return 0.0
+    area = 0.0
+    for i, (x0, y0) in enumerate(ring):
+        x1, y1 = ring[(i + 1) % len(ring)]
+        area += x0 * y1 - x1 * y0
+    return abs(area) * 0.5
+
+
+def _ring_centroid(ring: list[tuple[float, float]]) -> tuple[float, float]:
+    if len(ring) < 3:
+        return ring[0] if ring else (0.0, 0.0)
+    cx = cy = signed = 0.0
+    for i, (x0, y0) in enumerate(ring):
+        x1, y1 = ring[(i + 1) % len(ring)]
+        cross = x0 * y1 - x1 * y0
+        signed += cross
+        cx += (x0 + x1) * cross
+        cy += (y0 + y1) * cross
+    if abs(signed) < 1e-6:
+        xs = [p[0] for p in ring]
+        ys = [p[1] for p in ring]
+        return (sum(xs) / len(xs), sum(ys) / len(ys))
+    signed *= 0.5
+    return (cx / (6.0 * signed), cy / (6.0 * signed))
+
+
+def _ring_intersects_canvas(ring: list[tuple[float, float]]) -> bool:
+    xs = [p[0] for p in ring]
+    ys = [p[1] for p in ring]
+    return not (max(xs) < 0 or min(xs) > CANVAS_W or max(ys) < 0 or min(ys) > CANVAS_H)
+
+
+def country_display_name(name: str) -> str:
+    return _COUNTRY_SHORT.get(name, name)
+
+
+def build_country_labels() -> list[dict[str, float | int | str]]:
+    """Centroids + area tiers for countries visible in the Atlantic viewport."""
+    entries: list[tuple[str, float, float, float]] = []
+    for name, rings in COUNTRY_SHAPES.items():
+        visible_rings = [r for r in rings if len(r) >= 3 and _ring_intersects_canvas(r)]
+        if not visible_rings:
+            continue
+        main_ring = max(visible_rings, key=_ring_area)
+        area = _ring_area(main_ring)
+        if area < 80.0:
+            continue
+        cx, cy = _ring_centroid(main_ring)
+        if cx < 0 or cx > CANVAS_W or cy < 0 or cy > CANVAS_H:
+            continue
+        entries.append((name, cx, cy, area))
+    entries.sort(key=lambda item: item[3], reverse=True)
+    labels: list[dict[str, float | int | str]] = []
+    for rank, (name, cx, cy, area) in enumerate(entries):
+        if rank < 25:
+            tier = 1
+        elif rank < 75:
+            tier = 2
+        else:
+            tier = 3
+        labels.append({
+            "name": name,
+            "display": country_display_name(name),
+            "x": cx,
+            "y": cy,
+            "tier": tier,
+            "area": area,
+        })
+    return labels
+
+
+COUNTRY_LABELS: list[dict[str, float | int | str]] = build_country_labels()
+
 # Soja-source regions tinted by the drought heatmap. The data's drought_severity
 # is GLOBAL (no per-region values), so all source regions are tinted by the same
 # value — labeled approximate in NOTES.

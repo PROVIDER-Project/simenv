@@ -1,5 +1,8 @@
 # Visualization stack for GitHub issue #21 (QT-suitability PoC).
 # Self-contained: reads the sim's CSV output; never imports provider_simenv.
-PySide6>=6.6
+PySide6>=6.6       # metapackage: bundles QtWidgets + QtCharts (Addons), both
+                   # required — the transport-utilisation donut uses Qt Charts,
+                   # which depends on QtWidgets (app must run as a QApplication).
 pandas>=2.0
-matplotlib>=3.7   # Phase 3 price-over-time side chart only
+# matplotlib retired in the CRM-map v2 redesign — the price chart is now a QML
+# Canvas (PriceChartCard.qml), no matplotlib dependency.
