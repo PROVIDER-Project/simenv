@@ -1,18 +1,13 @@
 """
-  role="bra" Brazilian soja producer. First actor in the chain.
-             Produces soja; price = (fixed_costs / qty) * (1 + margin).
+  role="producer"  Regional soja producers. All run one region-agnostic step:
+                    output = base_yield * effective("capacity")
+                    price = effective fixed_costs / delivered quantity * (1 + margin)
+                    Producers differ only in their cost/margin parameters and which PDL shocks their archetype binds
+                    (BRA binds fertilizer. Each binds its own entity's supply/capacity shock)
+                    No producer is hardwired shock-immune or as a fixed surplus supplier.
+                    (supply surges come from the PDL)
 
-  role="arg" Argentine soja producer. Always-on baseline supplier.
-             Same price formula as BRA, not affected by BRA shock.
-             fixed_costs between BRA and USA -> price sits between them at baseline.
-             farm_capacity_arg allows independent ARG-specific shocks
-
-  role="usa" US soja producer. Alternative supplier to BRA.
-             Same price formula as BRA but not affected by BRA/SA shock.
-             Higher fixed_costs -> higher baseline price than BRA and ARG.
-             base_yield acts as a hard capacity ceiling.
-
-  role="eu"  European livestock farmer. End consumer of the chain.
+  role="consumer"  European livestock farmer. End consumer of the chain.
              Receives feed from feed traders; produces livestock output.
 
 Lifecycle:
@@ -25,17 +20,15 @@ import numpy as np
 
 from .base import SupplyChainAgent
 
-ROLE_BRA = "bra"
-ROLE_ARG = "arg"
-ROLE_USA = "usa"
-ROLE_EU = "eu"
+ROLE_PRODUCER = "producer"
+ROLE_CONSUMER = "consumer"
 
 class Farmer(SupplyChainAgent):
     """
     Agricultural actor — SA soja producer or EU livestock farmer.
 
     Shared state:
-      role                  "sa" or "eu".
+      role                  "producer" or "consumer".
       fixed_costs           Operating cost per step (EUR/step).
       days_without_input   Consecutive days with zero input received.
       bankruptcy_threshold_days  Days without input before exiting the market.
@@ -106,93 +99,42 @@ class Farmer(SupplyChainAgent):
     def step(self, drought_severity: float = 0.0):
         if not self.active:
             return
-        if self.role == ROLE_BRA:
-            self._step_bra()
-        elif self.role == ROLE_USA:
-            self._step_usa()
-        elif self.role == ROLE_ARG:
-            self._step_arg()
-        elif self.role == ROLE_EU:
-            self._step_eu()
+        if self.role == ROLE_CONSUMER:
+            self._step_consumer()
+        elif self.role == ROLE_PRODUCER:
+            self._step_producer()       # bra / arg / usa all run one regional-agnostic
+        else:
+            raise ValueError(f"Farmer has unknown role: {self.role!r}")
 
     # -------------------------------------------------
-    # SA farmer: produce soja, price from fixed costs
+    # Producer: produce soja, price from fixed costs.
+    # Region-agnostic every producer runs this same path
+    # regions differ only in params and bindings
     # -------------------------------------------------
+    def _step_producer(self):
+        """
+        Produce soja this step.
 
-    def _step_bra(self):
+        Output = base_yield * effective("capacity")
+        effective("capacity") is this producer's own supply-shock multiplier (1.0 when unbound)
+        so a drought or a supply event scales output directly. Lower output raises the per unit price.
+        effective("fertilizer") (1.0 when unbound) raises effective fixed costs this step for producers that bind it (BRA)
         """
-        Produce soja this step. Drought reduces output; lower output
-        raises per-unit cost, which raises unit_price automatically.
-        """
-        farm_capacity = self.effective("capacity")
-        self.quantity_available = self.base_yield * farm_capacity
+        capacity = self.effective("capacity")
+        self.quantity_available = self.base_yield * capacity
 
         if self.quantity_available > 0:
-            # fertilizer price factor raises effective fixed costs this step
-            fertilizer_factor = self.effective("fertilizer")
-            effective_costs = self.fixed_costs * fertilizer_factor
+            effective_costs = self.fixed_costs * self.effective("fertilizer")
             self.unit_price = (effective_costs / self.quantity_available) * (1.0 + self.margin)
         else:
-            # total crop failure - price undefined, agent cannot trade
-            self.unit_price = 0.0
-
-    # --------------------------------------------------
-    # USA farmer: produce soja, price from fixed costs - no shock
-    # --------------------------------------------------
-
-    def _step_usa(self):
-        """
-        Produce soja this step.
-
-        USA farmers are not affected by the BRA shock - supply is stable.
-        base_yield acts as a hard capacity ceiling.
-        There is no mechanism to scale output above it.
-
-        Higher fixed_costs than BRA -> higher baseline unit_price.
-        EU wholesalers prefer BRA under normal conditions and switch to USA
-        only when BRA prices rise above USA prices under shock.
-        """
-        surplus_factor = self.scenario.usa_surplus_factor
-        self.quantity_available = self.base_yield * surplus_factor  # now offers 150t
-
-        if self.base_yield > 0:
-            self.unit_price = (self.fixed_costs / self.base_yield) * (1.0 + self.margin)  # still priced at 100t
-        else:
-            self.unit_price = 0.0
-
-    # --------------------------------------------------
-    # ARG farmer: produce soja, price from fixed costs - no BRA shock
-    # --------------------------------------------------
-
-    def _step_arg(self):
-        """
-        Produce soja this step.
-
-        Argentina farmers are not affected by the BRA shock.
-
-        Unlike USA(surplus_factor for emergency scaling),
-        ARG produces at base_yield every step - a permanent baseline supplier.
-
-        farm_capacity_arg allows ARG-specific shocks to be modelled independently.
-        Defaults to 1.0 = always unshocked.
-        """
-        farm_capacity = self.effective("capacity")
-        self.quantity_available = self.base_yield * farm_capacity
-
-        if self.quantity_available > 0:
-            self.unit_price = (
-                self.fixed_costs / self.quantity_available
-            ) * (1.0 + self.margin)
-        else:
             self.unit_price = 0.0
 
 
-
     # --------------------------------------------------
-    # EU farmer: receive feed, compute livestock output
+    # Consumer: receive feed, compute livestock output
     # --------------------------------------------------
 
-    def _step_eu(self):
+    def _step_consumer(self):
         """
         Collect feed from all feed traders (equal share per EU farmer),
         then compute livestock output proportional to feed received.

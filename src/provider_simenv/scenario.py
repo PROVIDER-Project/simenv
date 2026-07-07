@@ -83,7 +83,6 @@ class SupplyChainScenario(Scenario):
     n_usa_farmers: int = 8
     fixed_costs_usa_farmer: float = 48000.0
     margin_usa_farmer: float = 0.10
-    usa_surplus_factor: float = 1.5
 
 
     # --- Argentina farmer parameters ---

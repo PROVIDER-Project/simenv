@@ -8,7 +8,7 @@ All concrete agent classes inherit from SupplyChainAgent.
 There are four concrete classes, each handling multiple roles
 via a 'role' attribute set at agent initialisation:
 
-  Farmer    role: "sa" | "eu"
+  Farmer    role: "producer" | "consumer"
   Trader    role: "wholesaler" | "feed_trader"
   Transport role: "sa_land" | "sea" | "eu_land"
   Process   role: "processor" | "feed_manufacturer"
@@ -47,6 +47,10 @@ class SupplyChainAgent(Agent):
         self.quantity_available: float = 0.0
         self.unit_price: float = 0.0
         self.active: bool = True
+
+        # PDL entity id this agent represents. Set by model.setup() from the roster's entity_ids.
+        # "" for synthetic hubs (wholesaler/feed_traders)
+        self.origin: str = ""
 
         # PDL bindings: semantic slot -> (entity, impact_field).
         # Applied by model.setup() from Archetype.params["bindings"] in

@@ -39,6 +39,9 @@ class Trader(SupplyChainAgent):
         self.margin: float = 0.0
         self.stock: float = 0.0
 
+        # volume sourced per PDL origin this step
+        self.volume_by_origin: dict[str, float] = {}
+
         # volume sourced from each origin this step
         self.bra_volume: float = 0.0
         self.arg_volume: float = 0.0
@@ -102,6 +105,7 @@ class Trader(SupplyChainAgent):
             self.stock = 0.0
             self.quantity_available = 0.0
             self.unit_price = 0.0
+            self.volume_by_origin = {}
             self.bra_volume = 0.0
             self.arg_volume = 0.0
             self.usa_volume = 0.0
@@ -120,9 +124,7 @@ class Trader(SupplyChainAgent):
         sorted_farmers = sorted(all_farmers, key=lambda f: f.unit_price)
         remaining = my_demand
         total_cost = 0.0
-        bra_taken = 0.0
-        arg_taken = 0.0
-        usa_taken = 0.0
+        volume_by_origin: dict[str, float] = {}
         for farmer in sorted_farmers:
             if remaining <= 0.0:
                 break
@@ -130,17 +132,16 @@ class Trader(SupplyChainAgent):
             taken = min(farmer_alloc, remaining)
             total_cost += taken * farmer.unit_price
             remaining -= taken
-            if farmer.role == "bra":
-                bra_taken += taken
-            elif farmer.role == "arg":
-                arg_taken += taken
-            else:
-                usa_taken += taken
+            volume_by_origin[farmer.origin] = volume_by_origin.get(farmer.origin, 0.0) + taken
 
-        actual_taken = bra_taken + arg_taken + usa_taken
-        self.bra_volume = bra_taken
-        self.arg_volume = arg_taken
-        self.usa_volume = usa_taken
+        actual_taken = sum(volume_by_origin.values())
+        self.volume_by_origin = volume_by_origin
+
+        # compatibility view for the current CSV schema + transport routing
+        # branch 19 removes these three attrs when it refactors transport routing and the output schema off per-region volumes.
+        self.bra_volume = volume_by_origin.get("brazil_farms", 0.0)
+        self.arg_volume = volume_by_origin.get("argentina_farms", 0.0)
+        self.usa_volume = volume_by_origin.get("us_farms", 0.0)
         self.stock = actual_taken
         self.quantity_available = actual_taken
         self.storage_utilization = (actual_taken / self.storage_capacity if self.storage_capacity > 0 else 0.0)
