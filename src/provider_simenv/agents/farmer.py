@@ -1,5 +1,5 @@
 """
-  role bra/arg/usa  Regional soja producers. All run one region-agnostic step:
+  role="producer"  Regional soja producers. All run one region-agnostic step:
                     output = base_yield * effective("capacity")
                     price = effective fixed_costs / delivered quantity * (1 + margin)
                     Producers differ only in their cost/margin parameters and which PDL shocks their archetype binds
@@ -7,7 +7,7 @@
                     No producer is hardwired shock-immune or as a fixed surplus supplier.
                     (supply surges come from the PDL)
 
-  role="eu"  European livestock farmer. End consumer of the chain.
+  role="consumer"  European livestock farmer. End consumer of the chain.
              Receives feed from feed traders; produces livestock output.
 
 Lifecycle:
@@ -21,14 +21,14 @@ import numpy as np
 from .base import SupplyChainAgent
 
 ROLE_PRODUCER = "producer"
-ROLE_EU = "eu"
+ROLE_CONSUMER = "consumer"
 
 class Farmer(SupplyChainAgent):
     """
     Agricultural actor — SA soja producer or EU livestock farmer.
 
     Shared state:
-      role                  "sa" or "eu".
+      role                  "producer" or "consumer".
       fixed_costs           Operating cost per step (EUR/step).
       days_without_input   Consecutive days with zero input received.
       bankruptcy_threshold_days  Days without input before exiting the market.
@@ -99,10 +99,12 @@ class Farmer(SupplyChainAgent):
     def step(self, drought_severity: float = 0.0):
         if not self.active:
             return
-        elif self.role == ROLE_EU:
-            self._step_eu()
-        else:
+        if self.role == ROLE_CONSUMER:
+            self._step_consumer()
+        elif self.role == ROLE_PRODUCER:
             self._step_producer()       # bra / arg / usa all run one regional-agnostic
+        else:
+            raise ValueError(f"Farmer has unknown role: {self.role!r}")
 
     # -------------------------------------------------
     # Producer: produce soja, price from fixed costs.
@@ -129,10 +131,10 @@ class Farmer(SupplyChainAgent):
 
 
     # --------------------------------------------------
-    # EU farmer: receive feed, compute livestock output
+    # Consumer: receive feed, compute livestock output
     # --------------------------------------------------
 
-    def _step_eu(self):
+    def _step_consumer(self):
         """
         Collect feed from all feed traders (equal share per EU farmer),
         then compute livestock output proportional to feed received.

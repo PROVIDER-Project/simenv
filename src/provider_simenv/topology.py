@@ -24,7 +24,7 @@ from typing import Any
 
 from .agents import (
     Farmer, Trader, Transport, Process,
-    ROLE_PRODUCER, ROLE_EU,
+    ROLE_PRODUCER, ROLE_CONSUMER,
     ROLE_WHOLESALER, ROLE_FEED_TRADER,
     ROLE_SA_SANTOS, ROLE_SA_PARANAGUA, ROLE_EU_RTM, ROLE_EU_HAM,
     ROLE_SEA_SANTOS, ROLE_SEA_PARANAGUA, ROLE_SEA_ARG, ROLE_SEA_USA,
@@ -124,7 +124,7 @@ KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
     ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_PRODUCER, "n_arg_farmers", _FARMER_ARG),
     ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos", _TRANSPORT_SA),
     ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors", _PROCESSOR),
-    ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_EU, "n_eu_farmers", _FARMER_EU),
+    ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_CONSUMER, "n_eu_farmers", _FARMER_EU),
 }
 
 # id overrides: tuned role/count, or type+sector collisions
@@ -379,7 +379,7 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
                  if e.archetype.agent_class is Farmer
                  and e.archetype.role in (ROLE_PRODUCER)}
     consumers = {e.archetype.name for e in roster
-                 if e.archetype.agent_class is Farmer and e.archetype.role == ROLE_EU}
+                 if e.archetype.agent_class is Farmer and e.archetype.role == ROLE_CONSUMER}
     producer_e = {eid for eid, nm in name_of.items() if nm in producers}
     consumer_e = {eid for eid, nm in name_of.items() if nm in consumers}
 

@@ -8,7 +8,7 @@ All concrete agent classes inherit from SupplyChainAgent.
 There are four concrete classes, each handling multiple roles
 via a 'role' attribute set at agent initialisation:
 
-  Farmer    role: "sa" | "eu"
+  Farmer    role: "producer" | "consumer"
   Trader    role: "wholesaler" | "feed_trader"
   Transport role: "sa_land" | "sea" | "eu_land"
   Process   role: "processor" | "feed_manufacturer"
