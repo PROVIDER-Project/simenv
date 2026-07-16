@@ -17,10 +17,13 @@ The model imports build_roster / build_flow_adjacency / execution_order to drive
 create(), setup(), and the per-step loop.
 """
 from __future__ import annotations
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from .agents import (
     Farmer, Trader, Transport, Process,
@@ -484,8 +487,7 @@ def execution_order(adjacency: dict[str, tuple[str, ...]] | None = None) -> list
         placed = set(order)
         remaining = sorted((n for n in nodes if n not in placed),
                            key=lambda n: appearance[n])
-        print(f" [WARN] flow graph has a cycle; stepping {remaining} in "
-              f"declaration order after the acyclic prefix")
+        logger.warning("flow graph has a cycle; stepping %s in declaration order after the acyclic prefix", remaining)
         order.extend(remaining)
 
     return order

@@ -27,12 +27,15 @@ Step order each timestep:
     11. DataCollector       record snapshot
 """
 import fontTools.misc.arrayTools
+import logging
 from Melodie import Model
 from pathlib import Path
 from .event_tracker import EventTracker
 from .topology import build_roster
 from .environment import SupplyChainEnvironment
 from .data_collector import SupplyChainDataCollector
+
+logger = logging.getLogger(__name__)
 
 
 class SupplyChainModel(Model):
@@ -165,9 +168,9 @@ class SupplyChainModel(Model):
         if direction == "ON":
             pct = (value - 1.0) * 100
             sign = "+" if pct > 0 else ""
-            print(f" ▸ DAY {t:03d} ON {label:<28s} {value:.2f} ({sign}{pct:.0f}%)")
+            logger.debug(" ▸ DAY %03d ON %-28s %.2f (%s%.0f%%)", t, label, value, sign, pct)
         else:
-            print(f" ▸ DAY {t:03d} OFF {label:<28s} → 1.00")
+            logger.debug(" ▸ DAY %03d OFF %-28s → 1.00", t, label)
 
 
     def _log_hearbeat(self, t: int, snap: dict):
@@ -175,13 +178,10 @@ class SupplyChainModel(Model):
         Periodic state summary.
         """
         prod = " ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
-        print(
-            f" ... day {t:03d}   "
-            f"shocks={snap['n_active_shocks']}  "
-            f"{prod} "
-            f"soja={snap['soja_px']:.0f} feed={snap['feed_px']:.0f} "
-            f"supply={snap['supply']:.0f}t"
-            )
+        logger.debug(
+            " ... day %03d   shocks=%d  %s soja=%.0f feed=%.0f supply=%.0ft",
+            t, snap['n_active_shocks'], prod, snap['soja_px'], snap['feed_px'], snap['supply'],
+        )
 
 
     def _log_scenario_summary(self, id_scenario: int, total_days: int):
@@ -190,17 +190,22 @@ class SupplyChainModel(Model):
         """
         snap = self._collect_snapshot()
         n_shocks = snap["n_active_shocks"]
-        print()
-        print(f"  ┌─ Scenario {id_scenario} complete ─{'─' * 50}┐")
         prod = "  ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         ports = "  ".join(f"{k}={v:.0f}t" for k, v in snap["ports"].items())
         prices_line = f"  Final prices: {prod}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}"
         supply_line = f"  Final supply: {snap['supply']:.0f}t  {ports}"
-        print(f"  │  Days: {total_days}  |  Active shocks remaining: {n_shocks:<21}│")
-        print(f"  │{prices_line:<63}│")
-        print(f"  │{supply_line:<63}│")
-        print(f"  └{'─' * 63}┘")
-        print()
+        logger.info(
+            "Scenario %s complete\n"
+            "  ┌─ Scenario %s complete ─%s┐\n"
+            "  │  Days: %d  |  Active shocks remaining: %-21s│\n"
+            "  │%-63s│\n"
+            "  │%-63s│\n"
+            "  └%s┘",
+            id_scenario, id_scenario, '─' * 50,
+            total_days, n_shocks,
+            prices_line, supply_line,
+            '─' * 63,
+        )
 
     def _do_step(self, t: int) -> None:
         """
@@ -225,9 +230,9 @@ class SupplyChainModel(Model):
                 else:
                     impact_str = ""
                 dur_str = f", expires day {t + edef.duration}" if edef and edef.duration > 0 else ", permanent"
-                print(f" © DAY {t:03d} EVENT ON {eid:<35s} ({reason}{impact_str}{dur_str})")
+                logger.debug(" © DAY %03d EVENT ON %-35s (%s%s%s)", t, eid, reason, impact_str, dur_str)
             for eid in sorted(expired):
-                print(f" ® DAY {t:03d} EVENT OFF {eid:<35s} (duration elapsed)")
+                logger.debug(" ® DAY %03d EVENT OFF %-35s (duration elapsed)", t, eid)
 
             self._prev_active_events = current_events
 
@@ -300,8 +305,7 @@ class SupplyChainModel(Model):
             if key not in known:
                 entity, field = key
                 roles_str = ", ".join(sorted(roles))
-                print(f" [WARN] binding {entity}/{field} not shocked by loaded PDL "
-                      f"- roles [{roles_str}] run unshocked")
+                logger.warning("binding %s/%s not shocked by loaded PDL - roles [%s] run unshocked", entity, field, roles_str)
 
     def run(self):
         """

@@ -2,6 +2,7 @@
 Price development visualization
 """
 
+import logging
 import os
 import pandas as pd
 import matplotlib
@@ -10,6 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
+logger = logging.getLogger(__name__)
 
 # --- Config ---
 
@@ -65,24 +67,24 @@ def plot_price_curves(df: pd.DataFrame, save_path: str):
 
     plt.tight_layout()
     plt.savefig(save_path, dpi = 150, bbox_inches = "tight")
-    print(f"[visuaize] PNG saved: {save_path}")
+    logger.info("PNG saved: %s", save_path)
     plt.close()
 
 
 # --- main ---
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if not os.path.exists(ENV_CSV):
-            print(f"[visualize] ERROR: {ENV_CSV} not found")
-            print(" -> Run main.py first to generate simulation output.")
+            logger.error("%s not found - run main.py first to generate simulation output.", ENV_CSV)
             raise SystemExit(1)
 
-    print("[visualize] Loading simulation ouput...")
+    logger.info("Loading simulation output...")
     df = load_environment()
 
     n_scenarios = df["id_scenario"].nunique()
-    print(f"[visualize] Found {n_scenarios} scenarios: {sorted(df['id_scenario'].unique())}")
+    logger.info("Found %d scenarios: %s", n_scenarios, sorted(df['id_scenario'].unique()))
 
     png_path = os.path.join(OUTPUT_DIR, "price_curves_2.png")
     plot_price_curves(df, png_path)
 
-    print("[visualize] Done.")
+    logger.info("Done.")
