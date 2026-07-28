@@ -1,0 +1,115 @@
+.sim-globe-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sim-globe-stage::after {
+  position: absolute;
+  inset: 9% 18%;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(67, 183, 255, 0.025), transparent 67%);
+  filter: blur(24px);
+  content: '';
+  pointer-events: none;
+}
+
+.sim-globe-stage > div:first-child {
+  position: relative;
+  z-index: 0;
+}
+
+.sim-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sim-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.sim-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: min(210px, 48vw);
+  padding: 4px 8px 4px 9px;
+  overflow: hidden;
+  border: 1px solid var(--sim-color-border);
+  border-radius: var(--sim-radius-sm);
+  background: linear-gradient(115deg, rgba(4, 13, 25, 0.88), rgba(7, 20, 35, 0.66));
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.28), inset 2px 0 0 rgba(126, 213, 255, 0.36);
+  color: var(--sim-color-text);
+  font: 550 10px/1.2 var(--sim-font-body);
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.sim-label--node {
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.sim-label--node::after {
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 1px;
+  height: 7px;
+  background: linear-gradient(var(--sim-color-accent), transparent);
+  content: '';
+}
+
+.sim-label--edge {
+  transform: translate(-50%, -50%);
+  padding: 3px 7px;
+  border-color: rgba(93, 172, 226, 0.13);
+  background: rgba(3, 12, 24, 0.7);
+  box-shadow: none;
+  color: #A9CCE4;
+  font-family: var(--sim-font-mono);
+  font-size: 8px;
+  font-weight: 450;
+  letter-spacing: 0.04em;
+}
+
+.sim-label--illustrative {
+  border-style: dashed;
+  border-color: rgba(246, 197, 91, 0.56);
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.28), inset 2px 0 0 rgba(246, 197, 91, 0.65);
+}
+
+.sim-label--collide {
+  opacity: 0;
+}
+
+@media (max-width: 600px) {
+  .sim-label {
+    max-width: 42vw;
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+
+  .sim-label--edge {
+    font-size: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-label {
+    transition: none;
+  }
+}
