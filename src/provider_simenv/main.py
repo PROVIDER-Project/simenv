@@ -6,6 +6,7 @@ v.0.5.1 notes:
   while still providing a SQLite file for visualize_sql.py
 """
 import glob
+import logging
 import os
 import sqlite3
 import shutil
@@ -18,6 +19,8 @@ from Melodie import Config, Simulator
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
+
+logger = logging.getLogger(__name__)
 
 # --------------------
 # Helpers
@@ -33,8 +36,7 @@ def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> N
     csv_files = glob.glob(pattern)
 
     if not csv_files:
-        print("[csv_to_sqlite] WARNING: no Result_Simulator_*.csv files found in:")
-        print("                " + output_dir)
+        logger.warning("no Result_Simulator_*.csv files found in: %s", output_dir)
         return
 
     conn = sqlite3.connect(db_path)
@@ -43,13 +45,12 @@ def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> N
             table_name = os.path.splitext(os.path.basename(csv_path))[0]
             df = pd.read_csv(csv_path)
             df.to_sql(table_name, conn, if_exists="replace", index=False)
-            print(f"[csv_to_sqlite] {table_name} -> {len(df)} rows")
+            logger.info("%s -> %d rows", table_name, len(df))
         conn.commit()
     finally:
         conn.close()
 
-    print(f"[csv_to_sqlite] SQLite database written to:")
-    print("                 " + db_path)
+    logger.info("SQLite database written to: %s", db_path)
 
 
 
@@ -58,6 +59,7 @@ def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> N
 # --------------------
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     # CLI arguments
     parser = argparse.ArgumentParser(description="PROVIDER supply chain simulation")
@@ -96,7 +98,7 @@ if __name__ == "__main__":
 
     if args.postgres_url:
         os.environ["PROVIDER_SIMENV_POSTGRES_URL"] = args.postgres_url
-        print("[main] Using PostgreSQL connection string from --postgres-url")
+        logger.info("Using PostgreSQL connection string from --postgres-url")
 
     # Folder paths (both needed for PDL injection and Config)
     here = os.path.dirname(os.path.abspath(__file__))
@@ -115,9 +117,9 @@ if __name__ == "__main__":
     if args.pdl:
         loader = PDLLoader(args.pdl)
 
-        print(f"\n[pdl_loader] Scenario: {loader.label}")
-        print(f"\n[pdl_loader] Source: {args.pdl}")
-        print(f"\n[pdl_loader] Cascade: {args.cascade or 'first cascade in file'}")
+        logger.info("Scenario: %s", loader.label)
+        logger.info("Source: %s", args.pdl)
+        logger.info("Cascade: %s", args.cascade or 'first cascade in file')
 
         df = pd.read_csv(csv_path)
 
@@ -132,15 +134,14 @@ if __name__ == "__main__":
         for col in baseline.select_dtypes(include="int64").columns:
             df[col] = df[col].astype(int)
         df.to_csv(csv_path, index=False)
-        print(f"[pdl_loader] CSV updated (baseline + 1 PDL scenario row). \n")
+        logger.info("CSV updated (baseline + 1 PDL scenario row).")
 
         # build event registry for conditional runtime evaluation
         event_registry = loader.to_event_registry(args.cascade)
         n_total = len(event_registry["events"])
         n_shocking = sum(1 for e in event_registry["events"] if e["impacts"])
         n_conditional = sum(1 for e in event_registry["events"] if e["condition"])
-        print(f"[event_tracker] Registry: {n_total} events "
-              f"{n_shocking} with shocks, {n_conditional} conditional)")
+        logger.info("Registry: %d events, %d with shocks, %d conditional", n_total, n_shocking, n_conditional)
 
 
 
@@ -172,5 +173,5 @@ if __name__ == "__main__":
         del SupplyChainModel._pdl_path
 
     # post-process: merge CSVs -> SQLite for visualize_sql.py
-    print("\n[main] Converting CSVs to SQLite...")
+    logger.info("Converting CSVs to SQLite...")
     csv_to_sqlite(output_folder)

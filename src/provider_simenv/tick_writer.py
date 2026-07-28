@@ -16,8 +16,11 @@ Failure handling:
 """
 
 from __future__ import annotations
+import logging
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
     "Result_Simulator_BraFarmers":        ("bra_farmers",        ["quantity_available", "unit_price", "active"]),
@@ -65,9 +68,9 @@ class TickWriter:
                 pass
             return cls(engine)
         except ImportError:
-            print("[tick_writer] WARNING: sqlalchemy or psycopg2 not installed")
+            logger.warning("sqlalchemy or psycopg2 not installed")
         except Exception as exc:
-            print(f"[tick_writer] WARNING: could not connect to Postgres ({exc}).")
+            logger.warning("could not connect to Postgres: %s", exc)
         writer = object.__new__(cls)
         writer.engine = None
         writer.enabled = False
@@ -86,8 +89,7 @@ class TickWriter:
             self._write_agents(model, id_scenario, id_run, t)
             self._write_environment(model.environment, id_scenario, id_run, t)
         except Exception as exc:
-            print(f"[tick_writer] ERROR at step {t}: {exc}")
-            print("[tick_writer] Disabling tick writes for remainder of this run.")
+            logger.error("error at step %d: %s - disabling tick writes for remainder of this run.", t, exc)
             self.enabled = False
 
     def _reset_tables(self) -> None:
@@ -103,7 +105,7 @@ class TickWriter:
                     conn.execute(text(f'DROP TABLE IF EXISTS "{table}"'))
                 conn.commit()
         except Exception as exc:
-            print(f"[tick_writer] WARNING: could not reset tick tables: {exc}")
+            logger.warning("could not reset tick tables: %s", exc)
 
 
     def _write_agents(self, model, id_scenario: int, id_run: int, t: int) -> None:

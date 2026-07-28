@@ -15,9 +15,12 @@ import sqlite3
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import logging
 import pandas as pd
 
 matplotlib.use('Agg')
+
+logger = logging.getLogger(__name__)
 
 # --------------------
 # Config
@@ -94,7 +97,7 @@ def plot_price_curves(df_env, save_path):
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    print("[visualize_sql] price_curves -> " + save_path)
+    logger.info("price_curves -> %s", save_path)
     plt.close()
 
 def plot_volume_flow(df_wholesalers, save_path):
@@ -148,24 +151,23 @@ def plot_volume_flow(df_wholesalers, save_path):
 
         plt.tight_layout()
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        print("[visualize_db] volume_flow   -> " + save_path)
+        logger.info("volume_flow -> %s", save_path)
         plt.close()
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if not os.path.exists(DB_PATH):
-        print("[visualize_db] ERROR: database not found at:")
-        print("               " + DB_PATH)
-        print("  -> Run main.py first to generate simulation output.")
+        logger.error("database not found at %s - run main.py first to generate simulation output.", DB_PATH)
         raise SystemExit(1)
 
-    print("[visualize_db] Loading simulation output from SQLite...")
+    logger.info("Loading simulation output from SQLite...")
     df_env, df_wholesalers = load_data()
 
     n_scenarios = df_env["id_scenario"].nunique()
-    print("[visualize_db] " + str(n_scenarios) + " scenario(s): " + str(sorted(df_env["id_scenario"].unique())))
+    logger.info("%d scenario(s): %s", n_scenarios, sorted(df_env["id_scenario"].unique()))
 
     plot_price_curves(df_env, os.path.join(OUTPUT_DIR, "price_curves.png"))
     plot_volume_flow(df_wholesalers, os.path.join(OUTPUT_DIR, "volume_flow.png"))
 
-    print("[visualize_db] Done.")
+    logger.info("Done.")

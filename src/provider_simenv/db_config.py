@@ -8,7 +8,7 @@ Usage:
     cfg = PostgresDBConfig(host="my-server", dbname="provider")
 
     engine_url = cfg.sqlalchemy_url()
-    print(cfg)      # safe repr, password masked
+    logging.debug(cfg)      # safe repr, password masked
 """
 
 import os
