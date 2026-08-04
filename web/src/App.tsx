@@ -4,7 +4,12 @@ import type { Bundle } from './data/types'
 import { resolveScene } from './data/gazetteer'
 import { designVars } from './design/tokens'
 import GlobeView from './globe/GlobeView'
+import { buildDynamics } from './playback/dynamics'
+import Timeline from './playback/Timeline'
 import './app.css'
+
+/** How long each playback step is held, in milliseconds. */
+const STEP_INTERVAL_MS = 60
 
 interface AppProps {
   /** Injected at the composition root. The view never names a concrete source. */
@@ -49,6 +54,24 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
     [bundle],
   )
 
+  const dynamics = useMemo(() => (bundle ? buildDynamics(bundle) : null), [bundle])
+  const stepCount = dynamics?.periods.length ?? 0
+
+  const [index, setIndex] = useState(0)
+  const [playing, setPlaying] = useState(false)
+
+  // Reset and auto-play whenever a new bundle (with more than one step) loads.
+  useEffect(() => {
+    setIndex(0)
+    setPlaying(stepCount > 1)
+  }, [stepCount])
+
+  useEffect(() => {
+    if (!playing || stepCount <= 1) return
+    const id = window.setInterval(() => setIndex((i) => (i + 1) % stepCount), STEP_INTERVAL_MS)
+    return () => window.clearInterval(id)
+  }, [playing, stepCount])
+
   useEffect(() => {
     if (!scene) return
     for (const unplaced of scene.unplaced) {
@@ -66,7 +89,7 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
     )
   }
 
-  if (!bundle || !scene) {
+  if (!bundle || !scene || !dynamics) {
     return (
       <main className="sim-app sim-app--message" style={themeStyle} aria-live="polite">
         <p>Resolving simulation geography…</p>
@@ -74,15 +97,41 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
     )
   }
 
+  const firstPeriod = dynamics.periods[0] ?? 0
+  const lastPeriod = dynamics.periods[stepCount - 1] ?? 0
+  const period = dynamics.periods[index] ?? firstPeriod
+  const frame = dynamics.frameAt(period)
+  const env = dynamics.envAt(period)
+
   return (
     <main className="sim-app" style={themeStyle}>
-      <GlobeView markers={scene.markers} edges={scene.edges} />
+      <GlobeView
+        markers={scene.markers}
+        edges={scene.edges}
+        markerIntensity={frame.markerIntensity}
+        edgeIntensity={frame.edgeIntensity}
+      />
 
       <header className="sim-frame-heading">
         <p className="sim-frame-eyebrow">PROVIDER · SIMENV / GEOGRAPHY</p>
         <h1>World supply network</h1>
         <p className="sim-frame-subtitle">Soy flows across the Atlantic system</p>
       </header>
+
+      {stepCount > 1 && (
+        <Timeline
+          period={period}
+          minPeriod={firstPeriod}
+          maxPeriod={lastPeriod}
+          playing={playing}
+          env={env}
+          onSeek={(next) => {
+            setPlaying(false)
+            setIndex(Math.max(0, Math.min(stepCount - 1, next - firstPeriod)))
+          }}
+          onTogglePlay={() => setPlaying((value) => !value)}
+        />
+      )}
 
       <footer className="sim-frame-meta">
         <div className="sim-frame-stats" aria-label="Scene summary">

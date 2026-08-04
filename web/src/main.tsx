@@ -1,13 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
-import { fixtureSource } from './data/fixtureSource.ts'
+import { staticJsonSource } from './data/staticJsonSource.ts'
 
-// Composition root: the ONLY place a concrete DataSource is chosen. Swapping
-// `fixtureSource` for `staticJsonSource` (Batch 5) or a Postgres source later
-// happens here and touches no view file.
+// Composition root: the ONLY place a concrete DataSource is chosen. This swap
+// from `fixtureSource` to `staticJsonSource` (the exported run) touches no view
+// file — the seam's proof. A Postgres source later swaps in here the same way.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App source={fixtureSource} />
+    <App source={staticJsonSource} />
   </StrictMode>,
 )

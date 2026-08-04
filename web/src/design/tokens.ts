@@ -1,10 +1,11 @@
 /**
  * Visual system for the Issue #23 globe.
  *
- * The two Batch-4 references establish a night-side cartographic object: deep
- * ink oceans, cyan edge light, restrained white city sparkle, hairline routes,
- * and a technical frame. Keeping the values here makes later chrome reuse the
- * same language without shipping that out-of-scope chrome in this batch.
+ * The globe is a realistic blue-marble Earth (NASA texture + topology bump on a
+ * night-sky field), matching the reference explorer's renderer treatment: a
+ * light-blue atmosphere rim, a slow spin, and teal supply corridors drawn as a
+ * layered glow. Keeping the values here lets later chrome reuse the same
+ * language without shipping that out-of-scope chrome in this batch.
  */
 
 export const color = {
@@ -51,32 +52,41 @@ export const shadow = {
   cyanGlow: '0 0 26px rgba(67, 183, 255, 0.22)',
 } as const
 
-export const globe = {
-  background: color.base,
-  ocean: '#020D1B',
-  land: '#071A2B',
-  landCap: 'rgba(9, 29, 49, 0.16)',
-  landSide: 'rgba(64, 143, 194, 0.2)',
-  landStroke: 'rgba(111, 195, 241, 0.1)',
-  coast: '#2E739D',
-  cityLight: '#E8F6FF',
-  cityWarm: '#FFD9A1',
-  atmosphere: '#62C7FF',
-  atmosphereAltitude: 0.135,
-  landAltitude: 0.006,
-  cameraDesktop: 1.78,
-  cameraMobile: 4.4,
-  autoRotateSpeed: 0.06,
+/** Static texture assets (bundled offline in web/public/textures). */
+export const texture = {
+  earth: '/textures/earth-blue-marble.jpg',
+  bump: '/textures/earth-topology.png',
+  nightSky: '/textures/night-sky.png',
 } as const
 
+export const globe = {
+  background: color.base,
+  atmosphere: '#7ec8ff',
+  atmosphereAltitude: 0.18,
+  cameraDesktop: 1.78,
+  cameraMobile: 4.4,
+  autoRotateSpeed: 0.35,
+} as const
+
+/**
+ * Supply corridors, drawn as three stacked arcs per edge (a soft wide halo, a
+ * mid glow, and a bright core) so each reads as one glowing line. The core is
+ * dash-animated so flow reads as moving from source to target. Altitude scales
+ * with arc length (`altitudeAutoScale`, like the reference) so long crossings
+ * lift clear of the globe instead of sinking through it. Teal to sit with the
+ * cyan atmosphere rather than the reference's shock-red.
+ */
 export const arc = {
-  sea: '#64B9E8',
-  land: '#3D789F',
-  altitude: 0.16,
-  stroke: 0.2,
-  dashLength: 0.74,
-  dashGap: 0.18,
-  dashAnimateMs: 6200,
+  /** Matches the globe's `arcAltitudeAutoScale`; edge apex is derived from it. */
+  altitudeAutoScale: 0.45,
+  /** Disruption colour: corridors lerp teal → this as tick intensity rises. */
+  hot: [255, 96, 80] as [number, number, number],
+  halo: { stroke: 2.8, alpha: 0.16, teal: [[57, 208, 200], [126, 224, 230]] },
+  glow: { stroke: 1.5, alpha: 0.34, teal: [[57, 208, 200], [126, 224, 230]] },
+  core: { stroke: 0.7, alpha: 0.92, teal: [[214, 255, 250], [57, 208, 200]] },
+  coreDashLength: 0.4,
+  coreDashGap: 0.22,
+  coreDashAnimateMs: 1400,
 } as const
 
 export const marker = {
