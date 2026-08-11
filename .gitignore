@@ -46,3 +46,7 @@ ENV/
 
 # Simulation output
 src/provider_simenv/data/output/
+
+# Web frontend (Issue #23)
+web/node_modules/
+web/dist/
