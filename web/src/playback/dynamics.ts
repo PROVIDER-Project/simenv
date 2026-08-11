@@ -36,6 +36,18 @@ function stressOf(values: Record<string, number | boolean | null>): number | nul
 const EMPTY_FRAME: Frame = { markerIntensity: {}, edgeIntensity: {} }
 
 export function buildDynamics(bundle: Bundle): Dynamics {
+  if (bundle.ticks.length === 0 && bundle.env.length === 0) {
+    return {
+      periods: [],
+      frameAt(): Frame {
+        return EMPTY_FRAME
+      },
+      envAt(): EnvState | null {
+        return null
+      },
+    }
+  }
+
   const byNode = new Map<string, Map<number, number>>()
   for (const tick of bundle.ticks) {
     const stress = stressOf(tick.values)

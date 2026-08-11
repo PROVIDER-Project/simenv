@@ -59,6 +59,19 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
 
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const [visibleCommercialGroupIds, setVisibleCommercialGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+
+  const visibleCommercialEdgeIds = useMemo(
+    () =>
+      new Set(
+        (scene?.commercialGroups ?? [])
+          .filter((group) => visibleCommercialGroupIds.has(group.id))
+          .flatMap((group) => group.edgeIds),
+      ),
+    [scene, visibleCommercialGroupIds],
+  )
 
   // Reset and auto-play whenever a new bundle (with more than one step) loads.
   useEffect(() => {
@@ -102,12 +115,17 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
   const period = dynamics.periods[index] ?? firstPeriod
   const frame = dynamics.frameAt(period)
   const env = dynamics.envAt(period)
+  const visibleCorridorCount = scene.edges.filter(
+    (edge) => edge.kind === 'physical' || visibleCommercialEdgeIds.has(edge.id),
+  ).length
 
   return (
     <main className="sim-app" style={themeStyle}>
       <GlobeView
         markers={scene.markers}
+        routePortMarkers={scene.routePortMarkers}
         edges={scene.edges}
+        visibleCommercialEdgeIds={visibleCommercialEdgeIds}
         markerIntensity={frame.markerIntensity}
         edgeIntensity={frame.edgeIntensity}
       />
@@ -117,6 +135,39 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
         <h1>World supply network</h1>
         <p className="sim-frame-subtitle">Soy flows across the Atlantic system</p>
       </header>
+
+      <div className="sim-contract-groups">
+        <span className="sim-contract-groups__label" id="commercial-groups-label">
+          Commercial structure <small>inferred, not measured</small>
+        </span>
+        <div className="sim-contract-groups__controls" role="group" aria-labelledby="commercial-groups-label">
+          {scene.commercialGroups.map((group) => {
+            const visible = visibleCommercialGroupIds.has(group.id)
+            return (
+              <button
+                className="sim-contract-toggle"
+                type="button"
+                key={group.id}
+                aria-pressed={visible}
+                data-commercial-group-id={group.id}
+                data-commercial-edge-count={group.edgeIds.length}
+                title={`${group.label}: structural geographic grouping, not a measured flow`}
+                onClick={() =>
+                  setVisibleCommercialGroupIds((current) => {
+                    const next = new Set(current)
+                    if (next.has(group.id)) next.delete(group.id)
+                    else next.add(group.id)
+                    return next
+                  })
+                }
+              >
+                <span className="sim-contract-toggle__signal" aria-hidden="true" />
+                {group.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       {stepCount > 1 && (
         <Timeline
@@ -136,9 +187,9 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
       <footer className="sim-frame-meta">
         <div className="sim-frame-stats" aria-label="Scene summary">
           <span className="sim-frame-signal" aria-hidden="true" />
-          <span>{scene.markers.length} markers</span>
+          <span>{scene.markers.length + scene.routePortMarkers.length} markers</span>
           <span className="sim-frame-divider" aria-hidden="true" />
-          <span>{scene.edges.length} corridors</span>
+          <span>{visibleCorridorCount} corridors</span>
           <span className="sim-frame-divider" aria-hidden="true" />
           <span>
             source <code>{sourceName}</code>
