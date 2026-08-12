@@ -1,5 +1,5 @@
 """
-Export a simulation run's CSV output into the JSON bundle the web view consumes.
+Export a PDL topology, optionally with simulation CSV data, into a web bundle.
 
 Reads the ``Result_Simulator_*.csv`` files a run writes to ``data/output`` and emits
 a single ``bundle.json`` matching the frontend ``Bundle`` contract
@@ -13,12 +13,12 @@ geographically real but produce no recorded rows, so they carry no ticks
 (``hasRecordedData: false``), exactly as the frontend expects.
 
 Geography is deliberately NOT emitted: placement is the frontend gazetteer's job
-(keyed by the PDL entity ids carried in ``entityIds``). This is the geolocatable
-projection of the model graph — sea crossings are drawn port-to-port rather than
-routed through the sea-lane agents, which have no single map location.
+(keyed by the PDL entity ids carried in ``entityIds``). Nodes and edges follow the
+PDL-derived model graph directly, including materialised sea-lane agents.
 
 Usage:
     python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--output FILE]
+    python -m provider_simenv.export_bundle --topology-only --output FILE
 """
 from __future__ import annotations
 
@@ -31,6 +31,13 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from .tick_writer import AGENT_TABLES
+from .topology import (
+    SYNTHETIC_NAMES,
+    TRANSITIONAL_SEA,
+    build_flow_adjacency,
+    build_roster,
+    execution_order,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,46 +48,6 @@ SUM_COLS = {
 }
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
-
-# The geolocatable node overlay: display name, agent role, and the PDL entity ids
-# the gazetteer places by. Recorded nodes come from AGENT_TABLES; ports are added
-# here (they are real places but the DataCollector records no series for them).
-NODE_META: dict[str, dict] = {
-    "bra_farmers":            {"label": "Brazil soy farms",   "role": "producer",           "entityIds": ["brazil_farms"]},
-    "arg_farmers":            {"label": "Argentina soy farms","role": "producer",           "entityIds": ["argentina_farms"]},
-    "usa_farmers":            {"label": "US soy farms",       "role": "producer",           "entityIds": ["us_farms"]},
-    "wholesalers":            {"label": "Wholesalers",        "role": "wholesaler",         "entityIds": []},
-    "feed_traders":           {"label": "Feed traders",       "role": "feed_trader",        "entityIds": []},
-    "processors":             {"label": "EU oil mills",       "role": "processor",          "entityIds": ["eu_oil_mills"]},
-    "feed_manufacturers":     {"label": "Feed mills",         "role": "feed_manufacturer",  "entityIds": ["feed_mills"]},
-    "eu_farmers":             {"label": "EU livestock farms", "role": "consumer",           "entityIds": ["poultry_farms", "pig_farms", "dairy_farms"]},
-}
-
-PORT_META: dict[str, dict] = {
-    "transport_sa_santos":    {"label": "Port of Santos",     "role": "sa_santos",    "entityIds": ["santos_port"]},
-    "transport_sa_paranagua": {"label": "Port of Paranaguá",  "role": "sa_paranagua", "entityIds": ["paranagua_port"]},
-    "transport_eu_rtm":       {"label": "Port of Rotterdam",  "role": "eu_rtm",       "entityIds": ["rotterdam_port"]},
-    "transport_eu_ham":       {"label": "Port of Hamburg",    "role": "eu_ham",       "entityIds": ["hamburg_port"]},
-}
-
-# Geolocatable flow overlay (sea crossings collapsed port-to-port). Mirrors the
-# frontend fixture so the gazetteer/resolveScene contract is unchanged.
-EDGES: list[tuple[str, str, bool]] = [
-    ("bra_farmers", "wholesalers", False),
-    ("arg_farmers", "wholesalers", False),
-    ("usa_farmers", "wholesalers", False),
-    ("wholesalers", "transport_sa_santos", False),
-    ("wholesalers", "transport_sa_paranagua", False),
-    ("transport_sa_santos", "transport_eu_rtm", True),
-    ("transport_sa_paranagua", "transport_eu_ham", True),
-    ("arg_farmers", "transport_eu_rtm", True),
-    ("usa_farmers", "transport_eu_rtm", True),
-    ("transport_eu_rtm", "processors", False),
-    ("transport_eu_ham", "processors", False),
-    ("processors", "feed_manufacturers", False),
-    ("feed_manufacturers", "feed_traders", False),
-    ("feed_traders", "eu_farmers", False),
-]
 
 ENV_COLS = [
     ("soja_price", "sojaPrice"),
@@ -93,6 +60,110 @@ ENV_COLS = [
 ]
 
 HONESTY_NOTE = "Approximate geographic positions — not GIS accurate"
+
+_LABEL_TOKENS = {
+    "arg": "Argentina",
+    "eu": "EU",
+    "paranagua": "Paranaguá",
+    "us": "US",
+    "usa": "US",
+}
+
+
+def _humanize(identifier: str) -> str:
+    """Turn a model or PDL identifier into a minimal English label."""
+    words: list[str] = []
+    for token in identifier.split("_"):
+        replacement = _LABEL_TOKENS.get(token)
+        if replacement is not None:
+            words.append(replacement)
+        elif not words:
+            words.append(token.capitalize())
+        else:
+            words.append(token)
+    return " ".join(words)
+
+
+def _node_label(node_id: str, role: str, entity_ids: tuple[str, ...]) -> str:
+    """Derive the bundle's secondary English label from stable PDL/model ids."""
+    if role == "producer":
+        if len(entity_ids) == 1 and entity_ids[0].endswith("_farms"):
+            region = entity_ids[0].removesuffix("_farms")
+            return f"{_humanize(region)} soy farms"
+        return "Soy farms"
+    if role == "consumer":
+        return _humanize(node_id).replace("farmers", "livestock farms")
+    if role.startswith("sea_"):
+        return f"{_humanize(role.removeprefix('sea_'))} sea lane"
+    if len(entity_ids) == 1:
+        entity_id = entity_ids[0]
+        if entity_id.endswith("_port"):
+            return f"Port of {_humanize(entity_id.removesuffix('_port'))}"
+        return _humanize(entity_id)
+    return _humanize(node_id)
+
+
+def build_graph(pdl_path: str | os.PathLike[str]) -> tuple[list[dict], list[dict]]:
+    """Build the web node and edge graph directly from one PDL document."""
+    roster = build_roster(pdl_path)
+    recorded_order = {
+        node_id: index
+        for index, (node_id, _) in enumerate(AGENT_TABLES.values())
+    }
+    roster_order = {
+        entry.archetype.name: index for index, entry in enumerate(roster)
+    }
+    ordered_roster = sorted(
+        roster,
+        key=lambda entry: (
+            0,
+            recorded_order[entry.archetype.name],
+        )
+        if entry.archetype.name in recorded_order
+        else (1, roster_order[entry.archetype.name]),
+    )
+
+    nodes = [
+        {
+            "id": entry.archetype.name,
+            "label": _node_label(
+                entry.archetype.name,
+                entry.archetype.role,
+                entry.entity_ids,
+            ),
+            "role": entry.archetype.role,
+            "entityIds": list(entry.entity_ids),
+            "hasRecordedData": entry.archetype.name in recorded_order,
+        }
+        for entry in ordered_roster
+    ]
+
+    adjacency = build_flow_adjacency(pdl_path)
+    ordered_adjacency = {
+        node_id: adjacency[node_id]
+        for node_id in roster_order
+        if node_id in adjacency
+    }
+    lane_names = {
+        archetype.name for archetype in TRANSITIONAL_SEA.values()
+    }
+    edges = [
+        {
+            "id": f"{source}->{target}",
+            "source": source,
+            "target": target,
+            "isSeaCrossing": source in lane_names or target in lane_names,
+            "kind": (
+                "commercial"
+                if source in SYNTHETIC_NAMES or target in SYNTHETIC_NAMES
+                else "physical"
+            ),
+        }
+        for target in execution_order(ordered_adjacency)
+        if target in ordered_adjacency
+        for source in adjacency[target]
+    ]
+    return nodes, edges
 
 
 def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
@@ -116,56 +187,49 @@ def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
     return out
 
 
-def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
-    nodes: list[dict] = []
+def build_bundle(
+    input_dir: str,
+    scenario: int,
+    pdl: str,
+    *,
+    topology_only: bool = False,
+) -> dict:
+    nodes, edges = build_graph(pdl)
     ticks: list[dict] = []
-
-    # Recorded nodes + their aggregated series.
-    for table, (node_id, props) in AGENT_TABLES.items():
-        meta = NODE_META.get(node_id)
-        if meta is None:
-            logger.warning("no geolocatable metadata for recorded node %r — skipping", node_id)
-            continue
-        nodes.append({
-            "id": node_id, "label": meta["label"], "role": meta["role"],
-            "entityIds": meta["entityIds"], "hasRecordedData": True,
-        })
-        path = os.path.join(input_dir, f"{table}.csv")
-        if not os.path.exists(path):
-            logger.warning("missing CSV for %s: %s", node_id, path)
-            continue
-        df = pd.read_csv(path)
-        df = df[df["id_scenario"] == scenario]
-        for period, values in _aggregate(df, props).items():
-            ticks.append({"period": period, "nodeId": node_id, "values": values})
-
-    # Ports — real places, no recorded series.
-    for node_id, meta in PORT_META.items():
-        nodes.append({
-            "id": node_id, "label": meta["label"], "role": meta["role"],
-            "entityIds": meta["entityIds"], "hasRecordedData": False,
-        })
-
-    edges = [
-        {"id": f"{s}->{t}", "source": s, "target": t, "isSeaCrossing": sea}
-        for (s, t, sea) in EDGES
-    ]
-
-    # Environment series.
     env: list[dict] = []
-    env_path = os.path.join(input_dir, "Result_Simulator_Environment.csv")
-    edf = pd.read_csv(env_path)
-    edf = edf[edf["id_scenario"] == scenario].sort_values("period")
-    for _, row in edf.iterrows():
-        snapshot = {"period": int(row["period"])}
-        for csv_col, out_key in ENV_COLS:
-            snapshot[out_key] = round(float(row[csv_col]), 4)
-        env.append(snapshot)
+
+    if not topology_only:
+        node_ids = {node["id"] for node in nodes}
+
+        # Recorded nodes and their aggregated series.
+        for table, (node_id, props) in AGENT_TABLES.items():
+            if node_id not in node_ids:
+                raise ValueError(
+                    f"recorded node {node_id!r} is absent from the PDL-derived roster"
+                )
+            path = os.path.join(input_dir, f"{table}.csv")
+            if not os.path.exists(path):
+                logger.warning("missing CSV for %s: %s", node_id, path)
+                continue
+            df = pd.read_csv(path)
+            df = df[df["id_scenario"] == scenario]
+            for period, values in _aggregate(df, props).items():
+                ticks.append({"period": period, "nodeId": node_id, "values": values})
+
+        # Environment series.
+        env_path = os.path.join(input_dir, "Result_Simulator_Environment.csv")
+        edf = pd.read_csv(env_path)
+        edf = edf[edf["id_scenario"] == scenario].sort_values("period")
+        for _, row in edf.iterrows():
+            snapshot = {"period": int(row["period"])}
+            for csv_col, out_key in ENV_COLS:
+                snapshot[out_key] = round(float(row[csv_col]), 4)
+            env.append(snapshot)
 
     return {
         "meta": {
             "pdl": os.path.basename(pdl) if pdl else "s1-soja.pdl.yaml",
-            "scenario": f"scenario_{scenario}",
+            "scenario": "topology_only" if topology_only else f"scenario_{scenario}",
             "ticks": len(env),
             "generatedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "honestyNote": HONESTY_NOTE,
@@ -182,24 +246,49 @@ def main() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(here, "..", ".."))
 
-    parser = argparse.ArgumentParser(description="Export a run's CSVs to the web bundle.json")
+    default_output = os.path.join(repo_root, "web", "public", "bundle.json")
+    parser = argparse.ArgumentParser(description="Export a PDL-derived web bundle")
     parser.add_argument("--scenario", type=int, default=1,
                         help="id_scenario to export (0 = baseline, 1 = PDL shock). Default 1.")
     parser.add_argument("--input", type=str, default=os.path.join(here, "data", "output"),
                         help="Directory holding Result_Simulator_*.csv.")
-    parser.add_argument("--output", type=str, default=os.path.join(repo_root, "web", "public", "bundle.json"),
-                        help="Path to write bundle.json.")
-    parser.add_argument("--pdl", type=str, default="s1-soja.pdl.yaml", help="PDL name for metadata.")
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output path. Required with --topology-only; full exports default to web/public/bundle.json.",
+    )
+    parser.add_argument(
+        "--pdl",
+        type=str,
+        default=os.path.join(here, "scenarios", "s1-soja.pdl.yaml"),
+        help="PDL file used to derive topology and recorded in bundle metadata.",
+    )
+    parser.add_argument(
+        "--topology-only",
+        action="store_true",
+        help="Derive nodes and edges without reading simulation CSV output.",
+    )
     args = parser.parse_args()
 
-    bundle = build_bundle(args.input, args.scenario, args.pdl)
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    with open(args.output, "w", encoding="utf-8") as fh:
+    if args.topology_only and args.output is None:
+        parser.error("--output is required with --topology-only")
+
+    output = os.path.abspath(args.output or default_output)
+    bundle = build_bundle(
+        args.input,
+        args.scenario,
+        args.pdl,
+        topology_only=args.topology_only,
+    )
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    with open(output, "w", encoding="utf-8") as fh:
         json.dump(bundle, fh, ensure_ascii=False, separators=(",", ":"))
 
-    logger.info("wrote %s — %d nodes, %d edges, %d ticks, %d env steps (scenario %d)",
-                args.output, len(bundle["nodes"]), len(bundle["edges"]),
-                len(bundle["ticks"]), len(bundle["env"]), args.scenario)
+    mode = "topology only" if args.topology_only else f"scenario {args.scenario}"
+    logger.info("wrote %s — %d nodes, %d edges, %d ticks, %d env steps (%s)",
+                output, len(bundle["nodes"]), len(bundle["edges"]),
+                len(bundle["ticks"]), len(bundle["env"]), mode)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,8 @@
 /**
  * staticJsonSource — a `DataSource` backed by an exported `bundle.json`.
  *
- * This is the Batch-5 swap target: it reads the JSON the Python exporter
- * (`provider_simenv.export_bundle`) writes from a simulation run's CSVs, and is
- * selected at the composition root (`main.tsx`) in place of `fixtureSource`
- * without touching any view file.
+ * It reads the JSON written from a simulation run's CSVs by
+ * `provider_simenv.export_bundle` and is selected at the composition root.
  *
  * The fetched payload is untrusted input, so it crosses a structural check
  * (`parseBundle`) before any view sees it, rather than being cast blindly.
@@ -13,7 +11,14 @@
 import type { DataSource } from './source'
 import type { Bundle, Edge, EnvState, Node, Tick } from './types'
 
-const BUNDLE_URL = '/bundle.json'
+const DEFAULT_BUNDLE_URL = '/bundle.json'
+
+function bundleUrl(): string {
+  const candidate = new URLSearchParams(window.location.search).get('bundle')
+  return candidate?.startsWith('/') && !candidate.startsWith('//') && candidate.endsWith('.json')
+    ? candidate
+    : DEFAULT_BUNDLE_URL
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -22,6 +27,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function requireArray(value: unknown, field: string): unknown[] {
   if (!Array.isArray(value)) throw new Error(`bundle.${field} must be an array`)
   return value
+}
+
+function parseEdgeKind(value: unknown): Edge['kind'] {
+  if (value === undefined) return 'physical'
+  if (value === 'commercial' || value === 'physical') return value
+  throw new Error('bundle.edges[].kind must be commercial or physical')
 }
 
 /** Validate the fetched payload at the trust boundary and return a typed Bundle. */
@@ -46,6 +57,7 @@ export function parseBundle(input: unknown): Bundle {
       id: String(e.id),
       source: String(e.source),
       target: String(e.target),
+      kind: parseEdgeKind(e.kind),
       isSeaCrossing: Boolean(e.isSeaCrossing),
     }
   })
@@ -92,7 +104,7 @@ export function parseBundle(input: unknown): Bundle {
 export const staticJsonSource: DataSource = {
   name: 'bundle.json',
   async getBundle(): Promise<Bundle> {
-    const response = await fetch(BUNDLE_URL)
+    const response = await fetch(bundleUrl())
     if (!response.ok) throw new Error(`bundle request failed with HTTP ${response.status}`)
     const input: unknown = await response.json()
     return parseBundle(input)

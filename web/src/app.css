@@ -97,6 +97,87 @@ body {
   letter-spacing: 0.03em;
 }
 
+.sim-contract-groups {
+  position: fixed;
+  top: 30px;
+  right: 32px;
+  z-index: 5;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.sim-contract-groups__label {
+  color: var(--sim-color-text-muted);
+  font: 600 8px/1 var(--sim-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sim-contract-groups__label small {
+  color: var(--sim-color-text-faint);
+  font: inherit;
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+.sim-contract-groups__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sim-contract-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--sim-color-border);
+  border-radius: var(--sim-radius-md);
+  background: rgba(5, 13, 24, 0.72);
+  box-shadow: var(--sim-shadow-ambient);
+  color: var(--sim-color-text-muted);
+  font: 600 9px/1 var(--sim-font-mono);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  transition:
+    border-color 160ms ease-out,
+    background 160ms ease-out,
+    color 160ms ease-out,
+    transform 120ms ease-out;
+}
+
+.sim-contract-toggle:hover,
+.sim-contract-toggle[aria-pressed='true'] {
+  border-color: rgba(67, 183, 255, 0.42);
+  background: rgba(8, 23, 39, 0.86);
+  color: var(--sim-color-text);
+}
+
+.sim-contract-toggle:focus-visible {
+  outline: 2px solid var(--sim-color-accent-bright);
+  outline-offset: 3px;
+}
+
+.sim-contract-toggle:active {
+  transform: scale(0.98);
+}
+
+.sim-contract-toggle__signal {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sim-color-muted);
+  box-shadow: 0 0 0 transparent;
+}
+
+.sim-contract-toggle[aria-pressed='true'] .sim-contract-toggle__signal {
+  background: var(--sim-color-accent);
+  box-shadow: 0 0 10px rgba(67, 183, 255, 0.78);
+}
+
 .sim-frame-meta {
   position: fixed;
   right: 28px;
@@ -176,6 +257,21 @@ body {
     font-size: 10px;
   }
 
+  .sim-contract-groups {
+    top: 92px;
+    right: 14px;
+    left: 14px;
+  }
+
+  .sim-contract-groups__controls {
+    max-width: 100%;
+  }
+
+  .sim-contract-toggle {
+    padding: 7px 9px;
+    font-size: 8px;
+  }
+
   .sim-frame-meta {
     right: 14px;
     bottom: 13px;
@@ -202,5 +298,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;
+  }
+
+  .sim-contract-toggle {
+    transition: none;
   }
 }

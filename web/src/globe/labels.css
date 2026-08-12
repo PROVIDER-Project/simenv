@@ -56,23 +56,6 @@
   content: '';
 }
 
-/* Edge label floats just above the arc apex so the corridor stays a single
-   unbroken line underneath it (the anchor sits on the apex itself). */
-.sim-label--edge {
-  left: 50%;
-  bottom: 6px;
-  transform: translateX(-50%);
-  padding: 3px 7px;
-  border-color: rgba(93, 172, 226, 0.16);
-  background: rgba(3, 12, 24, 0.74);
-  box-shadow: none;
-  color: #a9cce4;
-  font-family: var(--sim-font-mono);
-  font-size: 8px;
-  font-weight: 450;
-  letter-spacing: 0.04em;
-}
-
 .sim-label--illustrative {
   border-style: dashed;
   border-color: rgba(246, 197, 91, 0.56);
@@ -84,9 +67,5 @@
     max-width: 42vw;
     padding: 3px 6px;
     font-size: 9px;
-  }
-
-  .sim-label--edge {
-    font-size: 7px;
   }
 }
