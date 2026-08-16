@@ -1,0 +1,76 @@
+# Sidecar for s1-soja.pdl.yaml: archetypes, added entities, edges and dependencies
+# the PDL does not carry. Additive only — an id in both files is an error.
+
+# Which archetype each PDL entity resolves to.
+archetypes:
+  brazil_farms:     producer
+  argentina_farms:  producer
+  us_farms:         producer
+  santos_port:      land_transport
+  paranagua_port:   land_transport
+  rotterdam_port:   land_transport
+  hamburg_port:     land_transport
+  eu_oil_mills:     processor
+  feed_mills:       feed_manufacturer
+  poultry_farms:    consumer
+  pig_farms:        consumer
+  dairy_farms:      consumer
+
+# PDL entities intentionally not modelled as node-agents.
+exclude:
+  us_gulf_ports:               "sea-edge origin, not a handler node — was EXCLUDE in topology.py"
+  gas_supply:                  "dependency commodity (binding target), not a node-agent"
+  fertilizer_supply:           "dependency commodity (binding target), not a node-agent"
+  soy_oil_market:              "by-product commodity, no agent today"
+  alternative_protein_sources: "substitution commodity, no agent today"
+  strategic_feed_reserves:     "buffer commodity, no agent today"
+  food_retail:                 "downstream of modelled chain — not yet a node-agent"
+  consumers:                   "downstream of modelled chain — not yet a node-agent"
+
+# Entities absent from the PDL. Coordinates are illustrative.
+entities:
+  - id: brazil_wholesaler
+    archetype: wholesaler
+    reason: "grain originator (buys from farms, runs silos, ships) — trading actors not yet in PDL, partner request 2026-08"
+    lat: -23.0
+    lng: -47.0
+  - id: argentina_wholesaler
+    archetype: wholesaler
+    reason: "grain originator for Argentina — trading actors not yet in PDL, partner request 2026-08"
+    lat: -32.9
+    lng: -60.7
+  - id: us_wholesaler
+    archetype: wholesaler
+    reason: "grain originator for the US — trading actors not yet in PDL, partner request 2026-08"
+    lat: 29.95
+    lng: -90.07
+  - id: eu_feed_trader
+    archetype: feed_trader
+    reason: "feed distributor between mills and livestock — not yet in PDL, partner request 2026-08"
+    lat: 47.5
+    lng: 16.0
+
+# Edges connecting the added entities into the PDL graph.
+edges:
+  - [brazil_farms, brazil_wholesaler]
+  - [brazil_wholesaler, santos_port]
+  - [brazil_wholesaler, paranagua_port]
+  - [argentina_farms, argentina_wholesaler]
+  - [argentina_wholesaler, rotterdam_port]
+  - [us_farms, us_wholesaler]
+  - [us_wholesaler, us_gulf_ports]
+  - [feed_mills, eu_feed_trader]
+  - [eu_feed_trader, poultry_farms]
+  - [eu_feed_trader, pig_farms]
+  - [eu_feed_trader, dairy_farms]
+
+# Dependency edges, in the PDL's supply_chains.dependencies shape.
+dependencies:
+  - from: argentina_farms
+    to: fertilizer_supply
+    type: input
+    criticality: medium
+  - from: us_farms
+    to: fertilizer_supply
+    type: input
+    criticality: medium

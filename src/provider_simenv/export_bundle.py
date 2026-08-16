@@ -42,13 +42,18 @@ SUM_COLS = {
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
 
+
+def _csv_table(list_name: str) -> str:
+    return "Result_Simulator_" + "".join(p.title() for p in list_name.split("_"))
+
+
 # The geolocatable node overlay: display name, agent role, and the PDL entity ids
 # the gazetteer places by. Recorded nodes come from AGENT_TABLES; ports are added
 # here (they are real places but the DataCollector records no series for them).
 NODE_META: dict[str, dict] = {
-    "bra_farmers":            {"label": "Brazil soy farms",   "role": "producer",           "entityIds": ["brazil_farms"]},
-    "arg_farmers":            {"label": "Argentina soy farms","role": "producer",           "entityIds": ["argentina_farms"]},
-    "usa_farmers":            {"label": "US soy farms",       "role": "producer",           "entityIds": ["us_farms"]},
+    "brazil_farms":           {"label": "Brazil soy farms",   "role": "producer",           "entityIds": ["brazil_farms"]},
+    "argentina_farms":        {"label": "Argentina soy farms","role": "producer",           "entityIds": ["argentina_farms"]},
+    "us_farms":               {"label": "US soy farms",       "role": "producer",           "entityIds": ["us_farms"]},
     "wholesalers":            {"label": "Wholesalers",        "role": "wholesaler",         "entityIds": []},
     "feed_traders":           {"label": "Feed traders",       "role": "feed_trader",        "entityIds": []},
     "processors":             {"label": "EU oil mills",       "role": "processor",          "entityIds": ["eu_oil_mills"]},
@@ -63,18 +68,17 @@ PORT_META: dict[str, dict] = {
     "transport_eu_ham":       {"label": "Port of Hamburg",    "role": "eu_ham",       "entityIds": ["hamburg_port"]},
 }
 
-# Geolocatable flow overlay (sea crossings collapsed port-to-port). Mirrors the
-# frontend fixture so the gazetteer/resolveScene contract is unchanged.
+# Geolocatable flow overlay (sea crossings collapsed port-to-port).
 EDGES: list[tuple[str, str, bool]] = [
-    ("bra_farmers", "wholesalers", False),
-    ("arg_farmers", "wholesalers", False),
-    ("usa_farmers", "wholesalers", False),
+    ("brazil_farms", "wholesalers", False),
+    ("argentina_farms", "wholesalers", False),
+    ("us_farms", "wholesalers", False),
     ("wholesalers", "transport_sa_santos", False),
     ("wholesalers", "transport_sa_paranagua", False),
     ("transport_sa_santos", "transport_eu_rtm", True),
     ("transport_sa_paranagua", "transport_eu_ham", True),
-    ("arg_farmers", "transport_eu_rtm", True),
-    ("usa_farmers", "transport_eu_rtm", True),
+    ("argentina_farms", "transport_eu_rtm", True),
+    ("us_farms", "transport_eu_rtm", True),
     ("transport_eu_rtm", "processors", False),
     ("transport_eu_ham", "processors", False),
     ("processors", "feed_manufacturers", False),
@@ -121,7 +125,8 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
     ticks: list[dict] = []
 
     # Recorded nodes + their aggregated series.
-    for table, (node_id, props) in AGENT_TABLES.items():
+    for _pg_table, (list_name, props) in AGENT_TABLES.items():
+        node_id = list_name
         meta = NODE_META.get(node_id)
         if meta is None:
             logger.warning("no geolocatable metadata for recorded node %r — skipping", node_id)
@@ -130,7 +135,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
             "id": node_id, "label": meta["label"], "role": meta["role"],
             "entityIds": meta["entityIds"], "hasRecordedData": True,
         })
-        path = os.path.join(input_dir, f"{table}.csv")
+        path = os.path.join(input_dir, f"{_csv_table(list_name)}.csv")
         if not os.path.exists(path):
             logger.warning("missing CSV for %s: %s", node_id, path)
             continue

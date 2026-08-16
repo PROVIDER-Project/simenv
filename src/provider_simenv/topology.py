@@ -19,9 +19,11 @@ create(), setup(), and the per-step loop.
 from __future__ import annotations
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -68,25 +70,6 @@ class Archetype:
 
 _ENERGY = {"energy": ("gas_supply", "price")}   # gas price scales freight operating costs
 
-_FARMER_BRA = {
-    "bindings":       {"fertilizer": ("fertilizer_supply", "price")},
-    "scenario_attrs": {"fixed_costs": "fixed_costs_bra_farmer",
-                       "margin":      "margin_bra_farmer",
-                       "size_sigma":  "farm_size_sigma_bra"},
-    "attrs":          {"base_yield": 100.0},    # placeholder; loaded from data later
-}
-_FARMER_ARG = {
-    "scenario_attrs": {"fixed_costs": "fixed_costs_arg_farmer",
-                       "margin":      "margin_arg_farmer",
-                       "size_sigma":  "farm_size_sigma_arg"},
-    "attrs":          {"base_yield": 100.0},
-}
-_FARMER_USA = {
-    "scenario_attrs": {"fixed_costs": "fixed_costs_usa_farmer",
-                       "margin":      "margin_usa_farmer",
-                       "size_sigma":  "farm_size_sigma_usa"},
-    "attrs":          {"base_yield": 100.0},
-}
 _FARMER_EU = {    # end consumer: no margin; base_yield stays 0.0 -> buyer init
     "scenario_attrs": {"fixed_costs": "fixed_costs_eu_farmer",
                        "size_sigma":  "farm_size_sigma_eu"},
@@ -124,7 +107,6 @@ _FEED_TRADER = {
 
 # generic kind library: (type, sector) -> default archetype
 KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
-    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_PRODUCER, "n_arg_farmers", _FARMER_ARG),
     ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos", _TRANSPORT_SA),
     ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors", _PROCESSOR),
     ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_CONSUMER, "n_eu_farmers", _FARMER_EU),
@@ -132,9 +114,6 @@ KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
 
 # id overrides: tuned role/count, or type+sector collisions
 ID_OVERRIDES: dict[str, Archetype] = {
-    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_PRODUCER, "n_bra_farmers", _FARMER_BRA),
-    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_PRODUCER, "n_usa_farmers", _FARMER_USA),
-    # argentina_farms -> region/agriculture default (arg_farmers)
     "paranagua_port": Archetype("transport_sa_paranagua", Transport, ROLE_SA_PARANAGUA, "n_transport_sa_paranagua", _TRANSPORT_SA),
     "rotterdam_port": Archetype("transport_eu_rtm", Transport, ROLE_EU_RTM, "n_transport_eu_rtm", _TRANSPORT_EU),
     "hamburg_port":   Archetype("transport_eu_ham", Transport, ROLE_EU_HAM, "n_transport_eu_ham", _TRANSPORT_EU),
@@ -155,6 +134,52 @@ SYNTHETIC: list[Archetype] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Sidecar: declarations the PDL does not carry (s1-soja.roster.yaml)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class RosterSidecar:
+    archetypes: Mapping[str, str]
+    exclude: Mapping[str, str]
+    entities: tuple[Mapping[str, Any], ...]
+    edges: tuple[tuple[str, str], ...]
+    dependencies: tuple[Mapping[str, Any], ...]
+
+
+def _sidecar_path(pdl_path: str | Path) -> Path:
+    p = Path(pdl_path)
+    stem = p.name[:-len(".pdl.yaml")] if p.name.endswith(".pdl.yaml") else p.stem
+    return p.with_name(stem + ".roster.yaml")
+
+
+def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
+    """Load the roster sidecar beside the PDL. Additive only: a sidecar entity id
+    may not collide with a PDL entity, and every added entity must carry a reason."""
+    path = _sidecar_path(pdl_path)
+    if not path.exists():
+        return RosterSidecar({}, {}, (), (), ())
+
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    pdl_ids = {e.get("id") for e in (PDLLoader(pdl_path)._doc.get("entities") or [])}
+
+    entities = tuple(doc.get("entities") or [])
+    for ent in entities:
+        eid = ent.get("id")
+        if eid in pdl_ids:
+            raise ValueError(f"roster sidecar entity {eid!r} collides with a PDL entity; sidecar is additive-only")
+        if not ent.get("reason"):
+            raise ValueError(f"roster sidecar entity {eid!r} is missing a required 'reason'")
+
+    return RosterSidecar(
+        archetypes=dict(doc.get("archetypes") or {}),
+        exclude=dict(doc.get("exclude") or {}),
+        entities=entities,
+        edges=tuple((e[0], e[1]) for e in (doc.get("edges") or [])),
+        dependencies=tuple(doc.get("dependencies") or []),
+    )
+
+
 def resolve(entity: dict) -> Archetype | None:
     """Resolve one PDL entity dict to an Archetype, or None if unmodelled."""
     eid = entity.get("id")
@@ -163,6 +188,49 @@ def resolve(entity: dict) -> Archetype | None:
     if eid in ID_OVERRIDES:
         return ID_OVERRIDES[eid]
     return KIND_ARCHETYPES.get((entity.get("type"), entity.get("sector")))
+
+
+# ---------------------------------------------------------------------------
+# Archetype resolution: PDL entity -> archetype key (sidecar-driven)
+# ---------------------------------------------------------------------------
+
+ARCHETYPE_REGISTRY: dict[str, tuple[type, str]] = {
+    "producer":          (Farmer,  ROLE_PRODUCER),
+    "consumer":          (Farmer,  ROLE_CONSUMER),
+    "processor":         (Process, ROLE_PROCESSOR),
+    "feed_manufacturer": (Process, ROLE_FEED_MANUFACTURER),
+    "wholesaler":        (Trader,  ROLE_WHOLESALER),
+    "feed_trader":       (Trader,  ROLE_FEED_TRADER),
+}
+
+# land_transport / sea_lane keep per-place roles, resolved via the id/kind path.
+KNOWN_ARCHETYPES: frozenset[str] = frozenset(ARCHETYPE_REGISTRY) | {"land_transport", "sea_lane"}
+
+# (type, sector) fallback when the sidecar doesn't name an entity.
+KIND_KEYS: dict[tuple[str, str], str] = {
+    ("region", "agriculture"):       "producer",
+    ("infrastructure", "logistics"): "land_transport",
+    ("manufacturer", "processing"):  "processor",
+    ("manufacturer", "agriculture"): "consumer",
+}
+
+
+def resolve_archetype(entity: Mapping[str, Any], sidecar: RosterSidecar) -> str | None:
+    """Archetype key for a PDL entity: sidecar declaration, else (type,sector)
+    fallback, else None (logged). Excluded entities return None silently."""
+    eid = entity.get("id")
+    if eid in sidecar.exclude:
+        return None
+    key = sidecar.archetypes.get(eid) or KIND_KEYS.get((entity.get("type"), entity.get("sector")))
+    if key is None:
+        logger.warning(
+            "entity %r (%s/%s) resolved to no archetype - not modelled; declare it in the roster sidecar",
+            eid, entity.get("type"), entity.get("sector"),
+        )
+        return None
+    if key not in KNOWN_ARCHETYPES:
+        raise ValueError(f"roster sidecar assigns entity {eid!r} unknown archetype {key!r}")
+    return key
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +314,55 @@ class RosterEntry:
 PRODUCER_ROLES: frozenset[str] = frozenset({ROLE_PRODUCER})
 
 
+_PRODUCER_SCENARIO_ATTRS = ("fixed_costs", "margin", "size_sigma")
+
+
+def _producer_count_attr(eid: str) -> str:
+    specific = f"n_{eid}"
+    if hasattr(SupplyChainScenario, specific):
+        return specific
+    logger.warning("producer %r has no %s; falling back to n_producer", eid, specific)
+    return "n_producer"
+
+
+def _producer_scenario_attrs(eid: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for attr in _PRODUCER_SCENARIO_ATTRS:
+        specific = f"{attr}_{eid}"
+        if hasattr(SupplyChainScenario, specific):
+            out[attr] = specific
+        else:
+            fallback = f"{attr}_producer"
+            logger.warning(
+                "producer %r has no %s; falling back to %s",
+                eid, specific, fallback,
+            )
+            out[attr] = fallback
+    return out
+
+
+def _producer_input_bindings(
+    eid: str, dependencies: list,
+) -> dict[str, tuple[str, str]]:
+    bindings: dict[str, tuple[str, str]] = {}
+    for dep in dependencies:
+        if dep.get("from") != eid or dep.get("type") != "input":
+            continue
+        target = dep.get("to")
+        if not target:
+            continue
+        slot = target[:-len("_supply")] if target.endswith("_supply") else target
+        bindings[slot] = (target, "price")
+    return bindings
+
+
+def _pdl_dependencies(doc: Mapping[str, Any]) -> list:
+    deps: list = []
+    for chain in (doc.get("supply_chains") or []):
+        deps.extend(chain.get("dependencies") or [])
+    return deps
+
+
 def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     """
     Ordered roster from a PDL: synthetic agents, node archetypes, sea-lane agents.
@@ -253,23 +370,34 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     Producer kinds split per-entity (each carries its own id-named list, count, and
     shock); non-producer kinds still pool (e.g. poultry/pig/dairy into eu_farmers).
     """
-    entities = PDLLoader(pdl_path)._doc.get("entities") or []
+    doc = PDLLoader(pdl_path)._doc
+    entities = doc.get("entities") or []
+    sidecar = load_roster_sidecar(pdl_path)
+    pdl_deps = _pdl_dependencies(doc)
 
     order: list[Archetype] = list(SYNTHETIC)
     ids_by_arc: dict[Archetype, list[str]] = {arc: [] for arc in SYNTHETIC}
 
     for e in entities:
-        arc = resolve(e)
-        if arc is None:
+        key = resolve_archetype(e, sidecar)
+        if key is None:
             continue
         eid = e.get("id")
-        # producer already in use -> this is an additional producer region: give
-        # it its own per-entity list (name from id, count from a scenario-specific
-        # n_<id> if defined, else the kind default).
-        if arc.role in PRODUCER_ROLES and arc in ids_by_arc:
-            specific = f"n_{eid}"
-            count_attr = specific if hasattr(SupplyChainScenario, specific) else arc.count_attr
-            arc = replace(arc, name=eid, count_attr=count_attr)
+        if key == "producer":
+            cls, role = ARCHETYPE_REGISTRY["producer"]
+            arc = Archetype(
+                eid, cls, role,
+                _producer_count_attr(eid),
+                {
+                    "bindings": _producer_input_bindings(eid, pdl_deps),
+                    "scenario_attrs": _producer_scenario_attrs(eid),
+                    "attrs": {"base_yield": 100.0},
+                },
+            )
+        else:
+            arc = resolve(e)
+            if arc is None:
+                continue
         if arc not in ids_by_arc:
             order.append(arc)
             ids_by_arc[arc] = []

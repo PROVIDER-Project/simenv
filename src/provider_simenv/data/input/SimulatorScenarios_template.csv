@@ -1,4 +1,4 @@
-id,run_num,period_num,n_bra_farmers,n_arg_farmers,n_usa_farmers,n_wholesalers,n_transport_sa_santos,n_transport_sa_paranagua,n_sea_lane_santos,n_sea_lane_paranagua,n_sea_lane_arg,n_sea_lane_usa,n_transport_eu_rtm,n_transport_eu_ham,n_processors,n_feed_manufacturers,n_feed_traders,n_eu_farmers,santos_share,shock_ramp_steps,farm_size_sigma_bra,farm_size_sigma_eu,farm_size_seed,wholesaler_storage_capacity
+id,run_num,period_num,n_brazil_farms,n_argentina_farms,n_us_farms,n_wholesalers,n_transport_sa_santos,n_transport_sa_paranagua,n_sea_lane_santos,n_sea_lane_paranagua,n_sea_lane_arg,n_sea_lane_usa,n_transport_eu_rtm,n_transport_eu_ham,n_processors,n_feed_manufacturers,n_feed_traders,n_eu_farmers,santos_share,shock_ramp_steps,size_sigma_brazil_farms,farm_size_sigma_eu,farm_size_seed,wholesaler_storage_capacity
 0,1,365,10,5,8,3,1,1,1,1,1,1,1,1,3,3,3,10,0.7,0,0.0,0.0,42,2857.0
 1,1,365,10,5,8,3,1,1,1,1,1,1,1,1,3,3,3,10,0.7,0,0.4,0.4,42,2857.0
 2,1,365,10,5,8,3,1,1,1,1,1,1,1,1,3,3,3,10,0.7,0,0.4,0.4,42,2857.0

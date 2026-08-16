@@ -3,8 +3,7 @@
  *
  * This is the Batch-5 swap target: it reads the JSON the Python exporter
  * (`provider_simenv.export_bundle`) writes from a simulation run's CSVs, and is
- * selected at the composition root (`main.tsx`) in place of `fixtureSource`
- * without touching any view file.
+ * selected at the composition root (`main.tsx`) without touching any view file.
  *
  * The fetched payload is untrusted input, so it crosses a structural check
  * (`parseBundle`) before any view sees it, rather than being cast blindly.

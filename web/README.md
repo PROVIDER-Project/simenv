@@ -91,7 +91,6 @@ simulation run (Melodie)
   a concrete source.
 - `src/data/staticJsonSource.ts` — fetches `/bundle.json` and validates it structurally
   (`parseBundle`) before any view sees it.
-- `src/data/fixtureSource.ts` — hand-written bundle, kept for reference and offline work.
 - `src/main.tsx` — the composition root and the **only** place a concrete source is chosen.
   Swapping sources touches no view file.
 

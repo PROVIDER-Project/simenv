@@ -20,19 +20,27 @@ import logging
 
 import pandas as pd
 
+from .agents import (
+    ROLE_CONSUMER,
+    ROLE_FEED_MANUFACTURER,
+    ROLE_FEED_TRADER,
+    ROLE_PROCESSOR,
+    ROLE_PRODUCER,
+    ROLE_WHOLESALER,
+)
+from .data_collector import _PROPS_BY_ROLE
+
 logger = logging.getLogger(__name__)
 
 AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
-    "Result_Simulator_BraFarmers":        ("bra_farmers",        ["quantity_available", "unit_price", "active"]),
-    "Result_Simulator_ArgFarmers":        ("arg_farmers",        ["quantity_available", "unit_price", "active"]),
-    "Result_Simulator_UsaFarmers":        ("usa_farmers",        ["quantity_available", "unit_price", "active"]),
-    "Result_Simulator_Wholesalers":       ("wholesalers",        ["quantity_available", "unit_price",
-                                                                   "bra_volume", "arg_volume", "usa_volume",
-                                                                   "storage_utilization"]),
-    "Result_Simulator_Processors":        ("processors",         ["quantity_available", "unit_price"]),
-    "Result_Simulator_FeedManufacturers": ("feed_manufacturers", ["quantity_available", "unit_price"]),
-    "Result_Simulator_FeedTraders":       ("feed_traders",       ["quantity_available", "unit_price"]),
-    "Result_Simulator_EuFarmers":         ("eu_farmers",         ["feed_received", "livestock_output", "active"]),
+    "Result_Simulator_BraFarmers":        ("brazil_farms",        list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
+    "Result_Simulator_ArgFarmers":        ("argentina_farms",     list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
+    "Result_Simulator_UsaFarmers":        ("us_farms",            list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
+    "Result_Simulator_Wholesalers":       ("wholesalers",         list(_PROPS_BY_ROLE[ROLE_WHOLESALER])),
+    "Result_Simulator_Processors":        ("processors",          list(_PROPS_BY_ROLE[ROLE_PROCESSOR])),
+    "Result_Simulator_FeedManufacturers": ("feed_manufacturers",  list(_PROPS_BY_ROLE[ROLE_FEED_MANUFACTURER])),
+    "Result_Simulator_FeedTraders":       ("feed_traders",        list(_PROPS_BY_ROLE[ROLE_FEED_TRADER])),
+    "Result_Simulator_EuFarmers":         ("eu_farmers",          list(_PROPS_BY_ROLE[ROLE_CONSUMER])),
 }
 
 ENVIRONMENT_TABLE = "Result_Simulator_Environment"
