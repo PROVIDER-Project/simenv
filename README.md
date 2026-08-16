@@ -2,10 +2,11 @@
 
 Agent-based supply chain simulation for the **PROVIDER** research project (BMBF-funded, OFFIS e.V.).
 
-Models the global soya supply chain from Brazilian/US farms through wholesalers, sea transport,
-EU processors, and feed manufacturers to EU livestock farms. Scenarios apply KG-derived shock
-parameters (drought, port capacity, input price shocks) and observe emergent price and sourcing
-behaviour across the chain.
+Models the global soya supply chain from Brazil, Argentina, and US farms through wholesalers,
+sea transport, EU processors, and feed manufacturers to EU livestock farms. A PDL YAML
+describes entities, stages, and shock events; a roster sidecar next to it fills gaps the PDL
+does not carry yet (archetypes, trading actors). The model applies those shocks (drought,
+port capacity, input prices) and records price and sourcing behaviour across the chain.
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
@@ -16,26 +17,34 @@ Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 ```
 simenv/
 ├── pyproject.toml
+├── web/                          ← globe frontend (see web/README.md)
 └── src/
     └── provider_simenv/
         ├── main.py               ← entry point
         ├── model.py              ← simulation orchestrator
-        ├── scenario.py           ← all scenario parameters
+        ├── scenario.py           ← engine parameters (counts, costs, sigmas)
+        ├── topology.py           ← PDL + roster → agent lists and flow graph
         ├── environment.py        ← global state + price aggregation
+        ├── pdl_loader.py         ← PDL YAML → events / entities
         ├── data_collector.py     ← Melodie output registration
         ├── tick_writer.py        ← per-tick PostgreSQL writer
         ├── db_config.py          ← PostgreSQL connection config
+        ├── export_bundle.py      ← CSV run → web/public/bundle.json
         ├── visualize_sql.py      ← plots from SQLite (post-run)
         ├── visualize_csv.py      ← plots from CSV (fallback)
+        ├── scenarios/
+        │   ├── s1-soja.pdl.yaml
+        │   └── s1-soja.roster.yaml
         ├── agents/
-        │   ├── farmer.py         ← BRA / USA / EU farmers
+        │   ├── farmer.py         ← producers + EU livestock farms
         │   ├── trader.py         ← wholesalers + feed traders
         │   ├── transport.py      ← land + sea transport operators
         │   └── process.py        ← processors + feed manufacturers
         └── data/
             ├── input/
-            │   └── SimulatorScenarios.csv   ← scenario definitions
-            └── output/                      ← generated at runtime
+            │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
+            │   └── SimulatorScenarios_template.csv   ← edit this; every run copies it
+            └── output/                               ← generated at runtime
                 ├── Result_Simulator_*.csv
                 ├── provider-simenv.sqlite
                 ├── price_curves.png
@@ -97,20 +106,34 @@ pip install '.[db]'
 
 ## Running the Simulation
 
-```bash
-# Navigate to the simulation package — Melodie resolves data/ paths from here
-cd src/provider_simenv
+After `pip install -e .`, from the **repository root**:
 
-# Run
-python main.py
+```bash
+# Windows: the scenario summary prints characters that fail on cp1252
+# $env:PYTHONIOENCODING="utf-8"
+
+# All rows in SimulatorScenarios.csv (no PDL events)
+python -m provider_simenv.main
+
+# Shocks and roster from the shipped soja PDL
+python -m provider_simenv.main --pdl src/provider_simenv/scenarios/s1-soja.pdl.yaml
 ```
 
-The simulation reads scenarios from `data/input/SimulatorScenarios.csv`, runs all scenarios
-in sequence, and writes output to `data/output/`.
+Alternatively, from the package directory (what the Docker image does):
+
+```bash
+cd src/provider_simenv
+python main.py --pdl scenarios/s1-soja.pdl.yaml
+```
+
+Every run copies `SimulatorScenarios_template.csv` onto `SimulatorScenarios.csv` first.
+With `--pdl`, the live CSV is then rewritten to two rows: baseline (`id=0`) and one PDL
+scenario (`id=1`). Shock magnitudes and timing come from PDL events at runtime, not from
+CSV columns.
 
 **What runs automatically:**
 
-1. Simulation loop — all scenarios, 52 steps each, per-tick stdout
+1. Simulation loop — each CSV row, `period_num` steps (default 365)
 2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
 3. Post-run: CSV → SQLite merge → `provider-simenv.sqlite`
 
@@ -128,24 +151,32 @@ python visualize_csv.py
 
 Output PNGs are saved to `data/output/`.
 
+The globe frontend reads an exported JSON bundle, not these PNGs. See `web/README.md`.
+
 ---
 
 ## Scenarios
 
-Scenarios are defined in `data/input/SimulatorScenarios.csv`. Each row is one scenario run.
+`data/input/SimulatorScenarios.csv` is the working table Melodie reads. Change the
+**template**, not the live file — every run overwrites the live copy from the template.
+
+Each row is one run. Columns are engine parameters (agent counts, routing, size sigmas,
+storage, length). Producer counts use PDL entity ids (`n_brazil_farms`, `n_argentina_farms`,
+`n_us_farms`).
+
+Shocks are not CSV columns. Pass `--pdl`; `EventTracker` applies drought, capacity, and
+input-price events from the YAML. The shipped files are `scenarios/s1-soja.pdl.yaml` and
+`scenarios/s1-soja.roster.yaml` beside it (archetypes, extra trading entities, edges the
+PDL does not declare).
 
 | Parameter | Effect |
 |---|---|
-| `farm_capacity_bra` | BRA farm output multiplier — `1.0` = normal, `0.7` = 30% drought loss |
-| `port_capacity_sa` | SA export port throughput multiplier |
-| `fertilizer_price_factor` | Multiplier on BRA farmer fixed costs (GTA Red interventions) |
-| `energy_price_factor` | Multiplier on all transport fixed costs |
-| `oil_mill_capacity` | EU processor output multiplier |
-| `feed_mill_capacity` | Feed manufacturer output multiplier |
-| `shock_onset_step` | Step at which shock starts ramping in |
-| `shock_ramp_steps` | Steps to ramp from baseline to full shock value |
-| `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default: 20 000 t) |
-| `period_num` | Number of simulation steps (default: 52) |
+| `n_brazil_farms` / `n_argentina_farms` / `n_us_farms` | Producer agent counts |
+| `santos_share` | Share of Brazil exports via Santos (rest via Paranaguá) |
+| `shock_ramp_steps` | Ramp length when a PDL shock is active |
+| `size_sigma_brazil_farms` | Log-normal farm-size spread (`0` = identical farms) |
+| `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default 2857 t/day) |
+| `period_num` | Number of simulation steps (default 365) |
 
 ---
 
@@ -169,6 +200,9 @@ You can also configure a PostgreSQL interface for data storage (see next chapter
 ```bash
 docker run --rm -v <path to pdl file directory>:/scenarios provider-simenv --pdl /scenarios/<pdl filename> --postgres-url <PostgreSQL URL string>
 ```
+
+If the PDL has a roster sidecar, mount the directory that contains both files
+(`s1-soja.pdl.yaml` and `s1-soja.roster.yaml`).
 
 ---
 
@@ -206,7 +240,7 @@ Override by constructing `PostgresDBConfig` with different values or passing env
 ### Verify data after a run
 
 ```sql
--- Should return 3 rows, each COUNT = 52 (for a 3-scenario, 52-step run)
+-- PDL run: 2 scenarios, each COUNT = period_num (default 365)
 SELECT id_scenario, COUNT(*)
 FROM "Result_Simulator_Environment"
 GROUP BY id_scenario
@@ -218,6 +252,7 @@ ORDER BY id_scenario;
 ```
 Result_Simulator_Environment
 Result_Simulator_BraFarmers
+Result_Simulator_ArgFarmers
 Result_Simulator_UsaFarmers
 Result_Simulator_Wholesalers
 Result_Simulator_Processors
@@ -225,6 +260,9 @@ Result_Simulator_FeedManufacturers
 Result_Simulator_FeedTraders
 Result_Simulator_EuFarmers
 ```
+
+Melodie CSV names follow the agent list (`Result_Simulator_BrazilFarms.csv`,
+`ArgentinaFarms`, `UsFarms`). Postgres keeps the keys above.
 
 Tables are dropped and recreated at the start of each full simulation run (first scenario only).
 Subsequent scenarios within the same run append to the existing tables.
@@ -234,7 +272,7 @@ Subsequent scenarios within the same run append to the existing tables.
 ## docker-compose
 
 You can also run a docker compose that sets up a PostgreSQL database and links it to the simulation container.
-Using our helper script, everything is configured automatically. 
+Using our helper script, everything is configured automatically.
 Just run
 
 ```bash
@@ -252,12 +290,13 @@ from the repository root. This builds the database container, if it's not alread
 | `data/output/provider-simenv.sqlite` | All CSVs merged into one SQLite database (post-run) |
 | `data/output/price_curves.png` | Soja + feed price development across all scenarios |
 | `data/output/volume_flow.png` | BRA vs USA sourcing volumes per scenario |
+| `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---
 
 ## Known Issues / Notes
 
-- **Run from `src/provider_simenv/`** — Melodie resolves `data/` paths relative to the working directory. Running from the repo root will fail to find input files.
+- **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from `main.py`'s location, not the cwd.
 - **Melodie SQLite mode is disabled** — `data_output_type="sqlite"` silently drops all rows due to a missing `conn.commit()` in SQLAlchemy 2.0. The `csv_to_sqlite()` function in `main.py` is used instead and called automatically.
 - **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soja_price, feed_price, ...}` after every simulation step.
 
@@ -265,6 +304,6 @@ from the repository root. This builds the database container, if it's not alread
 
 ## Project
 
-PROVIDER — AI-based supply chain resilience simulation  
-OFFIS e.V. – Institut für Informatik, Oldenburg  
+PROVIDER — AI-based supply chain resilience simulation
+OFFIS e.V. – Institut für Informatik, Oldenburg
 BMBF-funded
