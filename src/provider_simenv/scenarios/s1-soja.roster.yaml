@@ -18,7 +18,7 @@ archetypes:
 
 # PDL entities intentionally not modelled as node-agents.
 exclude:
-  us_gulf_ports:               "sea-edge origin, not a handler node — was EXCLUDE in topology.py"
+  us_gulf_ports:               "sea-edge origin, not a handler node"
   gas_supply:                  "dependency commodity (binding target), not a node-agent"
   fertilizer_supply:           "dependency commodity (binding target), not a node-agent"
   soy_oil_market:              "by-product commodity, no agent today"

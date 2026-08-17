@@ -4,8 +4,10 @@ Agent-based supply chain simulation for the **PROVIDER** research project (BMBF-
 
 Models the global soya supply chain from Brazil, Argentina, and US farms through wholesalers,
 sea transport, EU processors, and feed manufacturers to EU livestock farms. A PDL YAML
-describes entities, stages, and shock events; a roster sidecar next to it fills gaps the PDL
-does not carry yet (archetypes, trading actors). The model applies those shocks (drought,
+describes entities, stages, and shock events; a roster sidecar next to it declares
+archetypes and which PDL entities are not modelled. Added trading entities and
+edges are listed in the sidecar but not yet wired into the roster builder. The
+model applies those shocks (drought,
 port capacity, input prices) and records price and sourcing behaviour across the chain.
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
@@ -166,8 +168,9 @@ storage, length). Producer counts use PDL entity ids (`n_brazil_farms`, `n_argen
 
 Shocks are not CSV columns. Pass `--pdl`; `EventTracker` applies drought, capacity, and
 input-price events from the YAML. The shipped files are `scenarios/s1-soja.pdl.yaml` and
-`scenarios/s1-soja.roster.yaml` beside it (archetypes, extra trading entities, edges the
-PDL does not declare).
+`scenarios/s1-soja.roster.yaml` beside it (archetype declarations and not-modelled
+exclusions; trading entities and edges are declared but not yet wired into the roster
+builder).
 
 | Parameter | Effect |
 |---|---|

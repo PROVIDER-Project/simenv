@@ -94,10 +94,10 @@ class SupplyChainScenario(Scenario):
     fixed_costs_argentina_farms: float = 42000.0
     margin_argentina_farms: float = 0.10
 
-    # generic producer fallback: used when a producer entity has no {param}_<id> column
-    fixed_costs_producer: float = 42000.0
+    # generic producer fallback: synthetic sentinels, not a real country's costs
+    fixed_costs_producer: float = 1.0
     margin_producer: float = 0.10
     size_sigma_producer: float = 0.0
-    n_producer: int = 5
+    n_producer: int = 1
 
 

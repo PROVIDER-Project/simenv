@@ -6,7 +6,7 @@ Writes agent and environment state to the database after every simulation step.
 
 Run lifecycle:
     1. TickWriter.__init__ -> drops and recreates all tables
-    2. write_tick() * 52 -> append one tick's row per call
+    2. write_tick() once per step -> append one tick's row per call
     3. End of run        -> tables are complete, identical to batch import
 
 Failure handling:

@@ -2,13 +2,12 @@
 PDL-entity-driven roster and flow wiring (hybrid archetype resolution).
 
 Resolution order for each PDL entity:
-    1. ID_OVERRIDES[id]                  explicit: tuned role/params, or a
-                                         type+sector collision (oil_mills vs feed_mills)
-    2. KIND_ARCHETYPES[(type, sector)]   generic "kind library": a new same-kind
-                                         entity (china_farms) maps with no edits
-    3. EXCLUDE                           in the PDL but deliberately not a node-agent
-                                         (edge origins / not-yet-modelled)
-    4. otherwise                         unmodelled -> skipped
+    1. sidecar archetypes: / exclude:    declared mapping, or silent skip
+    2. KIND_KEYS[(type, sector)]         fallback when the sidecar omits an entity
+    3. otherwise                         unmodelled -> skipped (logged)
+
+Producers are built per entity from {param}_{eid} columns. Non-producers still
+resolve through ID_OVERRIDES / KIND_ARCHETYPES.
 
 Synthetic agents (wholesalers, feed_traders) have no PDL entity and are always
 created. Sea crossings are edges, materialised as sea-lane agents (TRANSITIONAL_SEA).
@@ -497,8 +496,6 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
 
     Declared overlay the PDL doesn't carry: a 'wholesalers' hub aggregates producers
     and feeds export ports/bypass lanes; a 'feed_traders' hub sits before EU consumers.
-
-    On the shipped PDL this reproduces the literal FLOW_ADJACENCY exactly.
     """
     roster = build_roster(pdl_path)
     name_of: dict[str, str] = {}
@@ -508,7 +505,7 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
 
     producers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer
-                 and e.archetype.role in (ROLE_PRODUCER)}
+                 and e.archetype.role in (ROLE_PRODUCER,)}
     consumers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer and e.archetype.role == ROLE_CONSUMER}
     producer_e = {eid for eid, nm in name_of.items() if nm in producers}

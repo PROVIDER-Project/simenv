@@ -5,11 +5,10 @@
  * view. They are shaped by the F1 schema audit of the Python model — see
  * `web/.planning/forge/PLAN.md` and the audit notes. Key facts baked in here:
  *
- *  - A node's stable identity is its **roster list name** (e.g. "bra_farmers",
- *    "sea_lane_santos"), NOT a PDL entity id. That is what the simulation CSV
- *    tables and `FLOW_ADJACENCY` use, and it is the only key that cleanly covers
- *    synthetic hubs (no entity) and pooled nodes (many entities). The PDL entity
- *    ids a node represents are carried alongside in `entityIds`.
+ *  - A node's stable identity is its **roster list name**. For a single-entity
+ *    producer that is also the PDL entity id (e.g. "brazil_farms"). Synthetic
+ *    hubs have no entity; pooled nodes (eu_farmers) keep one list name for
+ *    several entities. `entityIds` carries the PDL ids a node represents.
  *
  *  - Ports and sea-lanes are geographically real but carry **no recorded
  *    time-series** (they are absent from the model's DataCollector / TickWriter).
@@ -37,7 +36,7 @@ export interface GeoCoord {
  * and for `Tick.nodeId`.
  */
 export interface Node {
-  /** Stable key = roster model-attr list name, e.g. "bra_farmers". */
+  /** Stable key = roster model-attr list name, e.g. "brazil_farms". */
   id: string
   /** Node-level English display name (used for edge labels), e.g. "Brazil soy farms". */
   label: string
@@ -67,7 +66,7 @@ export interface Node {
  * (`wholesalers`, `feed_traders`) that have no real location.
  */
 export interface Edge {
-  /** Stable key, e.g. "bra_farmers->wholesalers". */
+  /** Stable key, e.g. "brazil_farms->wholesalers". */
   id: string
   /** Upstream node id (the source of the flow). */
   source: string
