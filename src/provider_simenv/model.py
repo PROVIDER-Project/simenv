@@ -84,6 +84,7 @@ class SupplyChainModel(Model):
             scenario_attrs = arc.params.get("scenario_attrs", {})
             for agent in agent_list.agents:
                 agent.role = arc.role
+                agent.list_name = arc.name
                 agent.origin = origin
                 agent.binding = dict(bindings)   # per-agent copy of the declared slots
                 for attr, value in attrs.items():
@@ -129,6 +130,7 @@ class SupplyChainModel(Model):
 
         role_of = {e.archetype.name: e.archetype.role for e in self._roster}
         producers = producer_lists(self._flow_adjacency)
+        ports = export_port_lists(self._flow_adjacency, self._roster)
 
         def vw_price(name: str) -> float:
             active = getattr(self, name).filter(lambda a: a.active)
@@ -146,9 +148,18 @@ class SupplyChainModel(Model):
             role = role_of.get(name, name)
             return (role if role_n[role] == 1 else name).upper()
 
+        port_role_n = {
+            role: sum(1 for name in ports if role_of.get(name, name) == role)
+            for role in {role_of.get(name, name) for name in ports}
+        }
+
+        def port_label(name: str) -> str:
+            role = role_of.get(name, name)
+            return (role if port_role_n[role] == 1 else name).upper()
+
         return {
             "producers": {plabel(n): vw_price(n) for n in producers},
-            "ports": {role_of.get(n, n).upper(): volume(n) for n in export_port_lists(self._flow_adjacency)},
+            "ports": {port_label(n): volume(n) for n in ports},
             "soja_px": self.environment.soja_price,
             "feed_px": self.environment.feed_price,
             "supply": self.environment.total_soja_supply,
