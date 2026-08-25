@@ -2,8 +2,8 @@
   role="producer"  Regional soja producers. All run one region-agnostic step:
                     output = base_yield * effective("capacity")
                     price = effective fixed_costs / delivered quantity * (1 + margin)
-                    Producers differ only in their cost/margin parameters and which PDL shocks their archetype binds
-                    (BRA binds fertilizer. Each binds its own entity's supply/capacity shock)
+                    Producers differ only in their cost/margin parameters and declared PDL bindings.
+                    Each binds declared inputs and its own entity's supply/capacity shock.
                     No producer is hardwired shock-immune or as a fixed surplus supplier.
                     (supply surges come from the PDL)
 
@@ -118,7 +118,8 @@ class Farmer(SupplyChainAgent):
         Output = base_yield * effective("capacity")
         effective("capacity") is this producer's own supply-shock multiplier (1.0 when unbound)
         so a drought or a supply event scales output directly. Lower output raises the per unit price.
-        effective("fertilizer") (1.0 when unbound) raises effective fixed costs this step for producers that bind it (BRA)
+        effective("fertilizer") (1.0 when unbound) raises effective fixed costs
+        for producers with that declared input.
         """
         capacity = self.effective("capacity")
         self.quantity_available = self.base_yield * capacity

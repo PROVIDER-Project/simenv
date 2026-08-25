@@ -349,6 +349,8 @@ def _producer_input_bindings(
             continue
         slot = target[:-len("_supply")] if target.endswith("_supply") else target
         bindings[slot] = (target, "price")
+    if not bindings:
+        logger.warning("producer %r has no input dependencies", eid)
     return bindings
 
 
@@ -390,7 +392,7 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     doc = PDLLoader(pdl_path)._doc
     sidecar = load_roster_sidecar(pdl_path)
     entities = [*(doc.get("entities") or []), *sidecar.entities]
-    pdl_deps = _pdl_dependencies(doc)
+    dependencies = [*_pdl_dependencies(doc), *sidecar.dependencies]
 
     order: list[Archetype] = []
     ids_by_arc: dict[Archetype, list[str]] = {}
@@ -406,7 +408,7 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
                 eid, cls, role,
                 _producer_count_attr(eid),
                 {
-                    "bindings": _producer_input_bindings(eid, pdl_deps),
+                    "bindings": _producer_input_bindings(eid, dependencies),
                     "scenario_attrs": _producer_scenario_attrs(eid),
                     "attrs": {"base_yield": 100.0},
                 },
