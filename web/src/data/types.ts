@@ -6,9 +6,9 @@
  * `web/.planning/forge/PLAN.md` and the audit notes. Key facts baked in here:
  *
  *  - A node's stable identity is its **roster list name**. For a single-entity
- *    producer that is also the PDL entity id (e.g. "brazil_farms"). Synthetic
- *    hubs have no entity; pooled nodes (eu_farmers) keep one list name for
- *    several entities. `entityIds` carries the PDL ids a node represents.
+ *    producer that is also the PDL entity id (e.g. "brazil_farms"). Sidecar-backed
+ *    actors carry their declared entity id; pooled nodes (eu_farmers) keep one
+ *    list name for several entities. `entityIds` carries the ids a node represents.
  *
  *  - Ports and sea-lanes are geographically real but carry **no recorded
  *    time-series** (they are absent from the model's DataCollector / TickWriter).
@@ -42,7 +42,7 @@ export interface Node {
   label: string
   /** Agent role, e.g. "producer" | "wholesaler" | "sea_santos". */
   role: string
-  /** PDL entity ids this node represents. Empty for synthetic hubs. */
+  /** PDL or sidecar entity ids this node represents. */
   entityIds: string[]
   /**
    * False for ports and sea-lanes, which exist structurally but produce no
@@ -60,13 +60,12 @@ export interface Node {
  */
 
 /**
- * A directed flow between two nodes, from the model's `FLOW_ADJACENCY`.
+ * A directed flow between two nodes in the derived supply-chain graph.
  *
- * `source`/`target` are node ids. Some edges pass through synthetic hubs
- * (`wholesalers`, `feed_traders`) that have no real location.
+ * `source`/`target` are roster list names.
  */
 export interface Edge {
-  /** Stable key, e.g. "brazil_farms->wholesalers". */
+  /** Stable key, e.g. "brazil_farms->brazil_wholesaler". */
   id: string
   /** Upstream node id (the source of the flow). */
   source: string
@@ -81,7 +80,7 @@ export interface Edge {
  *
  * `values` keys vary by node type — e.g. producers carry
  * `quantity_available` / `unit_price` / `active`; wholesalers additionally carry
- * per-origin volumes and storage utilisation; `eu_farmers` carries
+ * storage utilisation; `eu_farmers` carries
  * `feed_received` / `livestock_output` / `active`.
  */
 export interface Tick {

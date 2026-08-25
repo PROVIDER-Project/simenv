@@ -30,21 +30,25 @@ exclude:
 # Entities absent from the PDL. Coordinates are illustrative.
 entities:
   - id: brazil_wholesaler
+    name: "Brazil grain originator"
     archetype: wholesaler
     reason: "grain originator (buys from farms, runs silos, ships) — trading actors not yet in PDL, partner request 2026-08"
     lat: -23.0
     lng: -47.0
   - id: argentina_wholesaler
+    name: "Argentina grain originator"
     archetype: wholesaler
     reason: "grain originator for Argentina — trading actors not yet in PDL, partner request 2026-08"
     lat: -32.9
     lng: -60.7
   - id: us_wholesaler
+    name: "US grain originator"
     archetype: wholesaler
     reason: "grain originator for the US — trading actors not yet in PDL, partner request 2026-08"
     lat: 29.95
     lng: -90.07
   - id: eu_feed_trader
+    name: "EU feed distributor"
     archetype: feed_trader
     reason: "feed distributor between mills and livestock — not yet in PDL, partner request 2026-08"
     lat: 47.5

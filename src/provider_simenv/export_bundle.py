@@ -8,14 +8,14 @@ environment time-series (``env``).
 
 Each recorded agent list holds many instances; a map node is the aggregate of its
 list per step — extensive quantities are summed, prices/utilisation are averaged,
-and ``active`` is true if any instance is active. Ports and sea-lanes are
-geographically real but produce no recorded rows, so they carry no ticks
-(``hasRecordedData: false``), exactly as the frontend expects.
+and ``active`` is true if any instance is active. Ports produce no recorded rows,
+so they carry no ticks (``hasRecordedData: false``), exactly as the frontend
+expects.
 
 Geography is deliberately NOT emitted: placement is the frontend gazetteer's job
 (keyed by the PDL entity ids carried in ``entityIds``). This is the geolocatable
-projection of the model graph — sea crossings are drawn port-to-port rather than
-routed through the sea-lane agents, which have no single map location.
+projection of the roster graph — sea crossings are drawn endpoint-to-endpoint
+rather than routed through sea-lane agents, which have no single map location.
 
 Usage:
     python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--output FILE]
@@ -27,17 +27,20 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 
-from .tick_writer import AGENT_TABLES
+from .agents import Transport
+from .data_collector import _PROPS_BY_ROLE
+from .pdl_loader import PDLLoader
+from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
 
 logger = logging.getLogger(__name__)
 
 # Column aggregation rules for collapsing a list's instances into one node/step.
 SUM_COLS = {
-    "quantity_available", "bra_volume", "arg_volume", "usa_volume",
-    "feed_received", "livestock_output",
+    "quantity_available", "feed_received", "livestock_output",
 }
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
@@ -47,44 +50,93 @@ def _csv_table(list_name: str) -> str:
     return "Result_Simulator_" + "".join(p.title() for p in list_name.split("_"))
 
 
-# The geolocatable node overlay: display name, agent role, and the PDL entity ids
-# the gazetteer places by. Recorded nodes come from AGENT_TABLES; ports are added
-# here (they are real places but the DataCollector records no series for them).
-NODE_META: dict[str, dict] = {
-    "brazil_farms":           {"label": "Brazil soy farms",   "role": "producer",           "entityIds": ["brazil_farms"]},
-    "argentina_farms":        {"label": "Argentina soy farms","role": "producer",           "entityIds": ["argentina_farms"]},
-    "us_farms":               {"label": "US soy farms",       "role": "producer",           "entityIds": ["us_farms"]},
-    "wholesalers":            {"label": "Wholesalers",        "role": "wholesaler",         "entityIds": []},
-    "feed_traders":           {"label": "Feed traders",       "role": "feed_trader",        "entityIds": []},
-    "processors":             {"label": "EU oil mills",       "role": "processor",          "entityIds": ["eu_oil_mills"]},
-    "feed_manufacturers":     {"label": "Feed mills",         "role": "feed_manufacturer",  "entityIds": ["feed_mills"]},
-    "eu_farmers":             {"label": "EU livestock farms", "role": "consumer",           "entityIds": ["poultry_farms", "pig_farms", "dairy_farms"]},
-}
+def _resolve_pdl_path(pdl: str) -> Path:
+    path = Path(pdl)
+    if path.is_file():
+        return path
+    if not path.is_absolute() and path.parent == Path("."):
+        scenario_path = Path(__file__).resolve().parent / "scenarios" / path.name
+        if scenario_path.is_file():
+            return scenario_path
+    raise FileNotFoundError(f"PDL file not found: {pdl}")
 
-PORT_META: dict[str, dict] = {
-    "transport_sa_santos":    {"label": "Port of Santos",     "role": "sa_santos",    "entityIds": ["santos_port"]},
-    "transport_sa_paranagua": {"label": "Port of Paranaguá",  "role": "sa_paranagua", "entityIds": ["paranagua_port"]},
-    "transport_eu_rtm":       {"label": "Port of Rotterdam",  "role": "eu_rtm",       "entityIds": ["rotterdam_port"]},
-    "transport_eu_ham":       {"label": "Port of Hamburg",    "role": "eu_ham",       "entityIds": ["hamburg_port"]},
-}
 
-# Geolocatable flow overlay (sea crossings collapsed port-to-port).
-EDGES: list[tuple[str, str, bool]] = [
-    ("brazil_farms", "wholesalers", False),
-    ("argentina_farms", "wholesalers", False),
-    ("us_farms", "wholesalers", False),
-    ("wholesalers", "transport_sa_santos", False),
-    ("wholesalers", "transport_sa_paranagua", False),
-    ("transport_sa_santos", "transport_eu_rtm", True),
-    ("transport_sa_paranagua", "transport_eu_ham", True),
-    ("argentina_farms", "transport_eu_rtm", True),
-    ("us_farms", "transport_eu_rtm", True),
-    ("transport_eu_rtm", "processors", False),
-    ("transport_eu_ham", "processors", False),
-    ("processors", "feed_manufacturers", False),
-    ("feed_manufacturers", "feed_traders", False),
-    ("feed_traders", "eu_farmers", False),
-]
+def _entity_metadata(pdl_path: Path) -> dict[str, dict]:
+    doc = PDLLoader(pdl_path)._doc
+    sidecar = load_roster_sidecar(pdl_path)
+    entities = [*(doc.get("entities") or []), *sidecar.entities]
+    return {entity["id"]: dict(entity) for entity in entities}
+
+
+def _node_metadata(entry, entities: dict[str, dict]) -> dict:
+    node_id = entry.archetype.name
+    entity_ids = list(entry.entity_ids)
+    labels: list[str] = []
+    unresolved: list[str] = []
+    for entity_id in entity_ids:
+        entity = entities.get(entity_id)
+        label = entity.get("name") if entity is not None else None
+        if not label:
+            unresolved.append(entity_id)
+        else:
+            labels.append(str(label))
+    if not entity_ids or unresolved:
+        logger.error(
+            "unresolved export metadata for roster node %r (entity ids: %s, unresolved: %s)",
+            node_id, entity_ids, unresolved,
+        )
+        raise ValueError(f"unresolved export metadata for roster node {node_id!r}")
+    return {
+        "id": node_id,
+        "label": " / ".join(labels),
+        "role": entry.archetype.role,
+        "entityIds": entity_ids,
+        "hasRecordedData": entry.archetype.role in _PROPS_BY_ROLE,
+    }
+
+
+def _collapsed_edges(
+    adjacency: dict[str, tuple[str, ...]], sea_lanes: set[str], node_ids: set[str],
+) -> list[dict]:
+    downstream_lanes = {
+        source
+        for sources in adjacency.values()
+        for source in sources
+        if source in sea_lanes
+    }
+    for lane in sea_lanes:
+        if lane not in adjacency or lane not in downstream_lanes:
+            logger.error("sea lane %r lacks an exportable upstream/downstream path", lane)
+            raise ValueError(f"incomplete sea-lane path for {lane!r}")
+
+    edges: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(source: str, target: str, is_sea: bool) -> None:
+        if source not in node_ids or target not in node_ids:
+            logger.error("edge %r -> %r references a node absent from the export roster", source, target)
+            raise ValueError(f"unresolved export edge {source!r} -> {target!r}")
+        pair = (source, target)
+        if pair in seen:
+            return
+        seen.add(pair)
+        edges.append({
+            "id": f"{source}->{target}",
+            "source": source,
+            "target": target,
+            "isSeaCrossing": is_sea,
+        })
+
+    for target, sources in adjacency.items():
+        if target in sea_lanes:
+            continue
+        for source in sources:
+            if source in sea_lanes:
+                for lane_source in adjacency[source]:
+                    add(lane_source, target, True)
+            else:
+                add(source, target, False)
+    return edges
 
 ENV_COLS = [
     ("soja_price", "sojaPrice"),
@@ -121,40 +173,38 @@ def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
 
 
 def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
+    pdl_path = _resolve_pdl_path(pdl)
+    roster = build_roster(pdl_path)
+    adjacency = build_flow_adjacency(pdl_path)
+    entities = _entity_metadata(pdl_path)
+    sea_lanes = {
+        entry.archetype.name
+        for entry in roster
+        if entry.archetype.agent_class is Transport and not entry.entity_ids
+    }
+
     nodes: list[dict] = []
     ticks: list[dict] = []
 
-    # Recorded nodes + their aggregated series.
-    for _pg_table, (list_name, props) in AGENT_TABLES.items():
-        node_id = list_name
-        meta = NODE_META.get(node_id)
-        if meta is None:
-            logger.warning("no geolocatable metadata for recorded node %r — skipping", node_id)
+    for entry in roster:
+        node_id = entry.archetype.name
+        if node_id in sea_lanes:
             continue
-        nodes.append({
-            "id": node_id, "label": meta["label"], "role": meta["role"],
-            "entityIds": meta["entityIds"], "hasRecordedData": True,
-        })
-        path = os.path.join(input_dir, f"{_csv_table(list_name)}.csv")
+        nodes.append(_node_metadata(entry, entities))
+
+        props = _PROPS_BY_ROLE.get(entry.archetype.role)
+        if props is None:
+            continue
+        path = os.path.join(input_dir, f"{_csv_table(node_id)}.csv")
         if not os.path.exists(path):
             logger.warning("missing CSV for %s: %s", node_id, path)
             continue
         df = pd.read_csv(path)
         df = df[df["id_scenario"] == scenario]
-        for period, values in _aggregate(df, props).items():
+        for period, values in _aggregate(df, list(props)).items():
             ticks.append({"period": period, "nodeId": node_id, "values": values})
 
-    # Ports — real places, no recorded series.
-    for node_id, meta in PORT_META.items():
-        nodes.append({
-            "id": node_id, "label": meta["label"], "role": meta["role"],
-            "entityIds": meta["entityIds"], "hasRecordedData": False,
-        })
-
-    edges = [
-        {"id": f"{s}->{t}", "source": s, "target": t, "isSeaCrossing": sea}
-        for (s, t, sea) in EDGES
-    ]
+    edges = _collapsed_edges(adjacency, sea_lanes, {node["id"] for node in nodes})
 
     # Environment series.
     env: list[dict] = []
@@ -169,7 +219,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
 
     return {
         "meta": {
-            "pdl": os.path.basename(pdl) if pdl else "s1-soja.pdl.yaml",
+            "pdl": pdl_path.name,
             "scenario": f"scenario_{scenario}",
             "ticks": len(env),
             "generatedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),

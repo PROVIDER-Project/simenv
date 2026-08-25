@@ -21,9 +21,7 @@ _PROPS_BY_ROLE = {
     ROLE_PRODUCER: ("quantity_available", "unit_price", "active"),
     ROLE_CONSUMER: ("feed_received", "livestock_output", "active"),
     ROLE_WHOLESALER: (
-        "quantity_available", "unit_price",
-        "bra_volume", "arg_volume", "usa_volume",
-        "storage_utilization",
+        "quantity_available", "unit_price", "storage_utilization",
     ),
     ROLE_PROCESSOR: ("quantity_available", "unit_price"),
     ROLE_FEED_MANUFACTURER: ("quantity_available", "unit_price"),

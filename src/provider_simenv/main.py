@@ -1,14 +1,6 @@
-"""
-v.0.5.1 notes:
-- Melodie writes CSVs (data_output_type default)
-- csv_to_sqlite() post-processes all Result_Simulator_*.csv files into a single SQLite database
-- This avoids the SQAlchemy 2.0 missing-commit but in Melodie's built-in sqlite mode,
-  while still providing a SQLite file for visualize_sql.py
-"""
-import glob
+"""Command-line entry point for the PROVIDER supply-chain simulation."""
 import logging
 import os
-import sqlite3
 import shutil
 import argparse
 
@@ -21,38 +13,6 @@ from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
 
 logger = logging.getLogger(__name__)
-
-# --------------------
-# Helpers
-# --------------------
-
-def csv_to_sqlite(output_dir: str, db_name: str = "provider-simenv.sqlite") -> None:
-    """
-    Read every Result_Simulator_*.csv in output_dir and write them to a SQLite
-    database (sqlite3 + pandas, recreated from scratch on every run).
-    """
-    db_path = os.path.join(output_dir, db_name)
-    pattern = os.path.join(output_dir, "Result_Simulator_*.csv")
-    csv_files = glob.glob(pattern)
-
-    if not csv_files:
-        logger.warning("no Result_Simulator_*.csv files found in: %s", output_dir)
-        return
-
-    conn = sqlite3.connect(db_path)
-    try:
-        for csv_path in csv_files:
-            table_name = os.path.splitext(os.path.basename(csv_path))[0]
-            df = pd.read_csv(csv_path)
-            df.to_sql(table_name, conn, if_exists="replace", index=False)
-            logger.info("%s -> %d rows", table_name, len(df))
-        conn.commit()
-    finally:
-        conn.close()
-
-    logger.info("SQLite database written to: %s", db_path)
-
-
 
 # --------------------
 # Main
@@ -171,7 +131,3 @@ if __name__ == "__main__":
         del SupplyChainModel._event_registry
     if hasattr(SupplyChainModel, "_pdl_path"):
         del SupplyChainModel._pdl_path
-
-    # post-process: merge CSVs -> SQLite for visualize_sql.py
-    logger.info("Converting CSVs to SQLite...")
-    csv_to_sqlite(output_folder)

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from Melodie import Environment
 
 
+from .agents import ROLE_WHOLESALER
 from .shock_registry import DROUGHT_KEY
 from .event_tracker import EventTracker
 
@@ -130,7 +131,13 @@ class SupplyChainEnvironment(Environment):
 
 
         # Soja price (wholesaler lvl)
-        active_wholesalers = self.model.wholesalers.filter(lambda w: w.active)
+        active_wholesalers = [
+            wholesaler
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_WHOLESALER
+            for wholesaler in getattr(self.model, entry.archetype.name).agents
+            if wholesaler.active
+        ]
         total_w_vol = sum(w.quantity_available for w in active_wholesalers)
         if total_w_vol > 0:
             self.soja_price = (

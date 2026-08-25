@@ -14,11 +14,11 @@ class SupplyChainScenario(Scenario):
     """
 
     # --- Supply chain routing ---
-    santos_share: float = 0.7   # 70% of BRA exports via Santos
+    share_santos_port: float = 0.7   # explicit weight for the Santos route
 
     # --- Agent population size ---
     n_brazil_farms: int = 10         # South American Farmers
-    n_wholesalers: int = 3          # buys from farmers, aggregate them, sell internationally
+    n_wholesalers: int = 1          # originators per regional roster list
     n_transport_sa_santos: int = 1  # Agents handling the Santos lane
     n_transport_sa_paranagua: int = 1   # Agents handling the Paranagua lane
     n_sea_lane_santos: int = 1        # Sea agents: Santos -> Rotterdam

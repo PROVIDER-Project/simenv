@@ -32,8 +32,6 @@ simenv/
         ├── tick_writer.py        ← per-tick PostgreSQL writer
         ├── db_config.py          ← PostgreSQL connection config
         ├── export_bundle.py      ← CSV run → web/public/bundle.json
-        ├── visualize_sql.py      ← plots from SQLite (post-run)
-        ├── visualize_csv.py      ← plots from CSV (fallback)
         ├── scenarios/
         │   ├── s1-soja.pdl.yaml
         │   └── s1-soja.roster.yaml
@@ -47,10 +45,7 @@ simenv/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
             │   └── SimulatorScenarios_template.csv   ← edit this; every run copies it
             └── output/                               ← generated at runtime
-                ├── Result_Simulator_*.csv
-                ├── provider-simenv.sqlite
-                ├── price_curves.png
-                └── volume_flow.png
+                └── Result_Simulator_*.csv
 ```
 
 ---
@@ -65,7 +60,6 @@ simenv/
 Melodie>=0.6.0
 pandas
 numpy
-matplotlib
 pyyaml
 ```
 
@@ -77,7 +71,7 @@ psycopg2-binary
 ```
 
 If `sqlalchemy` / `psycopg2-binary` are not installed, the tick writer disables itself
-silently and the simulation continues normally. CSV and SQLite outputs are unaffected.
+silently and the simulation continues normally. CSV output is unaffected.
 
 ### Install
 
@@ -137,23 +131,14 @@ CSV columns.
 
 1. Simulation loop — each CSV row, `period_num` steps (default 365)
 2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
-3. Post-run: CSV → SQLite merge → `provider-simenv.sqlite`
 
-### Generate Plots (after a run)
+### Update the globe frontend after a run
 
 ```bash
-# From src/provider_simenv/
-
-# Recommended: plots from SQLite — price curves + BRA/USA volume flow
-python visualize_sql.py
-
-# Fallback: plots from CSV
-python visualize_csv.py
+python -m provider_simenv.export_bundle --scenario 1
 ```
 
-Output PNGs are saved to `data/output/`.
-
-The globe frontend reads an exported JSON bundle, not these PNGs. See `web/README.md`.
+The exporter writes `web/public/bundle.json`. See `web/README.md` for the frontend workflow.
 
 ---
 
@@ -175,7 +160,7 @@ builder).
 | Parameter | Effect |
 |---|---|
 | `n_brazil_farms` / `n_argentina_farms` / `n_us_farms` | Producer agent counts |
-| `santos_share` | Share of Brazil exports via Santos (rest via Paranaguá) |
+| `share_santos_port` | Explicit weight for the Santos route; unspecified route weights are resolved per origin |
 | `shock_ramp_steps` | Ramp length when a PDL shock is active |
 | `size_sigma_brazil_farms` | Log-normal farm-size spread (`0` = identical farms) |
 | `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default 2857 t/day) |
@@ -290,9 +275,6 @@ from the repository root. This builds the database container, if it's not alread
 | File | Description |
 |---|---|
 | `data/output/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
-| `data/output/provider-simenv.sqlite` | All CSVs merged into one SQLite database (post-run) |
-| `data/output/price_curves.png` | Soja + feed price development across all scenarios |
-| `data/output/volume_flow.png` | BRA vs USA sourcing volumes per scenario |
 | `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---
@@ -300,7 +282,6 @@ from the repository root. This builds the database container, if it's not alread
 ## Known Issues / Notes
 
 - **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from `main.py`'s location, not the cwd.
-- **Melodie SQLite mode is disabled** — `data_output_type="sqlite"` silently drops all rows due to a missing `conn.commit()` in SQLAlchemy 2.0. The `csv_to_sqlite()` function in `main.py` is used instead and called automatically.
 - **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soja_price, feed_price, ...}` after every simulation step.
 
 ---

@@ -36,11 +36,17 @@ AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
     "Result_Simulator_BraFarmers":        ("brazil_farms",        list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
     "Result_Simulator_ArgFarmers":        ("argentina_farms",     list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
     "Result_Simulator_UsaFarmers":        ("us_farms",            list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
-    "Result_Simulator_Wholesalers":       ("wholesalers",         list(_PROPS_BY_ROLE[ROLE_WHOLESALER])),
     "Result_Simulator_Processors":        ("processors",          list(_PROPS_BY_ROLE[ROLE_PROCESSOR])),
     "Result_Simulator_FeedManufacturers": ("feed_manufacturers",  list(_PROPS_BY_ROLE[ROLE_FEED_MANUFACTURER])),
     "Result_Simulator_FeedTraders":       ("feed_traders",        list(_PROPS_BY_ROLE[ROLE_FEED_TRADER])),
     "Result_Simulator_EuFarmers":         ("eu_farmers",          list(_PROPS_BY_ROLE[ROLE_CONSUMER])),
+}
+
+ROLE_AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
+    "Result_Simulator_Wholesalers": (
+        ROLE_WHOLESALER,
+        list(_PROPS_BY_ROLE[ROLE_WHOLESALER]),
+    ),
 }
 
 ENVIRONMENT_TABLE = "Result_Simulator_Environment"
@@ -107,7 +113,7 @@ class TickWriter:
         """
         try:
             from sqlalchemy import text
-            tables = list(AGENT_TABLES.keys()) + [ENVIRONMENT_TABLE]
+            tables = list(AGENT_TABLES) + list(ROLE_AGENT_TABLES) + [ENVIRONMENT_TABLE]
             with self.engine.connect() as conn:
                 for table in tables:
                     conn.execute(text(f'DROP TABLE IF EXISTS "{table}"'))
@@ -131,6 +137,29 @@ class TickWriter:
                 for prop in props:
                     row[prop] = getattr(agent, prop, None)
                 rows.append(row)
+
+            if rows:
+                df = pd.DataFrame(rows)
+                df.to_sql(table_name, self.engine, if_exists="append", index=False)
+
+        for table_name, (role, props) in ROLE_AGENT_TABLES.items():
+            rows = []
+            for entry in model._roster:
+                if entry.archetype.role != role:
+                    continue
+                node_id = entry.archetype.name
+                agent_list = getattr(model, node_id)
+                for agent in agent_list.agents:
+                    row = {
+                        "id_scenario": id_scenario,
+                        "id_run": id_run,
+                        "period": t,
+                        "node_id": node_id,
+                        "id": agent.id,
+                    }
+                    for prop in props:
+                        row[prop] = getattr(agent, prop, None)
+                    rows.append(row)
 
             if rows:
                 df = pd.DataFrame(rows)
