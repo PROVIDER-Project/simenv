@@ -10,7 +10,7 @@
  */
 
 import type { DataSource } from './source'
-import type { Bundle, Edge, EnvState, Node, Tick } from './types'
+import type { Bundle, Edge, EntityPlacement, EnvState, Node, Tick } from './types'
 
 const BUNDLE_URL = '/bundle.json'
 
@@ -23,6 +23,34 @@ function requireArray(value: unknown, field: string): unknown[] {
   return value
 }
 
+function requireString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`bundle.${field} must be a non-empty string`)
+  }
+  return value
+}
+
+function requireFiniteNumber(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`bundle.${field} must be a finite number`)
+  }
+  return value
+}
+
+function parsePlacement(value: unknown, nodeId: string): EntityPlacement {
+  if (!isObject(value)) throw new Error('bundle.nodes[].placements[] must be objects')
+  const entityId = requireString(value.entityId, 'nodes[].placements[].entityId')
+  const label = requireString(value.label, 'nodes[].placements[].label')
+  const lat = requireFiniteNumber(value.lat, 'nodes[].placements[].lat')
+  const lng = requireFiniteNumber(value.lng, 'nodes[].placements[].lng')
+  if (lat < -90 || lat > 90) throw new Error(`bundle node ${nodeId} has latitude outside [-90, 90]`)
+  if (lng < -180 || lng > 180) throw new Error(`bundle node ${nodeId} has longitude outside [-180, 180]`)
+  if (typeof value.illustrative !== 'boolean') {
+    throw new Error('bundle.nodes[].placements[].illustrative must be boolean')
+  }
+  return { entityId, label, lat, lng, illustrative: value.illustrative }
+}
+
 /** Validate the fetched payload at the trust boundary and return a typed Bundle. */
 export function parseBundle(input: unknown): Bundle {
   if (!isObject(input)) throw new Error('bundle must be an object')
@@ -30,11 +58,27 @@ export function parseBundle(input: unknown): Bundle {
 
   const nodes = requireArray(input.nodes, 'nodes').map((n): Node => {
     if (!isObject(n)) throw new Error('bundle.nodes[] must be objects')
+    const id = String(n.id)
+    const entityIds = requireArray(n.entityIds, 'nodes[].entityIds').map(String)
+    const placements = (
+      n.placements === undefined ? [] : requireArray(n.placements, 'nodes[].placements')
+    ).map((placement) => parsePlacement(placement, id))
+    const seenPlacements = new Set<string>()
+    for (const placement of placements) {
+      if (!entityIds.includes(placement.entityId)) {
+        throw new Error(`bundle node ${id} has placement for unknown entity ${placement.entityId}`)
+      }
+      if (seenPlacements.has(placement.entityId)) {
+        throw new Error(`bundle node ${id} has duplicate placement for ${placement.entityId}`)
+      }
+      seenPlacements.add(placement.entityId)
+    }
     return {
-      id: String(n.id),
+      id,
       label: String(n.label),
       role: String(n.role),
-      entityIds: requireArray(n.entityIds, 'nodes[].entityIds').map(String),
+      entityIds,
+      placements,
       hasRecordedData: Boolean(n.hasRecordedData),
     }
   })

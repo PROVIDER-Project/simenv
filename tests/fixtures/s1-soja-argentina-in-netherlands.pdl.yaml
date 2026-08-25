@@ -1,0 +1,970 @@
+# Fixture: Argentina is located in the Netherlands, so its Rotterdam route is not a sea crossing.
+pdl_version: "1.1"
+
+scenario:
+  id: soy_feed_disruption
+  name: "Soja-Futtermittel-Lieferkette"
+  sector: agriculture
+  criticality: high
+  description: "Simulation der Auswirkungen einer Soja-Lieferkettenunterbrechung auf die europäische Futtermittel- und Fleischproduktion"
+
+entities:
+  # Produktion
+  - id: brazil_farms
+    type: region
+    name: "Sojaanbau Brasilien"
+    sector: agriculture
+    location: Brazil
+    vulnerability: 0.6
+
+  - id: argentina_farms
+    type: region
+    name: "Sojaanbau Argentinien"
+    sector: agriculture
+    location: Netherlands
+    vulnerability: 0.5
+
+  - id: us_farms
+    type: region
+    name: "Sojaanbau USA"
+    sector: agriculture
+    location: United States
+    vulnerability: 0.3
+
+  # Logistik-Infrastruktur
+  - id: santos_port
+    type: infrastructure
+    name: "Hafen Santos"
+    sector: logistics
+    location: Brazil
+    vulnerability: 0.7
+
+  - id: paranagua_port
+    type: infrastructure
+    name: "Hafen Paranaguá"
+    sector: logistics
+    location: Brazil
+    vulnerability: 0.65
+
+  - id: rotterdam_port
+    type: infrastructure
+    name: "Hafen Rotterdam"
+    sector: logistics
+    location: Netherlands
+    vulnerability: 0.3
+
+  - id: hamburg_port
+    type: infrastructure
+    name: "Hafen Hamburg"
+    sector: logistics
+    location: Germany
+    vulnerability: 0.3
+
+  # Verarbeitung
+  - id: eu_oil_mills
+    type: manufacturer
+    name: "EU Ölmühlen"
+    sector: processing
+    location: EU
+    vulnerability: 0.5
+
+  - id: feed_mills
+    type: manufacturer
+    name: "Futtermittelhersteller"
+    sector: processing
+    location: EU
+    vulnerability: 0.6
+
+  # Endverbraucher
+  - id: poultry_farms
+    type: manufacturer
+    name: "Geflügelbetriebe"
+    sector: agriculture
+    location: EU
+    vulnerability: 0.8
+
+  - id: pig_farms
+    type: manufacturer
+    name: "Schweinebetriebe"
+    sector: agriculture
+    location: EU
+    vulnerability: 0.75
+
+  - id: dairy_farms
+    type: manufacturer
+    name: "Milchwirtschaft"
+    sector: agriculture
+    location: EU
+    vulnerability: 0.6
+
+  # Lebensmitteleinzelhandel und Verbraucher
+  - id: food_retail
+    type: service
+    name: "Lebensmitteleinzelhandel"
+    sector: retail
+    location: EU
+    vulnerability: 0.4
+
+  - id: consumers
+    type: region
+    name: "Verbraucher"
+    sector: society
+    location: EU
+    vulnerability: 0.5
+
+  # Resilienz-Mechanismen
+  - id: alternative_protein_sources
+    type: commodity
+    name: "Alternative Proteinquellen (Raps, Sonnenblume, Erbsen)"
+    sector: agriculture
+    location: EU
+    vulnerability: 0.35
+    substitution_potential: 0.2
+    note: "Rapsschrot, Sonnenblumenschrot und Erbsenprotein als Sojaschrot-Substitute"
+
+  - id: soy_oil_market
+    type: commodity
+    name: "Sojaöl-Markt (Nebenprodukt Ölmühlen)"
+    sector: food
+    vulnerability: 0.5
+    note: "~20% Öl, ~80% Schrot bei Sojabohnenverarbeitung"
+
+  - id: us_gulf_ports
+    type: infrastructure
+    name: "US-Golfhäfen (New Orleans, Houston)"
+    sector: logistics
+    location: United States
+    vulnerability: 0.35
+
+  - id: strategic_feed_reserves
+    type: commodity
+    name: "Industrielle Futtermittel-Lagerbestände"
+    sector: agriculture
+    location: EU
+    vulnerability: 0.2
+    capacity: "30-45d Verbrauch"
+
+  # Abhängigkeiten
+  - id: gas_supply
+    type: commodity
+    name: "Erdgasversorgung"
+    sector: energy
+    vulnerability: 0.7
+
+  - id: fertilizer_supply
+    type: commodity
+    name: "Düngemittelversorgung"
+    sector: chemistry
+    vulnerability: 0.6
+
+supply_chains:
+  - id: soy_to_eu_main
+    name: "Soja-Hauptlieferkette Brasilien-EU"
+    stages:
+      - [brazil_farms, santos_port]
+      - [santos_port, rotterdam_port]
+      - [rotterdam_port, eu_oil_mills]
+      - [eu_oil_mills, feed_mills]
+      - [feed_mills, poultry_farms]
+      - [feed_mills, pig_farms]
+      - [feed_mills, dairy_farms]
+      - [eu_oil_mills, soy_oil_market]
+      - [poultry_farms, food_retail]
+      - [pig_farms, food_retail]
+      - [dairy_farms, food_retail]
+      - [food_retail, consumers]
+      - [alternative_protein_sources, feed_mills]
+      - [strategic_feed_reserves, feed_mills]
+    dependencies:
+      - from: eu_oil_mills
+        to: gas_supply
+        type: energy
+        criticality: high
+      - from: brazil_farms
+        to: fertilizer_supply
+        type: input
+        criticality: medium
+      - from: feed_mills
+        to: eu_oil_mills
+        type: input
+        criticality: high
+      - from: poultry_farms
+        to: feed_mills
+        type: input
+        criticality: high
+      - from: pig_farms
+        to: feed_mills
+        type: input
+        criticality: high
+      - from: dairy_farms
+        to: feed_mills
+        type: input
+        criticality: medium
+      - from: alternative_protein_sources
+        to: feed_mills
+        type: substitution
+        substitution_ref: sub_protein_replacement
+        criticality: medium
+      - from: strategic_feed_reserves
+        to: feed_mills
+        type: substitution
+        substitution_ref: sub_strategic_reserves
+        criticality: low
+
+  - id: soy_to_eu_secondary
+    name: "Soja-Nebenlieferkette Paranaguá"
+    stages:
+      - [brazil_farms, paranagua_port]
+      - [paranagua_port, hamburg_port]
+      - [hamburg_port, eu_oil_mills]
+
+  - id: soy_argentina_route
+    name: "Argentinien-Alternativroute"
+    stages:
+      - [argentina_farms, rotterdam_port]
+      - [rotterdam_port, eu_oil_mills]
+
+  - id: soy_us_emergency_route
+    name: "USA-Notfall-Lieferkette"
+    stages:
+      - [us_farms, us_gulf_ports]
+      - [us_gulf_ports, rotterdam_port]
+      - [rotterdam_port, eu_oil_mills]
+    dependencies:
+      - from: eu_oil_mills
+        to: us_farms
+        type: input
+        criticality: medium
+
+  # Feedback-Schleifen
+  - id: feedback_loops_chain
+    name: "Feedback-Schleifen (Rückkopplungseffekte)"
+    stages:
+      - [consumers, feed_mills]
+      - [poultry_farms, feed_mills]
+      - [pig_farms, feed_mills]
+    dependencies:
+      - from: feed_mills
+        to: poultry_farms
+        type: demand
+        criticality: medium
+        note: "Bestandsabbau reduziert Futternachfrage"
+      - from: feed_mills
+        to: consumers
+        type: demand
+        criticality: medium
+        note: "Fleischsubstitution reduziert Nachfrage"
+
+substitutions:
+
+  # Produktsubstitution: Sojaschrot → alternative Proteinquellen
+  - id: sub_protein_replacement
+    from: eu_oil_mills
+    to: alternative_protein_sources
+    type: product
+
+    coverage: 0.20              # Max. 20% des Sojaschrot-Bedarfs ersetzbar
+    quality_delta: -0.12        # ~12% geringerer Proteingehalt (Raps: 34% vs. Soja: 44%)
+    cost_delta: 0.30            # +30% Mehrkosten bei Preisspitze
+    ramp_up: 21d                # Rezepturumstellung in Futtermittelwerken
+
+    activation:
+      trigger: "feed_price_spike.active"
+      threshold:
+        price_increase: 0.25
+
+    reversible: true
+
+    side_effects:
+      - type: price_pressure
+        target: alternative_protein_sources
+        magnitude: 0.20
+        description: "Mehrnachfrage nach Rapsschrot treibt dessen Preis"
+      - type: quality_loss
+        target: poultry_farms
+        magnitude: -0.05
+        description: "Geflügel reagiert sensibler auf Proteingehalt als Schweine"
+
+    dependency_overlap:
+      - fertilizer_supply       # Raps/Sonnenblume brauchen denselben Dünger
+      - gas_supply              # Trocknung der Ölsaaten ebenfalls gasabhängig
+
+    reference: "UFOP 2022: Rapsschrot-Substitutionspotenzial ~15-20% bei Sojapreisschocks"
+
+  # Lieferantensubstitution: Brasilien → Argentinien
+  - id: sub_supplier_argentina
+    from: brazil_farms
+    to: argentina_farms
+    type: supplier
+
+    coverage: 0.15
+    quality_delta: 0.0          # Gleiche Qualität (GM-Soja, ähnlicher Standard)
+    cost_delta: 0.15
+    ramp_up: 14d                # Sofortige Umleitung von Handelsströmen möglich
+
+    activation:
+      trigger: "soy_export_reduction.active"
+
+    reversible: true
+
+    side_effects:
+      - type: correlated_risk
+        description: "Bei gleichzeitiger La-Niña-Dürre auch AR betroffen (2021/22 tatsächlich eingetreten)"
+
+    dependency_overlap:
+      - fertilizer_supply       # Argentinische Betriebe ebenfalls düngemittelabhängig
+
+    reference: "USDA GATS 2022: Argentinien kompensiert BR-Ausfälle teilweise, korreliertes Klimarisiko"
+
+  # Lieferantensubstitution: Brasilien → USA (Notfall)
+  - id: sub_supplier_usa
+    from: brazil_farms
+    to: us_farms
+    type: supplier
+
+    coverage: 0.25
+    quality_delta: 0.0
+    cost_delta: 0.25            # Längere Route, höhere Frachtkosten
+    ramp_up: 30d                # Handelsverträge + Verschiffungsplanung
+
+    activation:
+      trigger: "soy_export_reduction.active"
+      threshold:
+        duration_min: 30d       # Erst nach 30 Tagen anhaltender Störung
+
+    reversible: true
+    side_effects: []
+    dependency_overlap: []      # USA hat unabhängiges Klimarisiko → echte Diversifikation
+
+    reference: "USA größter Soja-Exporteur weltweit, Golfhäfen für EU-Verschiffung geeignet"
+
+  # Routensubstitution: Santos → Paranaguá
+  - id: sub_route_paranagua
+    from: santos_port
+    to: paranagua_port
+    type: route
+
+    coverage: 0.35
+    quality_delta: 0.0
+    cost_delta: 0.08
+    ramp_up: 7d                 # Reedereien können schnell umplanen
+
+    activation:
+      trigger: "port_congestion.active"
+
+    reversible: true
+    side_effects: []
+
+    reference: "Paranaguá: zweitgrößter brasilianischer Soja-Exporthafen"
+
+  # Nachfrageseitige Substitution: Fleisch → Pflanzlich
+  - id: sub_consumer_plant_based
+    from: food_retail
+    to: consumers
+    type: product
+    direction: demand
+
+    coverage: 0.08
+    quality_delta: 0.0
+    cost_delta: 0.0
+    ramp_up: 14d
+
+    activation:
+      trigger: "consumer_price_increase.active"
+      threshold:
+        price_increase: 0.15
+
+    reversible: true
+
+    side_effects:
+      - type: demand_reduction
+        target: feed_mills
+        magnitude: -0.12
+        description: "Weniger Fleisch → weniger Futtermittelnachfrage"
+
+    reference: "DGE 2022: Fleischkonsum DE -4,2%, bei stärkeren Preissteigerungen bis -8%"
+
+  # Puffersubstitution: Strategische Lagerbestände
+  - id: sub_strategic_reserves
+    from: strategic_feed_reserves
+    to: feed_mills
+    type: buffer
+
+    coverage: 0.12
+    quality_delta: 0.0
+    cost_delta: 0.0
+    ramp_up: 3d
+    duration_max: 45d
+
+    activation:
+      trigger: "feed_price_spike.active"
+
+    reversible: false
+
+    side_effects:
+      - type: depletion
+        description: "Nach Nutzung: Lager müssen zu erhöhten Preisen wiederbefüllt werden"
+
+    reference: "Typische Lagerreichweite EU-Futtermittelindustrie 30-45 Tage"
+
+events:
+  - id: brazil_drought
+    name: "Dürre Brasilien"
+    type: natural_disaster
+    trigger:
+      target: brazil_farms
+      probability: 0.15
+    impact:
+      supply: "-40%"
+      duration: 90d
+    causes: [soy_export_reduction, fertilizer_demand_spike]
+    reference: "Dürre 2021/2022 Südbrasilien (La Niña) - Ertragsrückgang 42-56% regional (Rio Grande do Sul, Paraná)"
+
+  - id: soy_export_reduction
+    name: "Soja-Exportrückgang"
+    type: market_shock
+    trigger:
+      target: santos_port
+      condition: "brazil_drought.active"
+    impact:
+      supply: "-12%"
+      duration: 120d
+    causes: [feed_price_spike]
+    reference: "CONAB/USDA 2022: Exportrückgang ~9-12% (78,7 vs. 86,1 Mio. t)"
+
+  - id: port_congestion
+    name: "Hafenstau Santos"
+    type: infrastructure_failure
+    trigger:
+      target: santos_port
+      probability: 0.25
+    impact:
+      supply: "-20%"
+      duration: 30d
+    causes: [feed_price_spike, port_route_shift]
+    reference: "Regelmäßige Engpässe während Erntesaison, 88 Schiffe Wartezeit Feb 2022"
+
+  - id: feed_price_spike
+    name: "Futtermittelpreisanstieg"
+    type: market_shock
+    trigger:
+      target: feed_mills
+      condition: "soy_export_reduction.active"
+    impact:
+      price: "+45%"
+      duration: 180d
+    causes: [livestock_pressure, alternative_protein_activation, reserve_release]
+    reference: "FEFAC/World Grain 2022: Futtermittelpreise +31-50%, Spitzenwerte höher"
+
+  - id: livestock_pressure
+    name: "Druck auf Tierproduktion"
+    type: market_shock
+    trigger:
+      target: poultry_farms
+      condition: "feed_price_spike.active"
+    impact:
+      supply: "-9%"
+      price: "+20%"
+      duration: 240d
+    causes: [consumer_price_increase, feed_demand_reduction]
+    reference: "Destatis 2022: Fleischproduktion -8,1% (Schwein -9,6%, Geflügel -2,9%)"
+
+  - id: gas_price_spike
+    name: "Gaspreis-Explosion"
+    type: market_shock
+    trigger:
+      target: gas_supply
+      probability: 0.2
+    impact:
+      price: "+200%"
+      duration: 180d
+    causes: [ammonia_halt, oil_mill_slowdown]
+    reference: "Gaskrise 2022"
+
+  - id: ammonia_halt
+    name: "Ammoniak-Produktionsstopp"
+    type: infrastructure_failure
+    trigger:
+      target: fertilizer_supply
+      condition: "gas_price_spike.active"
+    impact:
+      supply: "-70%"
+      duration: 90d
+    causes: [fertilizer_demand_spike]
+    reference: "BASF/Yara Produktionsstopps 2022"
+
+  - id: oil_mill_slowdown
+    name: "Ölmühlen-Drosselung"
+    type: infrastructure_failure
+    trigger:
+      target: eu_oil_mills
+      condition: "gas_price_spike.active"
+    impact:
+      supply: "-30%"
+      duration: 60d
+    causes: [soy_oil_shortage, feed_price_spike]
+    reference: "Geschätzt: Gaspreisbedingte Drosselung EU-Ölmühlen 2022 (ADM/Cargill)"
+
+  - id: fertilizer_demand_spike
+    name: "Düngemittel-Nachfragespitze"
+    type: market_shock
+    trigger:
+      target: fertilizer_supply
+      condition: "brazil_drought.active"
+    impact:
+      demand: "+40%"
+      price: "+80%"
+      duration: 120d
+
+  # Fehlende Event-Definition (war in Cascade referenziert)
+  - id: consumer_price_increase
+    name: "Verbraucherpreis-Erhöhung"
+    type: market_shock
+    trigger:
+      target: consumers
+      condition: "livestock_pressure.active"
+    impact:
+      price: "+18%"
+      duration: 240d
+    causes: [consumer_substitution]
+    reference: "Destatis: Nahrungsmittelpreise 2022 +13,4%, Fleisch +15-20%"
+
+  # Resilienz-Events
+  - id: alternative_protein_activation
+    name: "Alternative Proteinquellen aktiviert"
+    type: market_shock
+    trigger:
+      target: alternative_protein_sources
+      condition: "feed_price_spike.active"
+    impact:
+      supply: "+8%"
+      price: "+30%"
+      duration: 120d
+    substitution_ref: sub_protein_replacement
+    reference: "Rapsschrot/Sonnenblumenschrot-Substitution bei Sojapreisschocks, ~20% Potenzial"
+
+  - id: reserve_release
+    name: "Industrielle Lagerbestände freigegeben"
+    type: market_shock
+    trigger:
+      target: strategic_feed_reserves
+      condition: "feed_price_spike.active"
+    impact:
+      supply: "+12%"
+      duration: 45d
+    substitution_ref: sub_strategic_reserves
+    reference: "Futtermittellager bei Ölmühlen und Mischfutterherstellern ~30-45 Tage Reichweite"
+
+  - id: port_route_shift
+    name: "Umleitung auf Alternativhäfen"
+    type: infrastructure_failure
+    trigger:
+      target: paranagua_port
+      condition: "port_congestion.active"
+    impact:
+      supply: "-5%"
+      duration: 30d
+    substitution_ref: sub_route_paranagua
+    reference: "Verlagerung Santos → Paranaguá/Hamburg bei Hafenstau"
+
+  - id: argentina_supply_increase
+    name: "Argentinien erhöht Sojaexporte"
+    type: market_shock
+    trigger:
+      target: argentina_farms
+      condition: "soy_export_reduction.active"
+    impact:
+      supply: "+10%"
+      price: "+15%"
+      duration: 90d
+    substitution_ref: sub_supplier_argentina
+    reference: "Argentinien kompensiert teilweise bei Brasilienausfällen (außer bei eigener Dürre)"
+
+  - id: us_supply_activated
+    name: "US-Soja-Notlieferungen aktiviert"
+    type: market_shock
+    trigger:
+      target: us_farms
+      condition: "soy_export_reduction.active AND soy_export_reduction.duration > 30d"
+    impact:
+      supply: "+15%"
+      price: "+25%"
+      duration: 120d
+    substitution_ref: sub_supplier_usa
+    reference: "USA größter Soja-Exporteur, Umleitung über Golfhäfen nach EU möglich"
+
+  - id: soy_oil_shortage
+    name: "Sojaöl-Engpass"
+    type: market_shock
+    trigger:
+      target: soy_oil_market
+      condition: "oil_mill_slowdown.active OR soy_export_reduction.active"
+    impact:
+      supply: "-25%"
+      price: "+60%"
+      duration: 90d
+    causes: [consumer_price_increase]
+    reference: "Speiseölkrise 2022: Sojaöl +85%, Nebenprodukt der Ölmühlen"
+
+  # Feedback-Loop Events
+  - id: consumer_substitution
+    name: "Verbraucher-Substitutionseffekt"
+    type: market_shock
+    trigger:
+      target: food_retail
+      condition: "consumer_price_increase.active"
+    impact:
+      demand: "-8%"
+      duration: 180d
+    causes: [feed_demand_reduction]
+    substitution_ref: sub_consumer_plant_based
+    reference: "Fleischkonsum DE 2022: -4,2% (DGE), Substitution zu pflanzlichen Alternativen"
+
+  - id: feed_demand_reduction
+    name: "Reduzierte Futtermittelnachfrage"
+    type: market_shock
+    trigger:
+      target: feed_mills
+      condition: "livestock_pressure.active AND consumer_substitution.active"
+    impact:
+      demand: "-12%"
+      duration: 120d
+    reference: "Bestandsabbau und Substitution senken Futternachfrage langfristig"
+
+cascades:
+  - id: soy_crisis_cascade
+    name: "Soja-Krisenkaskade"
+    origin: brazil_drought
+    timeline:
+      - at: 0d
+        event: brazil_drought
+        impact:
+          sector: agriculture
+          severity: critical
+
+      - at: 14d
+        event: soy_export_reduction
+        impact:
+          sector: logistics
+          severity: high
+        affects:
+          - santos_port
+
+      - at: 14d
+        event: argentina_supply_increase
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - argentina_farms
+          - rotterdam_port
+
+      - at: 21d
+        event: port_congestion
+        impact:
+          sector: logistics
+          severity: medium
+        affects:
+          - santos_port
+
+      - at: 21d
+        event: port_route_shift
+        impact:
+          sector: logistics
+          severity: low
+        affects:
+          - paranagua_port
+          - hamburg_port
+
+      - at: 28d
+        event: feed_price_spike
+        impact:
+          sector: agriculture
+          severity: critical
+        affects:
+          - feed_mills
+
+      - at: 28d
+        event: reserve_release
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - strategic_feed_reserves
+
+      - at: 35d
+        event: alternative_protein_activation
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - alternative_protein_sources
+
+      - at: 42d
+        event: livestock_pressure
+        impact:
+          sector: agriculture
+          severity: high
+        affects:
+          - poultry_farms
+          - pig_farms
+          - dairy_farms
+
+      - at: 45d
+        event: us_supply_activated
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - us_farms
+          - us_gulf_ports
+          - rotterdam_port
+
+      - at: 60d
+        event: consumer_price_increase
+        impact:
+          sector: retail
+          severity: medium
+        affects:
+          - consumers
+          - food_retail
+
+      - at: 75d
+        event: consumer_substitution
+        impact:
+          sector: retail
+          severity: low
+        affects:
+          - food_retail
+
+      - at: 90d
+        event: feed_demand_reduction
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - feed_mills
+
+    probability: 0.9
+    validation:
+      reference: "Soja-Krise 2022"
+      source: "BMEL Marktberichte, FAO GIEWS"
+      confidence: 0.85
+
+  - id: energy_food_cascade
+    name: "Energie-Lebensmittel-Kaskade"
+    origin: gas_price_spike
+    timeline:
+      - at: 0d
+        event: gas_price_spike
+        impact:
+          sector: energy
+          severity: critical
+
+      - at: 7d
+        event: ammonia_halt
+        impact:
+          sector: chemistry
+          severity: critical
+
+      - at: 14d
+        event: oil_mill_slowdown
+        impact:
+          sector: processing
+          severity: high
+        affects:
+          - eu_oil_mills
+
+      - at: 18d
+        event: soy_oil_shortage
+        impact:
+          sector: food
+          severity: medium
+        affects:
+          - soy_oil_market
+
+      - at: 21d
+        event: feed_price_spike
+        impact:
+          sector: agriculture
+          severity: high
+        affects:
+          - feed_mills
+
+      - at: 21d
+        event: reserve_release
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - strategic_feed_reserves
+
+      - at: 28d
+        event: alternative_protein_activation
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - alternative_protein_sources
+
+      - at: 35d
+        event: livestock_pressure
+        impact:
+          sector: agriculture
+          severity: critical
+        affects:
+          - poultry_farms
+          - pig_farms
+          - dairy_farms
+
+      - at: 50d
+        event: consumer_price_increase
+        impact:
+          sector: retail
+          severity: medium
+        affects:
+          - consumers
+          - food_retail
+
+      - at: 65d
+        event: consumer_substitution
+        impact:
+          sector: retail
+          severity: low
+        affects:
+          - food_retail
+
+    probability: 0.85
+    validation:
+      reference: "Gaskrise 2022"
+      source: "Destatis, BLE Versorgungsbilanzen"
+      confidence: 0.9
+
+  - id: compound_crisis
+    name: "Kombinierte Krise"
+    origin: brazil_drought
+    timeline:
+      - at: 0d
+        event: brazil_drought
+        impact:
+          sector: agriculture
+          severity: critical
+
+      - at: 14d
+        event: gas_price_spike
+        impact:
+          sector: energy
+          severity: critical
+
+      - at: 28d
+        event: soy_export_reduction
+        impact:
+          sector: logistics
+          severity: high
+        affects:
+          - santos_port
+
+      - at: 28d
+        event: argentina_supply_increase
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - argentina_farms
+
+      - at: 35d
+        event: ammonia_halt
+        impact:
+          sector: chemistry
+          severity: critical
+        affects:
+          - fertilizer_supply
+
+      - at: 35d
+        event: oil_mill_slowdown
+        impact:
+          sector: processing
+          severity: high
+        affects:
+          - eu_oil_mills
+
+      - at: 38d
+        event: soy_oil_shortage
+        impact:
+          sector: food
+          severity: high
+        affects:
+          - soy_oil_market
+
+      - at: 42d
+        event: feed_price_spike
+        impact:
+          sector: agriculture
+          severity: critical
+        affects:
+          - feed_mills
+
+      - at: 42d
+        event: reserve_release
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - strategic_feed_reserves
+
+      - at: 45d
+        event: alternative_protein_activation
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - alternative_protein_sources
+
+      - at: 56d
+        event: livestock_pressure
+        impact:
+          sector: agriculture
+          severity: critical
+        affects:
+          - poultry_farms
+          - pig_farms
+          - dairy_farms
+
+      - at: 60d
+        event: us_supply_activated
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - us_farms
+          - us_gulf_ports
+
+      - at: 70d
+        event: consumer_price_increase
+        impact:
+          sector: retail
+          severity: high
+        affects:
+          - consumers
+          - food_retail
+
+      - at: 85d
+        event: consumer_substitution
+        impact:
+          sector: retail
+          severity: medium
+        affects:
+          - food_retail
+
+      - at: 100d
+        event: feed_demand_reduction
+        impact:
+          sector: agriculture
+          severity: low
+        affects:
+          - feed_mills
+
+    probability: 0.3
+    validation:
+      reference: "Hypothetische Kombination basierend auf 2022-Ereignissen"
+      confidence: 0.6

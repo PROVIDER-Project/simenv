@@ -12,10 +12,10 @@ and ``active`` is true if any instance is active. Ports produce no recorded rows
 so they carry no ticks (``hasRecordedData: false``), exactly as the frontend
 expects.
 
-Geography is deliberately NOT emitted: placement is the frontend gazetteer's job
-(keyed by the PDL entity ids carried in ``entityIds``). This is the geolocatable
-projection of the roster graph — sea crossings are drawn endpoint-to-endpoint
-rather than routed through sea-lane agents, which have no single map location.
+Entity placements declared in the PDL or roster are emitted with their entity ids.
+Entities without coordinates retain the frontend gazetteer fallback. Sea crossings
+are drawn endpoint-to-endpoint rather than routed through sea-lane agents, which
+have no single map location.
 
 Usage:
     python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--output FILE]
@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,10 +69,53 @@ def _entity_metadata(pdl_path: Path) -> dict[str, dict]:
     return {entity["id"]: dict(entity) for entity in entities}
 
 
+def _entity_placement(entity_id: str, entity: dict) -> dict | None:
+    fields = ("lat", "lng", "illustrative")
+    present = [field in entity for field in fields]
+    if not any(present):
+        return None
+    if not all(present):
+        logger.error("incomplete placement for entity %r", entity_id)
+        raise ValueError(f"incomplete placement for entity {entity_id!r}")
+
+    lat_raw = entity["lat"]
+    lng_raw = entity["lng"]
+    illustrative = entity["illustrative"]
+    if (
+        isinstance(lat_raw, bool)
+        or not isinstance(lat_raw, (int, float))
+        or isinstance(lng_raw, bool)
+        or not isinstance(lng_raw, (int, float))
+    ):
+        logger.error("non-numeric placement for entity %r", entity_id)
+        raise ValueError(f"non-numeric placement for entity {entity_id!r}")
+    if not isinstance(illustrative, bool):
+        logger.error("placement flag for entity %r must be boolean", entity_id)
+        raise ValueError(f"invalid placement flag for entity {entity_id!r}")
+
+    lat = float(lat_raw)
+    lng = float(lng_raw)
+    if not math.isfinite(lat) or not math.isfinite(lng):
+        logger.error("non-finite placement for entity %r", entity_id)
+        raise ValueError(f"non-finite placement for entity {entity_id!r}")
+    if not -90.0 <= lat <= 90.0 or not -180.0 <= lng <= 180.0:
+        logger.error("out-of-range placement for entity %r", entity_id)
+        raise ValueError(f"out-of-range placement for entity {entity_id!r}")
+
+    return {
+        "entityId": entity_id,
+        "label": str(entity["name"]),
+        "lat": lat,
+        "lng": lng,
+        "illustrative": illustrative,
+    }
+
+
 def _node_metadata(entry, entities: dict[str, dict]) -> dict:
     node_id = entry.archetype.name
     entity_ids = list(entry.entity_ids)
     labels: list[str] = []
+    placements: list[dict] = []
     unresolved: list[str] = []
     for entity_id in entity_ids:
         entity = entities.get(entity_id)
@@ -80,6 +124,9 @@ def _node_metadata(entry, entities: dict[str, dict]) -> dict:
             unresolved.append(entity_id)
         else:
             labels.append(str(label))
+            placement = _entity_placement(entity_id, entity)
+            if placement is not None:
+                placements.append(placement)
     if not entity_ids or unresolved:
         logger.error(
             "unresolved export metadata for roster node %r (entity ids: %s, unresolved: %s)",
@@ -91,6 +138,7 @@ def _node_metadata(entry, entities: dict[str, dict]) -> dict:
         "label": " / ".join(labels),
         "role": entry.archetype.role,
         "entityIds": entity_ids,
+        "placements": placements,
         "hasRecordedData": entry.archetype.role in _PROPS_BY_ROLE,
     }
 

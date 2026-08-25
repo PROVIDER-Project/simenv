@@ -1,14 +1,15 @@
 /**
- * Gazetteer — the frontend coordinate authority (locked decision).
+ * Gazetteer — fallback coordinates for entities without declared placements.
  *
- * Coordinates live HERE, keyed by PDL entity id, NOT in any DataSource. lat/lon
- * are ported from branch 21's `visualization/config/layout.py` (`GROUP_ANCHORS`,
- * `PORTS`) — projection-independent, so they carry to the globe unchanged. The
+ * PDL/roster coordinates reach the frontend on bundle nodes and take precedence.
+ * Fallbacks live HERE, keyed by PDL entity id. Their lat/lon values are ported
+ * from branch 21's `visualization/config/layout.py` (`GROUP_ANCHORS`, `PORTS`) —
+ * projection-independent, so they carry to the globe unchanged. The
  * equirectangular `project()` from that file is dead on a globe and not ported.
  *
  * This is explicitly "approximate geographic positions — not GIS accurate": some
- * positions are real (ports, growing regions), others are illustrative (EU
- * processing nodes and synthetic hubs have no location in the sim data).
+ * positions are real (ports, growing regions), others are illustrative. Entity
+ * placements declared in the PDL/roster take precedence over this fallback.
  *
  * Resolution follows the THREE-outcome rule (never two):
  *   1. Known entity      -> real coordinates, rendered normally.
@@ -29,10 +30,10 @@ export interface GazEntry {
 }
 
 /**
- * PDL entity id -> position. Ports and growing regions are real; EU processing
- * entities are illustrative (no location in the sim). The three livestock
- * entities are given distinct illustrative spots around the branch-21 EuFarmers
- * anchor (46.5, 2.5) so the pooled `eu_farmers` node splits into three markers.
+ * Fallback position by PDL entity id. Ports and growing regions are real; EU
+ * processing entities are illustrative (no location in the sim). The three
+ * livestock entities are given distinct illustrative spots around the branch-21
+ * EuFarmers anchor (46.5, 2.5) so the pooled node splits into three markers.
  */
 export const GAZETTEER: Record<string, GazEntry> = {
   // Producers — real growing regions
@@ -54,15 +55,6 @@ export const GAZETTEER: Record<string, GazEntry> = {
   poultry_farms: { lat: 47.6, lng: 1.2, label: 'EU poultry farms', illustrative: true },
   pig_farms: { lat: 46.4, lng: 3.6, label: 'EU pig farms', illustrative: true },
   dairy_farms: { lat: 45.4, lng: 2.0, label: 'EU dairy farms', illustrative: true },
-}
-
-/**
- * Synthetic hubs have no PDL entity, so they are keyed by roster list name and
- * are always illustrative (they are model constructs, not places).
- */
-export const SYNTHETIC_PLACEMENTS: Record<string, GazEntry> = {
-  wholesalers: { lat: -23.0, lng: -47.0, label: 'Wholesalers (hub)', illustrative: true },
-  feed_traders: { lat: 47.5, lng: 16.0, label: 'Feed traders (hub)', illustrative: true },
 }
 
 /** A single rendered marker (one node may yield several — see the pool split). */
@@ -112,9 +104,9 @@ function centroid(coords: GeoCoord[]): GeoCoord {
 }
 
 /**
- * Resolve bundle nodes + edges into renderable markers + resolved edges, applying
- * the three-outcome rule. Unknown entities are dropped and reported (outcome 3);
- * an edge whose source or target has no placement is likewise dropped.
+ * Resolve bundle nodes + edges into renderable markers + resolved edges. Declared
+ * placements win over the fallback gazetteer. Unknown entities are dropped and
+ * reported; an edge whose endpoint has no placement is likewise dropped.
  */
 export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
   const markers: Marker[] = []
@@ -125,19 +117,12 @@ export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
     const placed: GeoCoord[] = []
 
     if (node.entityIds.length === 0) {
-      // Synthetic hub — keyed by list name.
-      const g = SYNTHETIC_PLACEMENTS[node.id]
-      if (g) {
-        markers.push(toMarker(node.id, node, g))
-        placed.push({ lat: g.lat, lng: g.lng })
-      } else {
-        unplaced.push({ kind: 'node', id: node.id, reason: 'synthetic hub with no placement' })
-      }
+      unplaced.push({ kind: 'node', id: node.id, reason: 'node has no entity ids' })
     } else {
       // One marker per entity id. A single-entity node yields one; a pooled node
       // (e.g. eu_farmers) yields several — the required 3-way livestock split.
       for (const eid of node.entityIds) {
-        const g = GAZETTEER[eid]
+        const g = node.placements.find((placement) => placement.entityId === eid) ?? GAZETTEER[eid]
         if (g) {
           const markerId = node.entityIds.length > 1 ? `${node.id}::${eid}` : node.id
           markers.push(toMarker(markerId, node, g))

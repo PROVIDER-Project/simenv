@@ -16,8 +16,8 @@
  *
  *  - `eu_farmers` pools three PDL entities (poultry/pig/dairy) into ONE recorded
  *    series. On the map they may appear as several illustrative markers sharing
- *    that series; `positionIsIllustrative` marks any node whose coordinate is a
- *    chosen approximation rather than a real location.
+ *    that series. Declared entity placements travel with the node; entities that
+ *    do not declare coordinates still use the frontend gazetteer.
  *
  *  - Per-tick fields differ by node type, so `Tick.values` is a keyed record
  *    rather than a fixed struct. That is the honest shape of the CSV data.
@@ -27,6 +27,13 @@
 export interface GeoCoord {
   lat: number
   lng: number
+}
+
+/** A coordinate declared for one PDL or roster entity. */
+export interface EntityPlacement extends GeoCoord {
+  entityId: string
+  label: string
+  illustrative: boolean
 }
 
 /**
@@ -44,20 +51,14 @@ export interface Node {
   role: string
   /** PDL or sidecar entity ids this node represents. */
   entityIds: string[]
+  /** Entity coordinates supplied by the PDL/roster; empty means use the gazetteer. */
+  placements: EntityPlacement[]
   /**
    * False for ports and sea-lanes, which exist structurally but produce no
    * per-tick rows. Views must not expect a time-series for these nodes.
    */
   hasRecordedData: boolean
 }
-
-/*
- * NOTE — coordinates are deliberately NOT on `Node`. Per the locked decision,
- * placement is a FRONTEND concern resolved from `gazetteer.ts` keyed by PDL
- * entity id, so a DataSource (fixture now, exported JSON / Postgres later) never
- * carries geography. This is the documented seam boundary: swapping the data
- * source can never move a marker.
- */
 
 /**
  * A directed flow between two nodes in the derived supply-chain graph.
