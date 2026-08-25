@@ -322,6 +322,11 @@ class Transport(SupplyChainAgent):
         for lane in sorted(active_upstream, key=lambda a: a.unit_price):
             admitted = min(max(0.0, lane.quantity_available), remaining)
             lane.quantity_available = admitted
+            lane_effective_capacity = lane.capacity * lane.effective("capacity")
+            lane.utilisation = (
+                lane.quantity_available / lane_effective_capacity
+                if lane_effective_capacity > 0.0 else 0.0
+            )
             purchased_value += lane.unit_price * admitted
             remaining -= admitted
 
