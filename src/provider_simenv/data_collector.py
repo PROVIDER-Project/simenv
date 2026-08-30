@@ -29,6 +29,16 @@ _PROPS_BY_ROLE = {
 }
 
 
+def result_table_name(list_name: str) -> str:
+    """
+    Melodie's output name for a recorded agent list:
+    ``brazil_farms`` -> ``Result_Simulator_BrazilFarms``.
+    Single-sourced here so the CSV files, the export bundle,
+    and the Postgres tick tables all agree on one name per list.
+    """
+    return "Result_Simulator_" + "".join(p.title() for p in list_name.split("_"))
+
+
 class SupplyChainDataCollector(DataCollector):
     """
     collects state snapshots every simulation step

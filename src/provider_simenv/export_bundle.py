@@ -33,7 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 from .agents import Transport
-from .data_collector import _PROPS_BY_ROLE
+from .data_collector import _PROPS_BY_ROLE, result_table_name
 from .pdl_loader import PDLLoader
 from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
 
@@ -45,10 +45,6 @@ SUM_COLS = {
 }
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
-
-
-def _csv_table(list_name: str) -> str:
-    return "Result_Simulator_" + "".join(p.title() for p in list_name.split("_"))
 
 
 def _resolve_pdl_path(pdl: str) -> Path:
@@ -243,7 +239,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
         props = _PROPS_BY_ROLE.get(entry.archetype.role)
         if props is None:
             continue
-        path = os.path.join(input_dir, f"{_csv_table(node_id)}.csv")
+        path = os.path.join(input_dir, f"{result_table_name(node_id)}.csv")
         if not os.path.exists(path):
             logger.warning("missing CSV for %s: %s", node_id, path)
             continue

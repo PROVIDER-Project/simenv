@@ -20,35 +20,13 @@ import logging
 
 import pandas as pd
 
-from .agents import (
-    ROLE_CONSUMER,
-    ROLE_FEED_MANUFACTURER,
-    ROLE_FEED_TRADER,
-    ROLE_PROCESSOR,
-    ROLE_PRODUCER,
-    ROLE_WHOLESALER,
-)
-from .data_collector import _PROPS_BY_ROLE
+from .data_collector import _PROPS_BY_ROLE, result_table_name
 
 logger = logging.getLogger(__name__)
 
-AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
-    "Result_Simulator_BraFarmers":        ("brazil_farms",        list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
-    "Result_Simulator_ArgFarmers":        ("argentina_farms",     list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
-    "Result_Simulator_UsaFarmers":        ("us_farms",            list(_PROPS_BY_ROLE[ROLE_PRODUCER])),
-    "Result_Simulator_Processors":        ("processors",          list(_PROPS_BY_ROLE[ROLE_PROCESSOR])),
-    "Result_Simulator_FeedManufacturers": ("feed_manufacturers",  list(_PROPS_BY_ROLE[ROLE_FEED_MANUFACTURER])),
-    "Result_Simulator_FeedTraders":       ("feed_traders",        list(_PROPS_BY_ROLE[ROLE_FEED_TRADER])),
-    "Result_Simulator_EuFarmers":         ("eu_farmers",          list(_PROPS_BY_ROLE[ROLE_CONSUMER])),
-}
-
-ROLE_AGENT_TABLES: dict[str, tuple[str, list[str]]] = {
-    "Result_Simulator_Wholesalers": (
-        ROLE_WHOLESALER,
-        list(_PROPS_BY_ROLE[ROLE_WHOLESALER]),
-    ),
-}
-
+# no table map here: every tracked list comes from the PDL roster,
+# and its table name derives from the entity id via result_table_name(),
+# so the Postgres tables carry the same names as the Melodie CSVs.
 ENVIRONMENT_TABLE = "Result_Simulator_Environment"
 ENVIRONMENT_PROPS = [
     "soja_price", "feed_price", "shock_scale", "drought_severity",
@@ -59,17 +37,17 @@ class TickWriter:
     """
     Writes one simulation tick to Postgres per call to write_tick()
 
-    Instantiagte once per simulation run - the constructor truncates
-    the tick tables so each run starts clean.
+    Instantiate once per simulation run - the first write_tick() drops the
+    roster's tick tables so each run starts clean.
     """
 
-    def __init__(self, engine) -> None:
+    def __init__(self, engine, reset: bool = True) -> None:
         self.engine = engine
         self.enabled = True
-        self._reset_tables()
+        self._pending_reset = reset
 
     @classmethod
-    def from_config(cls, cfg) -> "TickWriter":
+    def from_config(cls, cfg, *, reset: bool = True) -> "TickWriter":
         """
         Builds a TickWriter from PostgresDBConfig.
         Returns a disabled no-op writer if Postgres is unreachable.
@@ -80,7 +58,7 @@ class TickWriter:
             # connection test
             with engine.connect():
                 pass
-            return cls(engine)
+            return cls(engine, reset=reset)
         except ImportError:
             logger.warning("sqlalchemy or psycopg2 not installed")
         except Exception as exc:
@@ -88,6 +66,7 @@ class TickWriter:
         writer = object.__new__(cls)
         writer.engine = None
         writer.enabled = False
+        writer._pending_reset = False
         return writer
 
 
@@ -100,20 +79,27 @@ class TickWriter:
         if not self.enabled:
             return
         try:
+            if self._pending_reset:
+                self._reset_tables(model)
+                self._pending_reset = False
             self._write_agents(model, id_scenario, id_run, t)
             self._write_environment(model.environment, id_scenario, id_run, t)
         except Exception as exc:
             logger.error("error at step %d: %s - disabling tick writes for remainder of this run.", t, exc)
             self.enabled = False
 
-    def _reset_tables(self) -> None:
+    def _reset_tables(self, model) -> None:
         """
-        Drop all tick tables at the start of a run so stale data
-        from the previous run doesn't pollute queries.
+        Drop the tick tables this run writes.
+        Derived from the PDL roster, so stale data from the previous run doesn't pollute queries.
         """
         try:
             from sqlalchemy import text
-            tables = list(AGENT_TABLES) + list(ROLE_AGENT_TABLES) + [ENVIRONMENT_TABLE]
+            tables = [
+                result_table_name(entry.archetype.name)
+                for entry in model._roster
+                if _PROPS_BY_ROLE.get(entry.archetype.role) is not None
+            ] + [ENVIRONMENT_TABLE]
             with self.engine.connect() as conn:
                 for table in tables:
                     conn.execute(text(f'DROP TABLE IF EXISTS "{table}"'))
@@ -123,9 +109,22 @@ class TickWriter:
 
 
     def _write_agents(self, model, id_scenario: int, id_run: int, t: int) -> None:
-        """Write one row per active agent for each tracked agent list."""
-        for table_name, (list_attr, props) in AGENT_TABLES.items():
-            agent_list = getattr(model, list_attr)
+        """
+        Write one row per active agent for every roster list with tracked props.
+        The table name derives from the PDL entity ID, so a PDL declaring other
+        entities writes the matching tables without a code change.
+        """
+        for entry in model._roster:
+            props = _PROPS_BY_ROLE.get(entry.archetype.role)
+            if props is None:
+                continue
+
+            node_id = entry.archetype.name
+            agent_list = getattr(model, node_id, None)
+            if agent_list is None:
+                logger.warning("[SKIPPED] roster entry %r has no model list", node_id)
+                continue
+
             rows = []
             for agent in agent_list.agents:
                 row = {
@@ -140,30 +139,12 @@ class TickWriter:
 
             if rows:
                 df = pd.DataFrame(rows)
-                df.to_sql(table_name, self.engine, if_exists="append", index=False)
-
-        for table_name, (role, props) in ROLE_AGENT_TABLES.items():
-            rows = []
-            for entry in model._roster:
-                if entry.archetype.role != role:
-                    continue
-                node_id = entry.archetype.name
-                agent_list = getattr(model, node_id)
-                for agent in agent_list.agents:
-                    row = {
-                        "id_scenario": id_scenario,
-                        "id_run": id_run,
-                        "period": t,
-                        "node_id": node_id,
-                        "id": agent.id,
-                    }
-                    for prop in props:
-                        row[prop] = getattr(agent, prop, None)
-                    rows.append(row)
-
-            if rows:
-                df = pd.DataFrame(rows)
-                df.to_sql(table_name, self.engine, if_exists="append", index=False)
+                df.to_sql(
+                    result_table_name(node_id),
+                    self.engine,
+                    if_exists="append",
+                    index=False,
+                )
 
 
     def _write_environment(self, env, id_scenario: int, id_run: int, t: int) -> None:

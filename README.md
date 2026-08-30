@@ -237,22 +237,27 @@ ORDER BY id_scenario;
 
 ### Tables written by tick_writer
 
+Table names derive from the PDL entity id (`brazil_farms` ->
+`Result_Simulator_BrazilFarms`), identical to the Melodie CSV names, so a PDL
+declaring different entities produces the matching tables with no code change.
+One table per roster list whose role has recorded properties, plus the
+environment table. For the shipped PDL:
+
 ```
 Result_Simulator_Environment
-Result_Simulator_BraFarmers
-Result_Simulator_ArgFarmers
-Result_Simulator_UsaFarmers
-Result_Simulator_Wholesalers
+Result_Simulator_BrazilFarms
+Result_Simulator_ArgentinaFarms
+Result_Simulator_UsFarms
+Result_Simulator_BrazilWholesaler
+Result_Simulator_ArgentinaWholesaler
+Result_Simulator_UsWholesaler
 Result_Simulator_Processors
 Result_Simulator_FeedManufacturers
 Result_Simulator_FeedTraders
 Result_Simulator_EuFarmers
 ```
 
-Melodie CSV names follow the agent list (`Result_Simulator_BrazilFarms.csv`,
-`ArgentinaFarms`, `UsFarms`). Postgres keeps the keys above.
-
-Tables are dropped and recreated at the start of each full simulation run (first scenario only).
+Tables are dropped and recreated on the first tick of each full simulation run (first scenario only).
 Subsequent scenarios within the same run append to the existing tables.
 
 ---
