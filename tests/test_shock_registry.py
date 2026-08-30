@@ -29,8 +29,12 @@ def test_no_translation_table():
     assert not hasattr(reg, "drought_param")
 
 
-def test_drought_key_is_a_pdl_entity_pair():
-    assert reg.DROUGHT_KEY == ("brazil_farms", "supply")
+def test_registry_names_no_entity():
+    """
+    The registry holds the rule and the field, never a PDL entity id.
+    """
+    assert not hasattr(reg, "DROUGHT_KEY")
+    assert reg.DROUGHT_IMPACT_FIELD == "supply"
 
 
 def test_aggregate_rule_by_field():

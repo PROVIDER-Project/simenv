@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING
 from Melodie import Environment
 
 
-from .agents import ROLE_WHOLESALER
-from .shock_registry import DROUGHT_KEY
+from .agents import ROLE_PRODUCER, ROLE_WHOLESALER
+from .shock_registry import DROUGHT_IMPACT_FIELD
 from .event_tracker import EventTracker
 
 
@@ -87,10 +87,17 @@ class SupplyChainEnvironment(Environment):
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
 
-        # Drought severity is defined as brazil_farms supply degradation (DROUGHT_KEY)
-        bra_scale = self.shock_scales.get(DROUGHT_KEY, 0.0)
-        bra_value = self.get_effective_value(*DROUGHT_KEY)
-        self.drought_severity = (bra_scale * (1.0 - bra_value))
+        # Drought severity: the worst active supply degradation across the PDL's producers,
+        # so a PDL that droughts a different producer reports the right value. A supply increase
+        # is not a drought, so the negative degradation it produces floor at zero.
+        severities = [
+            self.shock_scales.get((eid, DROUGHT_IMPACT_FIELD), 0.0)
+            * (1.0 - self.get_effective_value(eid, DROUGHT_IMPACT_FIELD))
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_PRODUCER
+            for eid in entry.entity_ids
+        ]
+        self.drought_severity = max([0.0, *severities])
 
 
 
