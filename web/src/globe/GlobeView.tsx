@@ -5,7 +5,7 @@ import { arc as arcTok, color, globe as globeTok, marker as markerTok, texture }
 import { arcApex } from './geo'
 import './labels.css'
 
-const SELECTED_MARKER_ID = 'bra_farmers'
+const SELECTED_MARKER_ID = 'brazil_farms'
 
 type LabelKind = 'node' | 'edge'
 type ArcLayer = 'halo' | 'glow' | 'core'

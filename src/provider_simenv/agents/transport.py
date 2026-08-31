@@ -1,10 +1,10 @@
 """
-  role="sa_santos"      Land / port transport: wholesalers (BRA+USA) -> Santos export port
-  role="sa_paranagua"   Land / port transport: wholesalers (BRA+USA) -> Paranagua export port
+  role="sa_santos"      Land / port transport: Brazil originator -> Santos export port
+  role="sa_paranagua"   Land / port transport: Brazil originator -> Paranagua export port
   role="sea_santos"     Maritime transport: Santos -> EU Port (Rotterdam)
   role="sea_paranagua"  Maritime transport: Paranagua -> EU Port (Hamburg)
-  role="sea_arg"        Maritime transport: ARG wholesalers -> EU Port (Rotterdam)
-                        Bypasses SA land transport
+  role="sea_arg"        Maritime transport: Argentina originator -> EU Port (Rotterdam)
+  role="sea_usa"        Maritime transport: US originator -> EU Port (Rotterdam)
   role="eu_rtm"         Land transport: Rotterdam (sea_santos + sea_arg + sea_usa -> processor)
   role="eu_ham"         Land transport: Hamburg (sea_paranagua -> processor)
 
@@ -12,11 +12,8 @@ Transport agents carry the commodity price through and add a service fee:
   unit_price = upstream_unit_price + (fixed_costs / quantity_moved) * (1 + margin)
 
 Volume routing:
-    BRA + USA soy:
-        wholesaler (BRA + USA volume) * santos_share -> transport_sa_santos -> sea_lane_santos
-        wholesaler (BRA + USA volume) * (1 - santos_share) -> transport_sa_paranagua -> sea_lane_paranagua
-    ARG soy:
-        wholesaler arg_volume -> sea_lane_arg (direct, no SA land transport)
+    Brazil soy splits across its declared export ports using entity-keyed shares.
+    Argentina and US originators each feed their own sea lane directly.
 
 sea_santos/arg/usa merge at eu_rtm.
 sea_paranagua arrives at eu_ham.
@@ -27,6 +24,8 @@ Lifecycle:
      binding, fixed_costs, capacity, transit_steps.
   3. agent.post_setup() → starts at full capacity with the initial service fee.
 """
+
+import math
 
 from .base import SupplyChainAgent
 
@@ -87,9 +86,9 @@ class Transport(SupplyChainAgent):
         elif self.role == ROLE_SEA_PARANAGUA:
             self._step_sea_paranagua()
         elif self.role == ROLE_SEA_ARG:
-            self._step_sea_arg()
+            self._move(self.model.upstream("sea_lane_arg"))
         elif self.role == ROLE_SEA_USA:
-            self._step_sea_usa()
+            self._move(self.model.upstream("sea_lane_usa"))
         elif self.role == ROLE_EU_RTM:
             self._step_eu_rtm()
         elif self.role == ROLE_EU_HAM:
@@ -102,7 +101,7 @@ class Transport(SupplyChainAgent):
 
     def _move(self, upstream):
         """
-        Pull an equal share of upstream output, ca at own capacity,
+        Pull an equal share of upstream output, cap at own capacity,
         and compute the all-in price passed to the next chain node.
 
         Capacity is scaled by this agent's "capacity" binding slot (the port
@@ -150,7 +149,53 @@ class Transport(SupplyChainAgent):
             self.unit_price = 0.0
 
 
-    def _move_split(self, upstream_list, share: float, exclude_arg=False, exclude_usa=False):
+    def _route_share(self, list_name: str) -> float:
+        """Normalized share for one of an originator's declared port routes."""
+        adjacency = self.model._flow_adjacency
+        upstream_names = adjacency.get(list_name, ())
+        routes: dict[str, str] = {}
+        for entry in self.model._roster:
+            route_name = entry.archetype.name
+            if entry.archetype.agent_class is not Transport:
+                continue
+            if len(entry.entity_ids) != 1:
+                continue
+            if adjacency.get(route_name, ()) == upstream_names:
+                routes[route_name] = entry.entity_ids[0]
+
+        if list_name not in routes:
+            raise ValueError(f"transport route {list_name!r} has no declared port entity")
+
+        explicit: dict[str, float] = {}
+        unspecified: list[str] = []
+        for route_name, entity_id in routes.items():
+            attr = f"share_{entity_id}"
+            if not hasattr(self.scenario, attr):
+                unspecified.append(route_name)
+                continue
+            value = float(getattr(self.scenario, attr))
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"{attr} must be a finite non-negative route weight")
+            explicit[route_name] = value
+
+        if len(routes) == 1:
+            return 1.0
+        if not explicit:
+            return 1.0 / len(routes)
+
+        weights = dict(explicit)
+        remaining = max(0.0, 1.0 - sum(explicit.values()))
+        if unspecified:
+            default = remaining / len(unspecified)
+            weights.update({route_name: default for route_name in unspecified})
+
+        total = sum(weights.values())
+        if total <= 0.0:
+            raise ValueError("route weights must have a positive total")
+        return weights[list_name] / total
+
+
+    def _move_split(self, upstream_list, share: float):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
         Used to split wholesaler output between Santos and Paranagua.
@@ -171,18 +216,14 @@ class Transport(SupplyChainAgent):
             return
 
         total_volume = sum(a.quantity_available for a in active_upstream)
-        arg_vol = sum(getattr(a, 'arg_volume', 0.0) for a in active_upstream) if exclude_arg else 0.0
-        usa_vol = sum(getattr(a, 'usa_volume', 0.0) for a in active_upstream) if exclude_usa else 0.0
-        routable_volume = total_volume - arg_vol - usa_vol
-
-        if routable_volume <= 0.0:
+        if total_volume <= 0.0:
             self.quantity_available = 0.0
             self.utilisation = 0.0
             self.unit_price = 0.0
             return
 
         # each agent in this port takes an equal slice of the port's share
-        volume_in = (routable_volume * share) / n_self
+        volume_in = (total_volume * share) / n_self
 
         effective_factor = self.effective("capacity")
         effective_capacity = self.capacity * effective_factor
@@ -230,26 +271,22 @@ class Transport(SupplyChainAgent):
 
     def _step_sa_santos(self):
         """
-        Receive soja from wholesalers, move to Santos export port.
+        Receive soja from the Brazil originator, move to Santos export port.
         Port capacity applied as throughput limit.
         """
         self._move_split(
             self.model.upstream("transport_sa_santos"),
-            share=self.scenario.santos_share,
-            exclude_arg=True,
-            exclude_usa=True,
+            share=self._route_share("transport_sa_santos"),
         )
 
     def _step_sa_paranagua(self):
         """
-        Receive soja from wholesalers, move to Paranagua export port.
+        Receive soja from the Brazil originator, move to Paranagua export port.
         Port capacity applied as throughput limit.
         """
         self._move_split(
             self.model.upstream("transport_sa_paranagua"),
-            share=1.0 - self.scenario.santos_share,
-            exclude_arg=True,
-            exclude_usa=True,
+            share=self._route_share("transport_sa_paranagua"),
         )
 
     def _step_sea_santos(self):
@@ -264,110 +301,52 @@ class Transport(SupplyChainAgent):
         """
         self._move(self.model.upstream("sea_lane_paranagua"))
 
-    def _step_sea_arg(self):
-        """
-        Route ARG-origin soja directly from wholesalers to EU port (Rotterdam).
-
-        Bypasses SA land transport entirely
-        Volume = sum of wholesaler.arg_volume across all active wholesalers.
-        Price = wholesaler avg. price applied to ARG-origin portion.
-        """
-        margin = self.scenario.margin_transport
-        active_w = self.model.upstream("sea_lane_arg")
-        n_self = len(self.model.sea_lane_arg.filter(lambda a: a.active))
-
-        if not active_w or n_self == 0:
-            self.quantity_available = 0.0
-            self.utilisation = 0.0
-            self.unit_price = 0.0
-            return
-
-        total_arg = sum(w.arg_volume for w in active_w)
-        if total_arg <= 0.0:
-            self.quantity_available = 0.0
-            self.utilisation = 0.0
-            self.unit_price = 0.0
-            return
-
-        volume_in = total_arg / n_self
-
-        # ARG ports not shocked in current scenarios
-        # capacity_factor=1.0. A future KG param (port_capacity_arg) can be wired in here.
-        effective_capacity = self.capacity
-
-        self.quantity_available = min(volume_in, effective_capacity)
-        self.utilisation = (
-            self.quantity_available / effective_capacity if effective_capacity > 0 else 0.0
-        )
-
-        # upstream price: wholesaler unit_price weighted by each wholesaler's arg_volume
-        total_value = sum(w.unit_price * w.arg_volume for w in active_w)
-        upstream_price = total_value / total_arg
-
-        if self.quantity_available > 0:
-            energy_factor = self.effective("energy")
-            effective_costs = self.fixed_costs * energy_factor
-            freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
-            self.unit_price = upstream_price + freight_fee
-        else:
-            self.unit_price = 0.0
-
-
-    def _step_sea_usa(self):
-        """
-        Route USA-origin soja directly from wholesalers to EU port (Rotterdam).
-
-        Bypasses SA land transport entirely - US soy exits via Gulf Coast ports (New Orleans, Houston)
-        Volume = sum of wholesaler.arg_volume across all active wholesalers.
-        Price = wholesaler avg. price applied to USA-origin portion.
-        """
-        margin = self.scenario.margin_transport
-        active_w = self.model.upstream("sea_lane_usa")
-        n_self = len(self.model.sea_lane_usa.filter(lambda a: a.active))
-
-        if not active_w or n_self == 0:
-            self.quantity_available = 0.0
-            self.utilisation = 0.0
-            self.unit_price = 0.0
-            return
-
-        total_usa = sum(w.usa_volume for w in active_w)
-        if total_usa <= 0.0:
-            self.quantity_available = 0.0
-            self.utilisation = 0.0
-            self.unit_price = 0.0
-            return
-
-        volume_in = total_usa / n_self
-
-        # USA Gulf ports not shocked in current scenarios - capacity_factor = 1.0
-        # Future KG param (port_capacity_us_gulf) can be wired in.
-        effective_capacity = self.capacity
-
-        self.quantity_available = min(volume_in, effective_capacity)
-        self.utilisation = (
-            self.quantity_available / effective_capacity if effective_capacity > 0 else 0.0
-        )
-
-        # Upstream price: wholesaler unit_price weighted by each wholesaler's usa_volume
-        total_value = sum(w.unit_price * w.usa_volume for w in active_w)
-        upstream_price = total_value / total_usa
-
-        if self.quantity_available > 0:
-            energy_factor = self.effective("energy")
-            effective_costs = self.fixed_costs * energy_factor
-            freight_fee = (effective_costs / self.quantity_available) * (1.0 + margin)
-            self.unit_price = upstream_price + freight_fee
-        else:
-            self.unit_price = 0.0
-
     def _step_eu_rtm(self):
         """
-        Rotterdam EU entry point.
-        Receives soja from Santos sea lan, ARG direct, and USA direct.
-        Port capacity shock (port_capacity_rotterdam) applied here.
+        Buy up to Rotterdam's throughput from the cheapest arriving lanes.
+
+        Each upstream lane's quantity_available becomes the volume admitted
+        into Rotterdam this step, so losing lanes expose zero admitted flow.
         """
-        self._move(self.model.upstream("transport_eu_rtm"))
+        upstream = self.model.upstream("transport_eu_rtm")
+        if hasattr(upstream, "filter"):
+            active_upstream = upstream.filter(lambda a: a.active)
+        else:
+            active_upstream = upstream or []
+
+        effective_capacity = self.capacity * self.effective("capacity")
+        demand_target = min(self.capacity, effective_capacity)
+        remaining = max(0.0, demand_target)
+        purchased_value = 0.0
+
+        for lane in sorted(active_upstream, key=lambda a: a.unit_price):
+            admitted = min(max(0.0, lane.quantity_available), remaining)
+            lane.quantity_available = admitted
+            lane_effective_capacity = lane.capacity * lane.effective("capacity")
+            lane.utilisation = (
+                lane.quantity_available / lane_effective_capacity
+                if lane_effective_capacity > 0.0 else 0.0
+            )
+            purchased_value += lane.unit_price * admitted
+            remaining -= admitted
+
+        purchased = demand_target - remaining
+        self.quantity_available = max(0.0, purchased)
+        self.utilisation = (
+            self.quantity_available / effective_capacity
+            if effective_capacity > 0.0 else 0.0
+        )
+
+        if self.quantity_available > 0.0:
+            upstream_price = purchased_value / self.quantity_available
+            energy_factor = self.effective("energy")
+            effective_costs = self.fixed_costs * energy_factor
+            freight_fee = (
+                effective_costs / self.quantity_available
+            ) * (1.0 + self.scenario.margin_transport)
+            self.unit_price = upstream_price + freight_fee
+        else:
+            self.unit_price = 0.0
 
 
     def _step_eu_ham(self):

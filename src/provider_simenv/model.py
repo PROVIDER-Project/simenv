@@ -49,7 +49,7 @@ class SupplyChainModel(Model):
         self.data_collector = self.create_data_collector(SupplyChainDataCollector)
 
         # PDL-driven roster: one AgentList per archetype, bound to its model
-        # attribute name (self.bra_farmers, ...) so the rest of the model still
+        # attribute name (self.brazil_farms, ...) so the rest of the model still
         # references lists by name. Replaces the old 16 hardcoded calls.
         self._roster = build_roster(self._roster_pdl_path())
         for entry in self._roster:
@@ -138,9 +138,7 @@ class SupplyChainModel(Model):
         def volume(name: str) -> float:
             return sum(a.quantity_available for a in getattr(self, name).filter(lambda a: a.active))
 
-        # label by role when it's unique among producers, else by list name, so
-        # the shipped PDL stays BRA/ARG/USA but split same-role regions (an extra
-        # arg-role china_farms) don't collide.
+        # label by role when unique among producers, else by list name.
         role_n = {r: sum(1 for n in producers if role_of.get(n, n) == r)
                   for r in {role_of.get(n, n) for n in producers}}
 

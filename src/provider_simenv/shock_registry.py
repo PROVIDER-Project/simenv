@@ -7,8 +7,9 @@ from __future__ import annotations
 
 
 
-# The (entity, impact_field) key, whose supply degradation defines drought severity.
-DROUGHT_KEY: tuple[str, str] = ("brazil_farms", "supply")
+# The impact_field whose degradation defines drought severity. Which entities it
+# applies to come from the PDL roster (every producer), not from this module.
+DROUGHT_IMPACT_FIELD: str = "supply"
 
 def aggregate(impact_field: str, values: list[float]) -> float:
     """

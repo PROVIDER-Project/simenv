@@ -1,10 +1,9 @@
 /**
  * The DataSource seam (Issue #23, locked decision).
  *
- * Every view depends on THIS interface and never on a concrete source. Today the
- * only implementation is `fixtureSource` (hand-written JSON); Batch 5 adds a
- * `staticJsonSource` reading an exported bundle, and a `PostgresSource` follows
- * later when palaestrAI connects. Because views only ever see `DataSource`, those
+ * Every view depends on THIS interface and never on a concrete source. Today
+ * `staticJsonSource` reads the exported bundle; a `PostgresSource` follows later
+ * when palaestrAI connects. Because views only ever see `DataSource`, those
  * swaps touch zero view files — that swappability is the whole point of the seam.
  *
  * The interface is intentionally async (returns a Promise) so a network- or

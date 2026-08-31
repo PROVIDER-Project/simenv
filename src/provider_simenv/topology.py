@@ -1,17 +1,16 @@
 """
 PDL-entity-driven roster and flow wiring (hybrid archetype resolution).
 
-Resolution order for each PDL entity:
-    1. ID_OVERRIDES[id]                  explicit: tuned role/params, or a
-                                         type+sector collision (oil_mills vs feed_mills)
-    2. KIND_ARCHETYPES[(type, sector)]   generic "kind library": a new same-kind
-                                         entity (china_farms) maps with no edits
-    3. EXCLUDE                           in the PDL but deliberately not a node-agent
-                                         (edge origins / not-yet-modelled)
-    4. otherwise                         unmodelled -> skipped
+Resolution order for each entity:
+    1. entity / sidecar declaration      declared mapping, or silent exclusion
+    2. KIND_KEYS[(type, sector)]         fallback when no declaration exists
+    3. otherwise                         unmodelled -> skipped (logged)
 
-Synthetic agents (wholesalers, feed_traders) have no PDL entity and are always
-created. Sea crossings are edges, materialised as sea-lane agents (TRANSITIONAL_SEA).
+Producers are built per entity from {param}_{eid} columns. Non-producers still
+use pooled recipes where the model shares an agent list.
+
+Sidecar entities participate in the roster and flow graph. Sea crossings are
+edges, materialised as sea-lane agents (TRANSITIONAL_SEA).
 
 The model imports build_roster / build_flow_adjacency / execution_order to drive
 create(), setup(), and the per-step loop.
@@ -19,9 +18,11 @@ create(), setup(), and the per-step loop.
 from __future__ import annotations
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -68,25 +69,6 @@ class Archetype:
 
 _ENERGY = {"energy": ("gas_supply", "price")}   # gas price scales freight operating costs
 
-_FARMER_BRA = {
-    "bindings":       {"fertilizer": ("fertilizer_supply", "price")},
-    "scenario_attrs": {"fixed_costs": "fixed_costs_bra_farmer",
-                       "margin":      "margin_bra_farmer",
-                       "size_sigma":  "farm_size_sigma_bra"},
-    "attrs":          {"base_yield": 100.0},    # placeholder; loaded from data later
-}
-_FARMER_ARG = {
-    "scenario_attrs": {"fixed_costs": "fixed_costs_arg_farmer",
-                       "margin":      "margin_arg_farmer",
-                       "size_sigma":  "farm_size_sigma_arg"},
-    "attrs":          {"base_yield": 100.0},
-}
-_FARMER_USA = {
-    "scenario_attrs": {"fixed_costs": "fixed_costs_usa_farmer",
-                       "margin":      "margin_usa_farmer",
-                       "size_sigma":  "farm_size_sigma_usa"},
-    "attrs":          {"base_yield": 100.0},
-}
 _FARMER_EU = {    # end consumer: no margin; base_yield stays 0.0 -> buyer init
     "scenario_attrs": {"fixed_costs": "fixed_costs_eu_farmer",
                        "size_sigma":  "farm_size_sigma_eu"},
@@ -122,25 +104,17 @@ _FEED_TRADER = {
 }
 
 
-# generic kind library: (type, sector) -> default archetype
+# Place-specific transport recipes preserve distinct peer lists and cost groups.
 KIND_ARCHETYPES: dict[tuple[str, str], Archetype] = {
-    ("region", "agriculture"):       Archetype("arg_farmers", Farmer, ROLE_PRODUCER, "n_arg_farmers", _FARMER_ARG),
     ("infrastructure", "logistics"): Archetype("transport_sa_santos", Transport, ROLE_SA_SANTOS, "n_transport_sa_santos", _TRANSPORT_SA),
-    ("manufacturer", "processing"):  Archetype("processors", Process, ROLE_PROCESSOR, "n_processors", _PROCESSOR),
-    ("manufacturer", "agriculture"): Archetype("eu_farmers", Farmer, ROLE_CONSUMER, "n_eu_farmers", _FARMER_EU),
 }
 
 # id overrides: tuned role/count, or type+sector collisions
 ID_OVERRIDES: dict[str, Archetype] = {
-    "brazil_farms":   Archetype("bra_farmers", Farmer, ROLE_PRODUCER, "n_bra_farmers", _FARMER_BRA),
-    "us_farms":       Archetype("usa_farmers", Farmer, ROLE_PRODUCER, "n_usa_farmers", _FARMER_USA),
-    # argentina_farms -> region/agriculture default (arg_farmers)
     "paranagua_port": Archetype("transport_sa_paranagua", Transport, ROLE_SA_PARANAGUA, "n_transport_sa_paranagua", _TRANSPORT_SA),
     "rotterdam_port": Archetype("transport_eu_rtm", Transport, ROLE_EU_RTM, "n_transport_eu_rtm", _TRANSPORT_EU),
     "hamburg_port":   Archetype("transport_eu_ham", Transport, ROLE_EU_HAM, "n_transport_eu_ham", _TRANSPORT_EU),
     # santos_port -> infrastructure/logistics default (transport_sa_santos)
-    "feed_mills":     Archetype("feed_manufacturers", Process, ROLE_FEED_MANUFACTURER, "n_feed_manufacturers", _FEED_MFR),
-    # eu_oil_mills -> manufacturer/processing default (processors)
 }
 
 # present in PDL but deliberately not a node-agent (yet)
@@ -148,21 +122,114 @@ EXCLUDE: frozenset[str] = frozenset({
     "us_gulf_ports",   # origin of the USA sea edge, not a handler node today
 })
 
-# synthetic agents (no PDL entity), always created
-SYNTHETIC: list[Archetype] = [
-    Archetype("wholesalers", Trader, ROLE_WHOLESALER, "n_wholesalers", _WHOLESALER),
-    Archetype("feed_traders", Trader, ROLE_FEED_TRADER, "n_feed_traders", _FEED_TRADER),
-]
+# ---------------------------------------------------------------------------
+# Sidecar: declarations the PDL does not carry (s1-soja.roster.yaml)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class RosterSidecar:
+    archetypes: Mapping[str, str]
+    exclude: Mapping[str, str]
+    entities: tuple[Mapping[str, Any], ...]
+    edges: tuple[tuple[str, str], ...]
+    dependencies: tuple[Mapping[str, Any], ...]
 
 
-def resolve(entity: dict) -> Archetype | None:
-    """Resolve one PDL entity dict to an Archetype, or None if unmodelled."""
+def _sidecar_path(pdl_path: str | Path) -> Path:
+    p = Path(pdl_path)
+    stem = p.name[:-len(".pdl.yaml")] if p.name.endswith(".pdl.yaml") else p.stem
+    return p.with_name(stem + ".roster.yaml")
+
+
+def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
+    """Load the roster sidecar beside the PDL. Additive only: a sidecar entity id
+    may not collide with a PDL entity, and every added entity must carry a reason."""
+    path = _sidecar_path(pdl_path)
+    if not path.exists():
+        return RosterSidecar({}, {}, (), (), ())
+
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    pdl_ids = {e.get("id") for e in (PDLLoader(pdl_path)._doc.get("entities") or [])}
+
+    entities = tuple(doc.get("entities") or [])
+    for ent in entities:
+        eid = ent.get("id")
+        if eid in pdl_ids:
+            raise ValueError(f"roster sidecar entity {eid!r} collides with a PDL entity; sidecar is additive-only")
+        if not ent.get("reason"):
+            raise ValueError(f"roster sidecar entity {eid!r} is missing a required 'reason'")
+
+    return RosterSidecar(
+        archetypes=dict(doc.get("archetypes") or {}),
+        exclude=dict(doc.get("exclude") or {}),
+        entities=entities,
+        edges=tuple((e[0], e[1]) for e in (doc.get("edges") or [])),
+        dependencies=tuple(doc.get("dependencies") or []),
+    )
+
+
+def resolve(entity: Mapping[str, Any]) -> Archetype | None:
+    """Resolve one entity to a place-specific transport recipe."""
     eid = entity.get("id")
     if eid in EXCLUDE:
         return None
     if eid in ID_OVERRIDES:
         return ID_OVERRIDES[eid]
     return KIND_ARCHETYPES.get((entity.get("type"), entity.get("sector")))
+
+
+# ---------------------------------------------------------------------------
+# Archetype resolution: PDL entity -> archetype key (sidecar-driven)
+# ---------------------------------------------------------------------------
+
+ARCHETYPE_REGISTRY: dict[str, tuple[type, str]] = {
+    "producer":          (Farmer,  ROLE_PRODUCER),
+    "consumer":          (Farmer,  ROLE_CONSUMER),
+    "processor":         (Process, ROLE_PROCESSOR),
+    "feed_manufacturer": (Process, ROLE_FEED_MANUFACTURER),
+    "wholesaler":        (Trader,  ROLE_WHOLESALER),
+    "feed_trader":       (Trader,  ROLE_FEED_TRADER),
+}
+
+_DECLARED_ARCHETYPES: dict[str, tuple[str, str, Mapping[str, Any]]] = {
+    "consumer":          ("eu_farmers", "n_eu_farmers", _FARMER_EU),
+    "processor":         ("processors", "n_processors", _PROCESSOR),
+    "feed_manufacturer": ("feed_manufacturers", "n_feed_manufacturers", _FEED_MFR),
+    "wholesaler":        ("", "n_wholesalers", _WHOLESALER),
+    "feed_trader":       ("feed_traders", "n_feed_traders", _FEED_TRADER),
+}
+
+# land_transport / sea_lane keep per-place roles, resolved via the id/kind path.
+KNOWN_ARCHETYPES: frozenset[str] = frozenset(ARCHETYPE_REGISTRY) | {"land_transport", "sea_lane"}
+
+# (type, sector) fallback when the sidecar doesn't name an entity.
+KIND_KEYS: dict[tuple[str, str], str] = {
+    ("region", "agriculture"):       "producer",
+    ("infrastructure", "logistics"): "land_transport",
+    ("manufacturer", "processing"):  "processor",
+    ("manufacturer", "agriculture"): "consumer",
+}
+
+
+def resolve_archetype(entity: Mapping[str, Any], sidecar: RosterSidecar) -> str | None:
+    """Archetype key from the entity, sidecar, or kind fallback."""
+    eid = entity.get("id")
+    if eid in sidecar.exclude:
+        return None
+    key = (
+        entity.get("archetype")
+        or sidecar.archetypes.get(eid)
+        or KIND_KEYS.get((entity.get("type"), entity.get("sector")))
+    )
+    if key is None:
+        logger.warning(
+            "entity %r (%s/%s) resolved to no archetype - not modelled; declare it in the roster sidecar",
+            eid, entity.get("type"), entity.get("sector"),
+        )
+        return None
+    if key not in KNOWN_ARCHETYPES:
+        raise ValueError(f"roster sidecar assigns entity {eid!r} unknown archetype {key!r}")
+    return key
 
 
 # ---------------------------------------------------------------------------
@@ -240,36 +307,116 @@ TRANSITIONAL_SEA: dict[tuple[str, str], Archetype] = {
 @dataclass(frozen=True)
 class RosterEntry:
     archetype: Archetype
-    entity_ids: tuple[str, ...]   # PDL entities represented; () for synthetic / sea edges
+    entity_ids: tuple[str, ...]   # entities represented; () for sea edges
 
 
-PRODUCER_ROLES: frozenset[str] = frozenset({ROLE_PRODUCER})
+_PRODUCER_SCENARIO_ATTRS = ("fixed_costs", "margin", "size_sigma")
+
+
+def _producer_count_attr(eid: str) -> str:
+    specific = f"n_{eid}"
+    if hasattr(SupplyChainScenario, specific):
+        return specific
+    logger.warning("producer %r has no %s; falling back to n_producer", eid, specific)
+    return "n_producer"
+
+
+def _producer_scenario_attrs(eid: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for attr in _PRODUCER_SCENARIO_ATTRS:
+        specific = f"{attr}_{eid}"
+        if hasattr(SupplyChainScenario, specific):
+            out[attr] = specific
+        else:
+            fallback = f"{attr}_producer"
+            logger.warning(
+                "producer %r has no %s; falling back to %s",
+                eid, specific, fallback,
+            )
+            out[attr] = fallback
+    return out
+
+
+def _producer_input_bindings(
+    eid: str, dependencies: list,
+) -> dict[str, tuple[str, str]]:
+    bindings: dict[str, tuple[str, str]] = {}
+    for dep in dependencies:
+        if dep.get("from") != eid or dep.get("type") != "input":
+            continue
+        target = dep.get("to")
+        if not target:
+            continue
+        slot = target[:-len("_supply")] if target.endswith("_supply") else target
+        bindings[slot] = (target, "price")
+    if not bindings:
+        logger.warning("producer %r has no input dependencies", eid)
+    return bindings
+
+
+def _pdl_dependencies(doc: Mapping[str, Any]) -> list:
+    deps: list = []
+    for chain in (doc.get("supply_chains") or []):
+        deps.extend(chain.get("dependencies") or [])
+    return deps
+
+
+def _declared_archetype(entity: Mapping[str, Any], key: str) -> Archetype | None:
+    eid = entity.get("id")
+    if key == "land_transport":
+        arc = resolve(entity)
+    else:
+        spec = _DECLARED_ARCHETYPES.get(key)
+        if spec is None or not eid:
+            arc = None
+        else:
+            default_name, count_attr, params = spec
+            cls, role = ARCHETYPE_REGISTRY[key]
+            name = eid if key == "wholesaler" else default_name
+            arc = Archetype(name, cls, role, count_attr, params)
+    if arc is None:
+        logger.warning(
+            "entity %r resolved to archetype %r but has no runtime recipe",
+            eid, key,
+        )
+    return arc
 
 
 def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     """
-    Ordered roster from a PDL: synthetic agents, node archetypes, sea-lane agents.
+    Ordered roster from PDL and sidecar entities, followed by sea-lane agents.
 
     Producer kinds split per-entity (each carries its own id-named list, count, and
-    shock); non-producer kinds still pool (e.g. poultry/pig/dairy into eu_farmers).
+    shock); declared non-producer kinds use their model recipes.
     """
-    entities = PDLLoader(pdl_path)._doc.get("entities") or []
+    doc = PDLLoader(pdl_path)._doc
+    sidecar = load_roster_sidecar(pdl_path)
+    entities = [*(doc.get("entities") or []), *sidecar.entities]
+    dependencies = [*_pdl_dependencies(doc), *sidecar.dependencies]
 
-    order: list[Archetype] = list(SYNTHETIC)
-    ids_by_arc: dict[Archetype, list[str]] = {arc: [] for arc in SYNTHETIC}
+    order: list[Archetype] = []
+    ids_by_arc: dict[Archetype, list[str]] = {}
 
     for e in entities:
-        arc = resolve(e)
-        if arc is None:
+        key = resolve_archetype(e, sidecar)
+        if key is None:
             continue
         eid = e.get("id")
-        # producer already in use -> this is an additional producer region: give
-        # it its own per-entity list (name from id, count from a scenario-specific
-        # n_<id> if defined, else the kind default).
-        if arc.role in PRODUCER_ROLES and arc in ids_by_arc:
-            specific = f"n_{eid}"
-            count_attr = specific if hasattr(SupplyChainScenario, specific) else arc.count_attr
-            arc = replace(arc, name=eid, count_attr=count_attr)
+        if key == "producer":
+            cls, role = ARCHETYPE_REGISTRY["producer"]
+            arc = Archetype(
+                eid, cls, role,
+                _producer_count_attr(eid),
+                {
+                    "bindings": _producer_input_bindings(eid, dependencies),
+                    "scenario_attrs": _producer_scenario_attrs(eid),
+                    "attrs": {"base_yield": 100.0},
+                },
+            )
+        else:
+            arc = _declared_archetype(e, key)
+            if arc is None:
+                continue
         if arc not in ids_by_arc:
             order.append(arc)
             ids_by_arc[arc] = []
@@ -285,32 +432,9 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
 
 
 # ---------------------------------------------------------------------------
-# Flow wiring: the supply-chain adjacency as explicit data, maps each archetype
-# (by model-attr name) to the upstream archetypes it pulls from. Step methods
-# read this instead of naming lists directly.
-#
-# It is not isomorphic to supply_chains.stages: the model splices in synthetic
-# hubs (wholesalers, feed_traders) and origin routing (santos_share, arg/usa
-# bypass) the PDL doesn't carry. build_flow_adjacency() rederives it from the PDL.
+# Flow wiring maps each model list to the upstream lists it pulls from. Sidecar
+# edges insert declared actors that the PDL does not yet carry.
 # ---------------------------------------------------------------------------
-
-FLOW_ADJACENCY: dict[str, tuple[str, ...]] = {
-    "wholesalers":            ("bra_farmers", "arg_farmers", "usa_farmers"),
-    "transport_sa_santos":    ("wholesalers",),
-    "transport_sa_paranagua": ("wholesalers",),
-    "sea_lane_santos":        ("transport_sa_santos",),
-    "sea_lane_paranagua":     ("transport_sa_paranagua",),
-    "sea_lane_arg":           ("wholesalers",),
-    "sea_lane_usa":           ("wholesalers",),
-    "transport_eu_rtm":       ("sea_lane_santos", "sea_lane_arg", "sea_lane_usa"),
-    "transport_eu_ham":       ("sea_lane_paranagua",),
-    "processors":             ("transport_eu_rtm", "transport_eu_ham"),
-    "feed_manufacturers":     ("processors",),
-    "feed_traders":           ("feed_manufacturers",),
-    "eu_farmers":             ("feed_traders",),
-}
-
-SYNTHETIC_NAMES: frozenset[str] = frozenset({"wholesalers", "feed_traders"})
 
 
 def _sea_lane_crossings() -> dict[str, tuple[str, str]]:
@@ -318,61 +442,52 @@ def _sea_lane_crossings() -> dict[str, tuple[str, str]]:
     return {arc.name: pair for pair, arc in TRANSITIONAL_SEA.items()}
 
 
-def producer_lists(adjacency: dict[str, tuple[str, ...]] | None = None) -> list[str]:
-    """
-    The producers: source lists that supply others but have no upstream. Pass a
-    run's derived graph for a swapped PDL; defaults to the literal FLOW_ADJACENCY.
-    """
-    adj = FLOW_ADJACENCY if adjacency is None else adjacency
-    dsts = set(adj)
+def producer_lists(adjacency: dict[str, tuple[str, ...]]) -> list[str]:
+    """Source lists that supply others but have no upstream."""
+    dsts = set(adjacency)
     out: list[str] = []
-    for srcs in adj.values():
+    for srcs in adjacency.values():
         for s in srcs:
             if s not in dsts and s not in out:
                 out.append(s)
     return out
 
 
-def export_port_lists(adjacency: dict[str, tuple[str, ...]] | None = None) -> list[str]:
-    """
-    The export ports: land lists feeding a sea crossing (non-source, non-synthetic,
-    so the wholesaler bypass is excluded). Defaults to FLOW_ADJACENCY; pass a graph.
-    """
-    adj = FLOW_ADJACENCY if adjacency is None else adjacency
+def export_port_lists(adjacency: dict[str, tuple[str, ...]]) -> list[str]:
+    """Land transport lists feeding a sea crossing."""
     sea_lanes = set(_sea_lane_crossings())
-    sources = set(producer_lists(adj))
+    sources = set(producer_lists(adjacency))
     out: list[str] = []
-    for dst, srcs in adj.items():
+    for dst, srcs in adjacency.items():
         if dst in sea_lanes:
             for src in srcs:
-                if src not in sources and src not in SYNTHETIC_NAMES and src not in out:
+                upstream = set(adjacency.get(src, ()))
+                if src not in sources and upstream.isdisjoint(sources) and src not in out:
                     out.append(src)
     return out
 
 
-def _pdl_stage_pairs(pdl_path: str | Path) -> set[tuple[str, str]]:
-    """All (src, dst) stage pairs across every supply chain in the PDL."""
+def _pdl_stage_pairs(pdl_path: str | Path) -> list[tuple[str, str]]:
+    """Unique stage pairs in first declaration order."""
     doc = PDLLoader(pdl_path)._doc
-    pairs: set[tuple[str, str]] = set()
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
     for chain in (doc.get("supply_chains") or []):
         for stage in (chain.get("stages") or []):
-            pairs.add((stage[0], stage[1]))
+            pair = (stage[0], stage[1])
+            if pair not in seen:
+                seen.add(pair)
+                pairs.append(pair)
     return pairs
 
 
 def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
     """
-    Rederive the flow adjacency from the PDL: the de-hardcoded FLOW_ADJACENCY.
-
-    PDL-derived from supply_chains.stages: land/process stage -> dst <- src;
-    sea crossing -> lane <- land-port and dst-port <- lane.
-
-    Declared overlay the PDL doesn't carry: a 'wholesalers' hub aggregates producers
-    and feeds export ports/bypass lanes; a 'feed_traders' hub sits before EU consumers.
-
-    On the shipped PDL this reproduces the literal FLOW_ADJACENCY exactly.
+    Derive flow adjacency from PDL stages and sidecar edges. Sea crossings are
+    materialised as lane agents between their endpoint actors.
     """
     roster = build_roster(pdl_path)
+    sidecar = load_roster_sidecar(pdl_path)
     name_of: dict[str, str] = {}
     for entry in roster:
         for eid in entry.entity_ids:
@@ -380,29 +495,44 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
 
     producers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer
-                 and e.archetype.role in (ROLE_PRODUCER)}
+                 and e.archetype.role in (ROLE_PRODUCER,)}
     consumers = {e.archetype.name for e in roster
                  if e.archetype.agent_class is Farmer and e.archetype.role == ROLE_CONSUMER}
     producer_e = {eid for eid, nm in name_of.items() if nm in producers}
     consumer_e = {eid for eid, nm in name_of.items() if nm in consumers}
 
-    wholesaler = next(a.name for a in SYNTHETIC if a.role == ROLE_WHOLESALER)
-    feed_trader = next(a.name for a in SYNTHETIC if a.role == ROLE_FEED_TRADER)
-
     crossings = {(e.src, e.dst): TRANSITIONAL_SEA.get((e.src, e.dst))
                  for e in derive_sea_edges(pdl_path)}
     stages = _pdl_stage_pairs(pdl_path)
+
+    incoming: dict[str, list[str]] = {}
+    outgoing: dict[str, list[str]] = {}
+    for src, dst in sidecar.edges:
+        outgoing.setdefault(src, []).append(dst)
+        incoming.setdefault(dst, []).append(src)
+
+    replaced_stages: set[tuple[str, str]] = set()
+    replacement_crossings: dict[tuple[str, str], Archetype | None] = {}
+    for entity in sidecar.entities:
+        eid = entity.get("id")
+        for src in incoming.get(eid, ()):
+            for dst in outgoing.get(eid, ()):
+                pair = (src, dst)
+                if pair not in stages:
+                    continue
+                replaced_stages.add(pair)
+                if pair in crossings:
+                    replacement_crossings[(eid, dst)] = crossings[pair]
 
     adj: dict[str, set[str]] = {}
 
     def add(dst: str, src: str) -> None:
         adj.setdefault(dst, set()).add(src)
 
-    def producer_fed(eid: str) -> bool:
-        return eid in producer_e or any(p in producer_e for (p, q) in stages if q == eid)
-
-    # --- 1. PDL-derived spine + sea crossings ---
+    # PDL spine, excluding direct edges replaced by a declared sidecar actor.
     for (s, d) in stages:
+        if (s, d) in replaced_stages:
+            continue
         if (s, d) in crossings:
             lane = crossings[(s, d)]
             if lane is None:
@@ -416,35 +546,36 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
                 and d not in consumer_e):
             add(name_of[d], name_of[s])
 
-    # --- 2. declared overlay: synthetic hubs the PDL doesn't name ---
-    for nm in producers:
-        add(wholesaler, nm)                         # market hub aggregates producers
-    for (s, d) in stages:                           # export ports / bypass lanes pull from the hub
-        if s not in producer_e:
-            continue
-        lane = crossings.get((s, d))
+    # Sidecar edges insert declared actors into matching PDL stages.
+    crossings_from: dict[str, list[Archetype]] = {}
+    for (src, _), lane in crossings.items():
         if lane is not None:
-            add(lane.name, wholesaler)              # producer's direct sea bypass (ARG)
-        elif d in name_of:
-            add(name_of[d], wholesaler)             # producer's land export port
-    for (s, d), lane in crossings.items():
-        if lane is not None and s not in name_of and producer_fed(s):
-            add(lane.name, wholesaler)              # producer-fed excluded origin (US gulf)
-    for (s, d) in stages:                           # distribution hub before consumers
-        if d in consumer_e and s in name_of:
-            add(name_of[d], feed_trader)
-            add(feed_trader, name_of[s])
+            crossings_from.setdefault(src, []).append(lane)
 
-    # Order each dst's srcs by roster position (not alphabetically): this is the
-    # byte-safe order the step methods sum over, and it reproduces the literal
-    # FLOW_ADJACENCY exactly on the shipped PDL so the runtime can consume the
-    # derived graph without changing float-sum grouping.
+    for s, d in sidecar.edges:
+        pair = (s, d)
+        if pair in replacement_crossings:
+            lane = replacement_crossings[pair]
+            if lane is None:
+                continue
+            if d in name_of:
+                add(name_of[d], lane.name)
+            if s in name_of:
+                add(lane.name, name_of[s])
+        elif s in name_of and d in name_of:
+            add(name_of[d], name_of[s])
+        elif s in name_of:
+            for lane in crossings_from.get(d, ()):
+                add(lane.name, name_of[s])
+
+    # Order each destination's sources by roster position so summed flows follow
+    # roster declaration order.
     pos = {entry.archetype.name: i for i, entry in enumerate(roster)}
     return {dst: tuple(sorted(srcs, key=lambda s: pos.get(s, len(pos))))
             for dst, srcs in adj.items()}
 
 
-def execution_order(adjacency: dict[str, tuple[str, ...]] | None = None) -> list[str]:
+def execution_order(adjacency: dict[str, tuple[str, ...]]) -> list[str]:
     """
     Per-step execution order: a topological sort of the flow graph, so each source
     is stepped before any list that consumes it. Replaces the hardcoded step sequence.
@@ -456,10 +587,8 @@ def execution_order(adjacency: dict[str, tuple[str, ...]] | None = None) -> list
     """
     import heapq
 
-    adj = FLOW_ADJACENCY if adjacency is None else adjacency
-
     appearance: dict[str, int] = {}
-    for dst, srcs in adj.items():
+    for dst, srcs in adjacency.items():
         appearance.setdefault(dst, len(appearance))
         for src in srcs:
             appearance.setdefault(src, len(appearance))
@@ -467,7 +596,7 @@ def execution_order(adjacency: dict[str, tuple[str, ...]] | None = None) -> list
     nodes = list(appearance)
     indeg = {n: 0 for n in nodes}
     dependents: dict[str, list[str]] = {n: [] for n in nodes}
-    for dst, srcs in adj.items():
+    for dst, srcs in adjacency.items():
         for src in srcs:
             indeg[dst] += 1
             dependents[src].append(dst)
