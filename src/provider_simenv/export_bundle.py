@@ -14,7 +14,7 @@ expects.
 
 Entity placements declared in the PDL or roster are emitted with their entity ids.
 Entities without coordinates retain the frontend gazetteer fallback. Sea crossings
-are drawn endpoint-to-endpoint rather than routed through sea-lane agents, which
+are drawn endpoint-to-endpoint rather than routed through sea-transport agents, which
 have no single map location.
 
 Usage:
@@ -140,18 +140,18 @@ def _node_metadata(entry, entities: dict[str, dict]) -> dict:
 
 
 def _collapsed_edges(
-    adjacency: dict[str, tuple[str, ...]], sea_lanes: set[str], node_ids: set[str],
+    adjacency: dict[str, tuple[str, ...]], sea_transports: set[str], node_ids: set[str],
 ) -> list[dict]:
-    downstream_lanes = {
+    downstream_transports = {
         source
         for sources in adjacency.values()
         for source in sources
-        if source in sea_lanes
+        if source in sea_transports
     }
-    for lane in sea_lanes:
-        if lane not in adjacency or lane not in downstream_lanes:
-            logger.error("sea lane %r lacks an exportable upstream/downstream path", lane)
-            raise ValueError(f"incomplete sea-lane path for {lane!r}")
+    for transport in sea_transports:
+        if transport not in adjacency or transport not in downstream_transports:
+            logger.error("sea transport %r lacks an exportable upstream/downstream path", transport)
+            raise ValueError(f"incomplete sea-transport path for {transport!r}")
 
     edges: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -172,12 +172,12 @@ def _collapsed_edges(
         })
 
     for target, sources in adjacency.items():
-        if target in sea_lanes:
+        if target in sea_transports:
             continue
         for source in sources:
-            if source in sea_lanes:
-                for lane_source in adjacency[source]:
-                    add(lane_source, target, True)
+            if source in sea_transports:
+                for sea_source in adjacency[source]:
+                    add(sea_source, target, True)
             else:
                 add(source, target, False)
     return edges
@@ -221,7 +221,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
     roster = build_roster(pdl_path)
     adjacency = build_flow_adjacency(pdl_path)
     entities = _entity_metadata(pdl_path)
-    sea_lanes = {
+    sea_transports = {
         entry.archetype.name
         for entry in roster
         if entry.archetype.agent_class is Transport and not entry.entity_ids
@@ -232,7 +232,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
 
     for entry in roster:
         node_id = entry.archetype.name
-        if node_id in sea_lanes:
+        if node_id in sea_transports:
             continue
         nodes.append(_node_metadata(entry, entities))
 
@@ -248,7 +248,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
         for period, values in _aggregate(df, list(props)).items():
             ticks.append({"period": period, "nodeId": node_id, "values": values})
 
-    edges = _collapsed_edges(adjacency, sea_lanes, {node["id"] for node in nodes})
+    edges = _collapsed_edges(adjacency, sea_transports, {node["id"] for node in nodes})
 
     # Environment series.
     env: list[dict] = []

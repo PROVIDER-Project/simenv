@@ -6,7 +6,7 @@ Transport agents carry the commodity price through and add a service fee:
 
 Volume routing:
     Export routes split an originator's volume using entity-keyed shares.
-    Sea lanes move the output available at their derived upstream endpoint.
+    Sea transports move the output available at their derived upstream endpoint.
     Single-source import routes move normally; multi-source routes buy cheapest first.
 
 Lifecycle:
@@ -21,14 +21,14 @@ import math
 from .base import SupplyChainAgent
 
 ROLE_LAND_TRANSPORT = "land_transport"
-ROLE_SEA_LANE = "sea_lane"
+ROLE_SEA_TRANSPORT = "sea_transport"
 
 class Transport(SupplyChainAgent):
     """
     Capacity-constrained transport operator.
 
     Shared state:
-      role                   "land_transport" or "sea_lane".
+      role                   "land_transport" or "sea_transport".
       fixed_costs            Operating cost per step (EUR/step).
       capacity               Maximum units movable per step (tonnes).
       utilisation            Fraction of capacity used this step (0–1).
@@ -64,7 +64,7 @@ class Transport(SupplyChainAgent):
             return
         if self.role == ROLE_LAND_TRANSPORT:
             self._step_land_transport()
-        elif self.role == ROLE_SEA_LANE:
+        elif self.role == ROLE_SEA_TRANSPORT:
             self._move(self.model.upstream(self.list_name))
         else:
             raise ValueError(f"Transport has unknown role: {self.role!r}")
@@ -224,14 +224,14 @@ class Transport(SupplyChainAgent):
         """Return the AgentList this agent belongs to (for peer count)."""
         return getattr(self.model, self.list_name)
 
-    def _feeds_sea_lane(self) -> bool:
-        """Whether this transport route supplies a sea-lane list."""
+    def _feeds_sea_transport(self) -> bool:
+        """Whether this transport route supplies a sea-transport list."""
         role_by_name = {
             entry.archetype.name: entry.archetype.role
             for entry in self.model._roster
         }
         return any(
-            role_by_name.get(destination) == ROLE_SEA_LANE
+            role_by_name.get(destination) == ROLE_SEA_TRANSPORT
             and self.list_name in sources
             for destination, sources in self.model._flow_adjacency.items()
         )
@@ -240,7 +240,7 @@ class Transport(SupplyChainAgent):
         """Select land-route behavior from the derived flow graph."""
         upstream_names = self.model._flow_adjacency.get(self.list_name, ())
         upstream = self.model.upstream(self.list_name)
-        if self._feeds_sea_lane():
+        if self._feeds_sea_transport():
             self._move_split(
                 upstream,
                 share=self._route_share(self.list_name),

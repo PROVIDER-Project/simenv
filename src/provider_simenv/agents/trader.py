@@ -126,10 +126,10 @@ class Trader(SupplyChainAgent):
         """
         Collect an equal share of all feed manufacturer output.
         Price = (input_price + fixed_costs/stock) * (1 + margin).
-        EU farmers then read from self.model.feed_traders in their step().
+        EU farmers then collect this output as their upstream in their step().
         """
-        manufacturers = self.model.upstream("feed_traders")
-        n_traders = len(self.model.feed_traders.filter(lambda t: t.active))
+        manufacturers = self.model.upstream(self.list_name)
+        n_traders = len(getattr(self.model, self.list_name).filter(lambda t: t.active))
 
         if not manufacturers or n_traders == 0:
             self.stock = 0.0

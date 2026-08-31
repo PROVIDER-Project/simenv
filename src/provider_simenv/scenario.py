@@ -28,7 +28,7 @@ class SupplyChainScenario(Scenario):
     n_transport_eu_rtm: int = 1         # Rotterdam EU entry port agents
     n_transport_eu_ham: int = 1         # Hamburg EU entry port agents
     n_land_transport: int = 1         # fallback for a derived transport entity
-    n_sea_lane: int = 1               # fallback for a derived sea crossing
+    n_sea_transport: int = 1          # fallback for a derived sea crossing
     n_processors: int = 3           # Crushers / Verschrotung
     n_feed_manufacturers: int = 3
     n_feed_traders: int = 3

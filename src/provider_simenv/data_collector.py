@@ -16,7 +16,7 @@ from .agents import (
     ROLE_WHOLESALER,
 )
 
-# Roles omitted here (ports, sea lanes) are not recorded.
+# Roles omitted here (ports, sea transports) are not recorded.
 _PROPS_BY_ROLE = {
     ROLE_PRODUCER: ("quantity_available", "unit_price", "active"),
     ROLE_CONSUMER: ("feed_received", "livestock_output", "active"),

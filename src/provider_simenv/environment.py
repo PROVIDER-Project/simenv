@@ -9,7 +9,7 @@ The env updates itself each step based on aggregate agent behavior.
 Tracked prices mirror the computed unit_price at key chain nodes:
     soja_price: weighted average price from active wholesalers
     feed_price: weighted average price from active feed traders
-    total_soja_supply: sum of quantity_available across BRA + USA farmers
+    total_soja_supply: sum of quantity_available across the PDL's producer regions
     transport_utilisation: average utilisation of all transport agents
 """
 from __future__ import annotations
@@ -17,7 +17,12 @@ from typing import TYPE_CHECKING
 from Melodie import Environment
 
 
-from .agents import ROLE_PRODUCER, ROLE_WHOLESALER
+from .agents import (
+    ROLE_PRODUCER,
+    ROLE_WHOLESALER,
+    ROLE_LAND_TRANSPORT,
+    ROLE_SEA_TRANSPORT,
+)
 from .shock_registry import DROUGHT_IMPACT_FIELD
 from .event_tracker import EventTracker
 
@@ -165,22 +170,36 @@ class SupplyChainEnvironment(Environment):
         else:
             self.feed_price = 0.0
 
-        # Transport util
-        all_transport = (
-            self.model.transport_sa_santos.filter(lambda a: a.active)
-            + self.model.transport_sa_paranagua.filter(lambda a: a.active)
-            + self.model.sea_lane_santos.filter(lambda a: a.active)
-            + self.model.sea_lane_paranagua.filter(lambda a: a.active)
-            + self.model.sea_lane_arg.filter(lambda a: a.active)
-            + self.model.sea_lane_usa.filter(lambda a: a.active)
-            + self.model.transport_eu_rtm.filter(lambda a: a.active)
-            + self.model.transport_eu_ham.filter(lambda a: a.active)
-        )
+        # Transport util: fold export-side land, then sea crossings, then
+        # import-side land, so the mean's float grouping matches the shipped
+        # chain order. Names come from the roster and flow graph, so a swapped
+        # PDL (or an absent lane) folds the same way without a code change.
+        adjacency = self.model._flow_adjacency
+        sea_lists = [
+            entry.archetype.name
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_SEA_TRANSPORT
+        ]
+        sea_set = set(sea_lists)
+        export_land, import_land = [], []
+        for entry in self.model._roster:
+            if entry.archetype.role != ROLE_LAND_TRANSPORT:
+                continue
+            name = entry.archetype.name
+            if any(src in sea_set for src in adjacency.get(name, ())):
+                import_land.append(name)
+            else:
+                export_land.append(name)
 
-        if all_transport:
+        active_transport = [
+            agent
+            for name in (*export_land, *sea_lists, *import_land)
+            for agent in getattr(self.model, name).filter(lambda a: a.active)
+        ]
+        if active_transport:
             self.transport_utilisation = sum(
-                a.utilisation for a in all_transport
-            ) / len(all_transport)
+                a.utilisation for a in active_transport
+            ) / len(active_transport)
         else:
             self.transport_utilisation = 0.0
 

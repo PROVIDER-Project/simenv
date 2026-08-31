@@ -8,7 +8,7 @@ Four classes, each parameterised by a 'role' attribute:
 
   Farmer     role: "bra" | "arg" | "usa" | "eu"
   Trader     role: "wholesaler" | "feed_trader"
-  Transport  role: "land_transport" | "sea_lane"
+  Transport  role: "land_transport" | "sea_transport"
   Process    role: "processor" | "feed_manufacturer"
 """
 
@@ -18,7 +18,7 @@ from .trader import Trader, ROLE_WHOLESALER, ROLE_FEED_TRADER
 from .transport import (
     Transport,
     ROLE_LAND_TRANSPORT,
-    ROLE_SEA_LANE,
+    ROLE_SEA_TRANSPORT,
 )
 from .process import Process, ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER
 
@@ -36,7 +36,7 @@ __all__ = [
     "ROLE_WHOLESALER",
     "ROLE_FEED_TRADER",
     "ROLE_LAND_TRANSPORT",
-    "ROLE_SEA_LANE",
+    "ROLE_SEA_TRANSPORT",
     "ROLE_PROCESSOR",
     "ROLE_FEED_MANUFACTURER",
 ]

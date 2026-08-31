@@ -8,25 +8,16 @@ Melodie calls three methods in fixed order:
     2. setup(): additional initialisation logic after creation
     3. run(): the simulation loop
 
-Step order each timestep:
-    1.  Farmer[sa]           produce soja (drought applied)
-    2.  Trader[wholesaler]   aggregate and price
-    3.  Transport[sa_santos]   move BRA + USA santos_share through Santos
-    3.  Transport[sa_paranagua] move BRA + USA (1-santos_share) through Paranagua
-    4a. Transport[sea_santos]   ship Santos output -> EU port (Rotterdam)
-    4b. Transport[sea_paranagua] ship Paranagua output -> EU port (Hamburg)
-    4c. Transport[sea_arg]       ship ARG direct -> EU port (Rotterdam, bypassing SA ports)
-    4d. Transport[sea_usa]       ship USA Gulf-> Rotterdam, bypassing SA ports
-    5a. Transport[eu_rtm]        Rotterdam: sea_santos + sea_arg + sea_usa -> processors
-    5b. Transport[eu_ham]        Hamburg: sea_paranagua -> processors
-    6. Process[processor]   crush soja -> meal
-    7. Process[feed_manufacturer]   produce compound meal
-    8. Trader[feed_trader]  distribute feed
-    9. Farmer[eu]           bid and receive feed
-    10. Environment         aggregate global state and update prices
-    11. DataCollector       record snapshot
+Step order each timestep (derived, not hardcoded):
+    1. Apply the day's shock scales to every bound parameter.
+    2. Step each roster list in flow-graph order (topology.execution_order),
+       so a list runs only after the upstream lists it consumes: producers as
+       sources, then transports, processors, traders and consumers along the
+       derived wiring. Region and route are not named here — they come from
+       the PDL roster.
+    3. Environment      aggregate global state and update prices.
+    4. DataCollector    record the snapshot.
 """
-import fontTools.misc.arrayTools
 import logging
 from Melodie import Model
 from pathlib import Path
