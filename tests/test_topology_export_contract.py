@@ -22,10 +22,10 @@ EXPECTED_NODE_IDS = {
     "brazil_farms",
     "argentina_farms",
     "us_farms",
-    "transport_sa_santos",
-    "transport_sa_paranagua",
-    "transport_eu_rtm",
-    "transport_eu_ham",
+    "santos_port",
+    "paranagua_port",
+    "rotterdam_port",
+    "hamburg_port",
     "processors",
     "feed_manufacturers",
     "eu_farmers",
@@ -37,16 +37,16 @@ EXPECTED_NODE_IDS = {
 
 EXPECTED_EDGES = {
     ("brazil_farms", "brazil_wholesaler", False),
-    ("brazil_wholesaler", "transport_sa_santos", False),
-    ("brazil_wholesaler", "transport_sa_paranagua", False),
-    ("transport_sa_santos", "transport_eu_rtm", True),
-    ("transport_sa_paranagua", "transport_eu_ham", True),
+    ("brazil_wholesaler", "santos_port", False),
+    ("brazil_wholesaler", "paranagua_port", False),
+    ("santos_port", "rotterdam_port", True),
+    ("paranagua_port", "hamburg_port", True),
     ("argentina_farms", "argentina_wholesaler", False),
-    ("argentina_wholesaler", "transport_eu_rtm", True),
+    ("argentina_wholesaler", "rotterdam_port", True),
     ("us_farms", "us_wholesaler", False),
-    ("us_wholesaler", "transport_eu_rtm", True),
-    ("transport_eu_rtm", "processors", False),
-    ("transport_eu_ham", "processors", False),
+    ("us_wholesaler", "rotterdam_port", True),
+    ("rotterdam_port", "processors", False),
+    ("hamburg_port", "processors", False),
     ("processors", "feed_manufacturers", False),
     ("feed_manufacturers", "feed_traders", False),
     ("feed_traders", "eu_farmers", False),
@@ -190,7 +190,7 @@ def test_shipped_pdl_bundle_matches_map_contract(tmp_path, monkeypatch):
 
     assert set(nodes) == EXPECTED_NODE_IDS
     assert "wholesalers" not in nodes
-    assert not any(node_id.startswith("sea_lane_") for node_id in nodes)
+    assert not any(node_id.startswith("sea_transport_") for node_id in nodes)
     assert edges == EXPECTED_EDGES
     assert len({edge["id"] for edge in bundle["edges"]}) == 14
     assert all(
