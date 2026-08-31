@@ -19,14 +19,6 @@ class SupplyChainScenario(Scenario):
     # --- Agent population size ---
     n_brazil_farms: int = 10         # South American Farmers
     n_wholesalers: int = 1          # originators per regional roster list
-    n_transport_sa_santos: int = 1  # Agents handling the Santos lane
-    n_transport_sa_paranagua: int = 1   # Agents handling the Paranagua lane
-    n_sea_lane_santos: int = 1        # Sea agents: Santos -> Rotterdam
-    n_sea_lane_paranagua: int = 1     # Sea agents: Paranagua -> Hamburg
-    n_sea_lane_arg: int = 1           # Sea agents: ARG direct -> Rotterdam
-    n_sea_lane_usa: int = 1           # Sea agents: USA Gulf -> Rotterdam
-    n_transport_eu_rtm: int = 1         # Rotterdam EU entry port agents
-    n_transport_eu_ham: int = 1         # Hamburg EU entry port agents
     n_land_transport: int = 1         # fallback for a derived transport entity
     n_sea_transport: int = 1          # fallback for a derived sea crossing
     n_processors: int = 3           # Crushers / Verschrotung
