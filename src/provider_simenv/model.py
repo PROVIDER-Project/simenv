@@ -151,9 +151,9 @@ class SupplyChainModel(Model):
         return {
             "producers": {plabel(n): vw_price(n) for n in producers},
             "ports": {port_label(n): volume(n) for n in ports},
-            "soja_px": self.environment.soja_price,
+            "soy_px": self.environment.soy_price,
             "feed_px": self.environment.feed_price,
-            "supply": self.environment.total_soja_supply,
+            "supply": self.environment.total_soy_supply,
             "n_active_shocks": sum(1 for v in self.environment.shock_scales.values() if v > 0),
         }
 
@@ -179,8 +179,8 @@ class SupplyChainModel(Model):
         """
         prod = " ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         logger.debug(
-            " ... day %03d   shocks=%d  %s soja=%.0f feed=%.0f supply=%.0ft",
-            t, snap['n_active_shocks'], prod, snap['soja_px'], snap['feed_px'], snap['supply'],
+            " ... day %03d   shocks=%d  %s soy=%.0f feed=%.0f supply=%.0ft",
+            t, snap['n_active_shocks'], prod, snap['soy_px'], snap['feed_px'], snap['supply'],
         )
 
 
@@ -192,7 +192,7 @@ class SupplyChainModel(Model):
         n_shocks = snap["n_active_shocks"]
         prod = "  ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         ports = "  ".join(f"{k}={v:.0f}t" for k, v in snap["ports"].items())
-        prices_line = f"  Final prices: {prod}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}"
+        prices_line = f"  Final prices: {prod}  soy={snap['soy_px']:.0f}  feed={snap['feed_px']:.0f}"
         supply_line = f"  Final supply: {snap['supply']:.0f}t  {ports}"
         logger.info(
             "Scenario %s complete\n"
@@ -339,8 +339,8 @@ class SupplyChainModel(Model):
                 yield {
                     "step": t,
                     "shock_scale": self.environment.shock_scale,
-                    "soja_price": self.environment.soja_price,
+                    "soy_price": self.environment.soy_price,
                     "feed_price": self.environment.feed_price,
-                    "total_soja_supply": self.environment.total_soja_supply,
+                    "total_soy_supply": self.environment.total_soy_supply,
                     "transport_utilisation": self.environment.transport_utilisation,
                 }

@@ -183,11 +183,11 @@ def _collapsed_edges(
     return edges
 
 ENV_COLS = [
-    ("soja_price", "sojaPrice"),
+    ("soy_price", "soyPrice"),
     ("feed_price", "feedPrice"),
     ("shock_scale", "shockScale"),
     ("drought_severity", "droughtSeverity"),
-    ("total_soja_supply", "totalSojaSupply"),
+    ("total_soy_supply", "totalSoySupply"),
     ("transport_utilisation", "transportUtilisation"),
     ("current_step", "currentStep"),
 ]

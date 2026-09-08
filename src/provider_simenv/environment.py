@@ -1,15 +1,15 @@
 """
 Global supply chain market state.
-It tracks the global soja market: current prices, transport availability,
+It tracks the global soy market: current prices, transport availability,
 and the active disruption level (drought).
 
 Agents do not modify the environment directely.
 The env updates itself each step based on aggregate agent behavior.
 
 Tracked prices mirror the computed unit_price at key chain nodes:
-    soja_price: weighted average price from active wholesalers
+    soy_price: weighted average price from active wholesalers
     feed_price: weighted average price from active feed traders
-    total_soja_supply: sum of quantity_available across the PDL's producer regions
+    total_soy_supply: sum of quantity_available across the PDL's producer regions
     transport_utilisation: average utilisation of all transport agents
 """
 from __future__ import annotations
@@ -32,8 +32,8 @@ class SupplyChainEnvironment(Environment):
     Updated once per simulation step after all agents acted.
     """
 
-    # current price of raw soja
-    soja_price: float = 0.0
+    # current price of raw soy
+    soy_price: float = 0.0
 
     # current price of precessed animal feed
     feed_price: float = 0.0
@@ -45,8 +45,8 @@ class SupplyChainEnvironment(Environment):
     # drought severity this step
     drought_severity: float = 0.0
 
-    # total soja quantity available in the chain this step
-    total_soja_supply: float = 0.0
+    # total soy quantity available in the chain this step
+    total_soy_supply: float = 0.0
 
     # average transport capacity utilisation across all transport agents (0.0 ~ 1.0)
     transport_utilisation: float = 0.0
@@ -62,11 +62,11 @@ class SupplyChainEnvironment(Environment):
         """
         Initialise environment state form the scenario parameters.
         """
-        self.soja_price = 0.0
+        self.soy_price = 0.0
         self.feed_price = 0.0
         self.shock_scale = 0.0
         self.drought_severity = 0.0
-        self.total_soja_supply = 0.0
+        self.total_soy_supply = 0.0
         self.transport_utilisation = 0.0
         self.current_step = 0
 
@@ -126,23 +126,23 @@ class SupplyChainEnvironment(Environment):
 
     def step(self):
         """
-        Aggregate agent outputs into macro indicators (soja/feed prices, total supply,
+        Aggregate agent outputs into macro indicators (soy/feed prices, total supply,
         transport utilisation) after all agents have acted in the current step.
         """
         self.current_step += 1
 
-        # Soja supply: sum over the producer regions from the run's flow graph,
+        # Soy supply: sum over the producer regions from the run's flow graph,
         # so a swapped PDL's new region is counted. Producer order follows the
         # roster, so the float grouping (and recorded value) is unchanged for s1.
         from .topology import producer_lists
-        self.total_soja_supply = sum(
+        self.total_soy_supply = sum(
             sum(f.quantity_available
                 for f in getattr(self.model, name).filter(lambda f: f.active))
             for name in producer_lists(self.model._flow_adjacency)
         )
 
 
-        # Soja price (wholesaler lvl)
+        # Soy price (wholesaler lvl)
         active_wholesalers = [
             wholesaler
             for entry in self.model._roster
@@ -152,12 +152,12 @@ class SupplyChainEnvironment(Environment):
         ]
         total_w_vol = sum(w.quantity_available for w in active_wholesalers)
         if total_w_vol > 0:
-            self.soja_price = (
+            self.soy_price = (
                 sum(w.unit_price * w.quantity_available for w in active_wholesalers)
                 / total_w_vol
             )
         else:
-            self.soja_price = 0.0
+            self.soy_price = 0.0
 
         # Feed price (feed trader lvl)
         active_traders = self.model.feed_traders.filter(lambda t: t.active)

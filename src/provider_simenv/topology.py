@@ -85,7 +85,7 @@ _TRANSPORT_IMPORT = {
 _PROCESSOR = {
     "scenario_attrs": {"fixed_costs": "fixed_costs_processor",
                        "margin":      "margin_processor"},
-    "attrs":          {"conversion_ratio": 0.8},    # ~80 % meal yield from raw soja
+    "attrs":          {"conversion_ratio": 0.8},    # ~80 % meal yield from raw soy
 }
 _FEED_MFR = {
     "scenario_attrs": {"fixed_costs": "fixed_costs_feed_manufacturer",

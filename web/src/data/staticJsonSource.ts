@@ -106,11 +106,11 @@ export function parseBundle(input: unknown): Bundle {
     if (!isObject(s)) throw new Error('bundle.env[] must be objects')
     return {
       period: Number(s.period),
-      sojaPrice: Number(s.sojaPrice),
+      soyPrice: Number(s.soyPrice),
       feedPrice: Number(s.feedPrice),
       shockScale: Number(s.shockScale),
       droughtSeverity: Number(s.droughtSeverity),
-      totalSojaSupply: Number(s.totalSojaSupply),
+      totalSoySupply: Number(s.totalSoySupply),
       transportUtilisation: Number(s.transportUtilisation),
       currentStep: Number(s.currentStep),
     }

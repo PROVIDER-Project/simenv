@@ -1,7 +1,7 @@
 """
 agents/trader.py — Trading actors.
 
-  role="wholesaler"   Aggregates soja from one producing region
+  role="wholesaler"   Aggregates soy from one producing region
                       price = (input_cost + fixed_costs/stock) * (1 + margin)
 
   role="feed_trader"  Distributes feed to EU livestock farmers.
@@ -22,7 +22,7 @@ ROLE_FEED_TRADER = "feed_trader"
 
 class Trader(SupplyChainAgent):
     """
-    Soja originator or feed distributor.
+    Soy originator or feed distributor.
 
     Shared state:
       role         "wholesaler" or "feed_trader".

@@ -21,7 +21,7 @@ class SupplyChainScenario(Scenario):
     n_wholesalers: int = 1          # originators per regional roster list
     n_land_transport: int = 1         # fallback for a derived transport entity
     n_sea_transport: int = 1          # fallback for a derived sea crossing
-    n_processors: int = 3           # Crushers / Verschrotung
+    n_processors: int = 3           # Crushers / oil mills
     n_feed_manufacturers: int = 3
     n_feed_traders: int = 3
     n_eu_farmers: int = 10          # EU livestock farmers

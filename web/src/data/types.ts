@@ -96,11 +96,11 @@ export interface Tick {
 /** One environment-level state snapshot for a single simulation step. */
 export interface EnvState {
   period: number
-  sojaPrice: number
+  soyPrice: number
   feedPrice: number
   shockScale: number
   droughtSeverity: number
-  totalSojaSupply: number
+  totalSoySupply: number
   transportUtilisation: number
   currentStep: number
 }

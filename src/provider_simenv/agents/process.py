@@ -1,13 +1,13 @@
 """
-  role="processor"         Crusher: raw soja → soja meal (ratio 0.8).
-  role="feed_manufacturer" Compounder: soja meal → compound feed (ratio 1.0).
+  role="processor"         Crusher: raw soy → soy meal (ratio 0.8).
+  role="feed_manufacturer" Compounder: soy meal → compound feed (ratio 1.0).
 
 Price logic accounts for the yield loss in conversion:
   To produce 1 unit of output you need (1 / conversion_ratio) units of input.
   unit_price = (input_price / conversion_ratio + fixed_costs / qty) * (1 + margin)
 
   At the end, a Processor needs to recover:
-  1. the cost of its input (e.g. cost of the soja it bought)
+  1. the cost of its input (e.g. cost of the soy it bought)
   2. its own fixed costs
   3. its margin
 
@@ -119,7 +119,7 @@ class Process(SupplyChainAgent):
     # --------------------------
 
     def _step_processor(self):
-        """Receive soja from both EU entry ports (RTM + HAM), crush to meal.
+        """Receive soy from both EU entry ports (RTM + HAM), crush to meal.
         oil_mill_capacity applied as indirect capacity constraint."""
         self._process(
             upstream_list=self.model.upstream("processors"),
@@ -127,7 +127,7 @@ class Process(SupplyChainAgent):
         )
 
     def _step_feed_manufacturer(self):
-        """Receive soja meal from processors, compound to animal feed."""
+        """Receive soy meal from processors, compound to animal feed."""
         self._process(
             upstream_list=self.model.upstream("feed_manufacturers"),
             peer_list=self.model.feed_manufacturers,
