@@ -1,7 +1,7 @@
 """
 agents/trader.py — Trading actors.
 
-  role="wholesaler"   Aggregates soja from one producing region
+  role="wholesaler"   Aggregates soy from one producing region
                       price = (input_cost + fixed_costs/stock) * (1 + margin)
 
   role="feed_trader"  Distributes feed to EU livestock farmers.
@@ -22,7 +22,7 @@ ROLE_FEED_TRADER = "feed_trader"
 
 class Trader(SupplyChainAgent):
     """
-    Soja originator or feed distributor.
+    Soy originator or feed distributor.
 
     Shared state:
       role         "wholesaler" or "feed_trader".
@@ -126,10 +126,10 @@ class Trader(SupplyChainAgent):
         """
         Collect an equal share of all feed manufacturer output.
         Price = (input_price + fixed_costs/stock) * (1 + margin).
-        EU farmers then read from self.model.feed_traders in their step().
+        EU farmers then collect this output as their upstream in their step().
         """
-        manufacturers = self.model.upstream("feed_traders")
-        n_traders = len(self.model.feed_traders.filter(lambda t: t.active))
+        manufacturers = self.model.upstream(self.list_name)
+        n_traders = len(getattr(self.model, self.list_name).filter(lambda t: t.active))
 
         if not manufacturers or n_traders == 0:
             self.stock = 0.0

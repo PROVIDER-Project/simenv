@@ -5,9 +5,19 @@ Writes agent and environment state to the database after every simulation step.
     - palaestrAI can query live data mid-run
 
 Run lifecycle:
-    1. TickWriter.__init__ -> drops and recreates all tables
-    2. write_tick() once per step -> append one tick's row per call
-    3. End of run        -> tables are complete, identical to batch import
+    1. TickWriter.__init__ -> records whether a reset is pending. run_stepwise()
+       builds one writer per scenario with reset=(id_scenario == 0), so only
+       scenario 0 resets; running any other scenario alone resets nothing.
+    2. First write_tick() -> if a reset is pending, DROP the loaded roster's
+       tick tables plus the environment table. Rows from previous runs are lost.
+    3. write_tick() once per step -> append one tick's row per call
+    4. End of run -> tables are complete, identical to batch import
+
+Known limitation:
+    _reset_tables() derives the table list from the currently loaded PDL
+    roster, so tables written by a previous run under a different PDL are
+    not dropped and keep their stale rows, while the environment table is
+    always dropped. See issue #43.
 
 Failure handling:
     If Postgres is unreachable or sqlalchemy/psycopg2 is missing,
@@ -29,8 +39,8 @@ logger = logging.getLogger(__name__)
 # so the Postgres tables carry the same names as the Melodie CSVs.
 ENVIRONMENT_TABLE = "Result_Simulator_Environment"
 ENVIRONMENT_PROPS = [
-    "soja_price", "feed_price", "shock_scale", "drought_severity",
-    "total_soja_supply", "transport_utilisation", "current_step",
+    "soy_price", "feed_price", "shock_scale", "drought_severity",
+    "total_soy_supply", "transport_utilisation", "current_step",
 ]
 
 class TickWriter:

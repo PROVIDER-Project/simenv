@@ -1,5 +1,5 @@
 """
-  role="producer"  Regional soja producers. All run one region-agnostic step:
+  role="producer"  Regional soy producers. All run one region-agnostic step:
                     output = base_yield * effective("capacity")
                     price = effective fixed_costs / delivered quantity * (1 + margin)
                     Producers differ only in their cost/margin parameters and declared PDL bindings.
@@ -25,7 +25,7 @@ ROLE_CONSUMER = "consumer"
 
 class Farmer(SupplyChainAgent):
     """
-    Agricultural actor — SA soja producer or EU livestock farmer.
+    Agricultural actor — SA soy producer or EU livestock farmer.
 
     Shared state:
       role                  "producer" or "consumer".
@@ -34,7 +34,7 @@ class Farmer(SupplyChainAgent):
       bankruptcy_threshold_days  Days without input before exiting the market.
 
     SA-specific state:
-      base_yield    Max soja output under no disruption.
+      base_yield    Max soy output under no disruption.
       margin        Profit ratio applied on per-unit cost.
 
     EU-specific state:
@@ -107,13 +107,13 @@ class Farmer(SupplyChainAgent):
             raise ValueError(f"Farmer has unknown role: {self.role!r}")
 
     # -------------------------------------------------
-    # Producer: produce soja, price from fixed costs.
+    # Producer: produce soy, price from fixed costs.
     # Region-agnostic every producer runs this same path
     # regions differ only in params and bindings
     # -------------------------------------------------
     def _step_producer(self):
         """
-        Produce soja this step.
+        Produce soy this step.
 
         Output = base_yield * effective("capacity")
         effective("capacity") is this producer's own supply-shock multiplier (1.0 when unbound)
@@ -140,9 +140,9 @@ class Farmer(SupplyChainAgent):
         Collect feed from all feed traders (equal share per EU farmer),
         then compute livestock output proportional to feed received.
         """
-        active_eu = self.model.eu_farmers.filter(lambda f: f.active)
+        active_eu = getattr(self.model, self.list_name).filter(lambda f: f.active)
         n_eu = len(active_eu)
-        active_traders = self.model.upstream("eu_farmers")
+        active_traders = self.model.upstream(self.list_name)
         total_feed = sum(t.quantity_available for t in active_traders)
         self.feed_received = total_feed / n_eu if n_eu > 0 else 0.0
 

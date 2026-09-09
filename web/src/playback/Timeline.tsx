@@ -53,7 +53,7 @@ export default function Timeline({
             <>
               <span className="sim-timeline-sep" aria-hidden="true" />
               <span>
-                soy <b>{numberFmt.format(env.sojaPrice)}</b>
+                soy <b>{numberFmt.format(env.soyPrice)}</b>
               </span>
               <span className="sim-timeline-sep" aria-hidden="true" />
               <span className={shock > 0 ? 'sim-timeline-shock sim-timeline-shock--on' : 'sim-timeline-shock'}>

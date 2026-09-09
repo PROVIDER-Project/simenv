@@ -1,22 +1,13 @@
 """
-  role="sa_santos"      Land / port transport: Brazil originator -> Santos export port
-  role="sa_paranagua"   Land / port transport: Brazil originator -> Paranagua export port
-  role="sea_santos"     Maritime transport: Santos -> EU Port (Rotterdam)
-  role="sea_paranagua"  Maritime transport: Paranagua -> EU Port (Hamburg)
-  role="sea_arg"        Maritime transport: Argentina originator -> EU Port (Rotterdam)
-  role="sea_usa"        Maritime transport: US originator -> EU Port (Rotterdam)
-  role="eu_rtm"         Land transport: Rotterdam (sea_santos + sea_arg + sea_usa -> processor)
-  role="eu_ham"         Land transport: Hamburg (sea_paranagua -> processor)
+Transport agents represent declared land nodes and derived sea crossings.
 
 Transport agents carry the commodity price through and add a service fee:
   unit_price = upstream_unit_price + (fixed_costs / quantity_moved) * (1 + margin)
 
 Volume routing:
-    Brazil soy splits across its declared export ports using entity-keyed shares.
-    Argentina and US originators each feed their own sea lane directly.
-
-sea_santos/arg/usa merge at eu_rtm.
-sea_paranagua arrives at eu_ham.
+    Export routes split an originator's volume using entity-keyed shares.
+    Sea transports move the output available at their derived upstream endpoint.
+    Single-source import routes move normally; multi-source routes buy cheapest first.
 
 Lifecycle:
   1. setup_agents(n)   → setup() zero-initialises all fields.
@@ -29,28 +20,22 @@ import math
 
 from .base import SupplyChainAgent
 
-ROLE_SA_SANTOS = "sa_santos"
-ROLE_SA_PARANAGUA = "sa_paranagua"
-ROLE_SEA_SANTOS = "sea_santos"
-ROLE_SEA_PARANAGUA = "sea_paranagua"
-ROLE_SEA_ARG = "sea_arg"
-ROLE_EU_RTM = "eu_rtm"
-ROLE_EU_HAM = "eu_ham"
-ROLE_SEA_USA = "sea_usa"
+ROLE_LAND_TRANSPORT = "land_transport"
+ROLE_SEA_TRANSPORT = "sea_transport"
 
 class Transport(SupplyChainAgent):
     """
     Capacity-constrained transport operator.
 
     Shared state:
-      role                   "sa_land", "sea", or "eu_land".
+      role                   "land_transport" or "sea_transport".
       fixed_costs            Operating cost per step (EUR/step).
       capacity               Maximum units movable per step (tonnes).
       utilisation            Fraction of capacity used this step (0–1).
       utilisation_threshold  Threshold above which unit_price rises (future).
 
     Sea-specific state:
-      transit_steps  Steps for cargo to cross SA → EU port (0 for land).
+      transit_steps  Steps for cargo to cross between regions (0 for land).
     """
 
     def setup(self):
@@ -77,22 +62,12 @@ class Transport(SupplyChainAgent):
     def step(self):
         if not self.active:
             return
-        if self.role == ROLE_SA_SANTOS:
-            self._step_sa_santos()
-        elif self.role == ROLE_SA_PARANAGUA:
-            self._step_sa_paranagua()
-        elif self.role == ROLE_SEA_SANTOS:
-            self._step_sea_santos()
-        elif self.role == ROLE_SEA_PARANAGUA:
-            self._step_sea_paranagua()
-        elif self.role == ROLE_SEA_ARG:
-            self._move(self.model.upstream("sea_lane_arg"))
-        elif self.role == ROLE_SEA_USA:
-            self._move(self.model.upstream("sea_lane_usa"))
-        elif self.role == ROLE_EU_RTM:
-            self._step_eu_rtm()
-        elif self.role == ROLE_EU_HAM:
-            self._step_eu_ham()
+        if self.role == ROLE_LAND_TRANSPORT:
+            self._step_land_transport()
+        elif self.role == ROLE_SEA_TRANSPORT:
+            self._move(self.model.upstream(self.list_name))
+        else:
+            raise ValueError(f"Transport has unknown role: {self.role!r}")
 
     # ------------------------------------------------------------------
     # Shared helper: receive volume from an upstream AgentList,
@@ -198,9 +173,9 @@ class Transport(SupplyChainAgent):
     def _move_split(self, upstream_list, share: float):
         """
         Like _move, but routes only share fraction of total upstream volume through this port.
-        Used to split wholesaler output between Santos and Paranagua.
+        Used when one originator supplies multiple export routes.
 
-        :param share: fraction of total wholesaler output for this port (e.g. 0.7 for Santos, 0.3 for Paranagua).
+        :param share: fraction of total originator output for this route.
         """
         margin = self.scenario.margin_transport
         if hasattr(upstream_list, 'filter'):
@@ -247,68 +222,36 @@ class Transport(SupplyChainAgent):
 
     def _peer_list(self):
         """Return the AgentList this agent belongs to (for peer count)."""
-        if self.role == ROLE_SA_SANTOS:
-            return self.model.transport_sa_santos
-        elif self.role == ROLE_SA_PARANAGUA:
-            return self.model.transport_sa_paranagua
-        elif self.role == ROLE_SEA_SANTOS:
-            return self.model.sea_lane_santos
-        elif self.role == ROLE_SEA_PARANAGUA:
-            return self.model.sea_lane_paranagua
-        elif self.role == ROLE_SEA_ARG:
-            return self.model.sea_lane_arg
-        elif self.role == ROLE_SEA_USA:
-            return self.model.sea_lane_usa
-        elif self.role == ROLE_EU_RTM:
-            return self.model.transport_eu_rtm
-        elif self.role == ROLE_EU_HAM:
-            return self.model.transport_eu_ham
-        raise ValueError(f"Unknown transport role: {self.role!r}")
+        return getattr(self.model, self.list_name)
 
-    # ----------------------------
-    # Role-specific step methods
-    # ----------------------------
-
-    def _step_sa_santos(self):
-        """
-        Receive soja from the Brazil originator, move to Santos export port.
-        Port capacity applied as throughput limit.
-        """
-        self._move_split(
-            self.model.upstream("transport_sa_santos"),
-            share=self._route_share("transport_sa_santos"),
+    def _feeds_sea_transport(self) -> bool:
+        """Whether this transport route supplies a sea-transport list."""
+        role_by_name = {
+            entry.archetype.name: entry.archetype.role
+            for entry in self.model._roster
+        }
+        return any(
+            role_by_name.get(destination) == ROLE_SEA_TRANSPORT
+            and self.list_name in sources
+            for destination, sources in self.model._flow_adjacency.items()
         )
 
-    def _step_sa_paranagua(self):
-        """
-        Receive soja from the Brazil originator, move to Paranagua export port.
-        Port capacity applied as throughput limit.
-        """
-        self._move_split(
-            self.model.upstream("transport_sa_paranagua"),
-            share=self._route_share("transport_sa_paranagua"),
-        )
+    def _step_land_transport(self):
+        """Select land-route behavior from the derived flow graph."""
+        upstream_names = self.model._flow_adjacency.get(self.list_name, ())
+        upstream = self.model.upstream(self.list_name)
+        if self._feeds_sea_transport():
+            self._move_split(
+                upstream,
+                share=self._route_share(self.list_name),
+            )
+        elif len(upstream_names) > 1:
+            self._admit_cheapest(upstream)
+        else:
+            self._move(upstream)
 
-    def _step_sea_santos(self):
-        """
-        Ship soja fraom santos export port to EU (Rotterdam)
-        """
-        self._move(self.model.upstream("sea_lane_santos"))
-
-    def _step_sea_paranagua(self):
-        """
-        Ship soja from Paranagua export port to EU (Hamburg).
-        """
-        self._move(self.model.upstream("sea_lane_paranagua"))
-
-    def _step_eu_rtm(self):
-        """
-        Buy up to Rotterdam's throughput from the cheapest arriving lanes.
-
-        Each upstream lane's quantity_available becomes the volume admitted
-        into Rotterdam this step, so losing lanes expose zero admitted flow.
-        """
-        upstream = self.model.upstream("transport_eu_rtm")
+    def _admit_cheapest(self, upstream):
+        """Buy up to this route's throughput from its cheapest upstream actors."""
         if hasattr(upstream, "filter"):
             active_upstream = upstream.filter(lambda a: a.active)
         else:
@@ -319,15 +262,18 @@ class Transport(SupplyChainAgent):
         remaining = max(0.0, demand_target)
         purchased_value = 0.0
 
-        for lane in sorted(active_upstream, key=lambda a: a.unit_price):
-            admitted = min(max(0.0, lane.quantity_available), remaining)
-            lane.quantity_available = admitted
-            lane_effective_capacity = lane.capacity * lane.effective("capacity")
-            lane.utilisation = (
-                lane.quantity_available / lane_effective_capacity
-                if lane_effective_capacity > 0.0 else 0.0
-            )
-            purchased_value += lane.unit_price * admitted
+        for source in sorted(active_upstream, key=lambda a: a.unit_price):
+            admitted = min(max(0.0, source.quantity_available), remaining)
+            source.quantity_available = admitted
+            if isinstance(source, Transport):
+                source_effective_capacity = (
+                    source.capacity * source.effective("capacity")
+                )
+                source.utilisation = (
+                    source.quantity_available / source_effective_capacity
+                    if source_effective_capacity > 0.0 else 0.0
+                )
+            purchased_value += source.unit_price * admitted
             remaining -= admitted
 
         purchased = demand_target - remaining
@@ -347,13 +293,4 @@ class Transport(SupplyChainAgent):
             self.unit_price = upstream_price + freight_fee
         else:
             self.unit_price = 0.0
-
-
-    def _step_eu_ham(self):
-        """
-        Hamburg EU entry point.
-        Receives soja from Paranagua sea lane only.
-        Port capacity shock (port_capacity_hamburg) applied here.
-        """
-        self._move(self.model.upstream("transport_eu_ham"))
 

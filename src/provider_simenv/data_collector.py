@@ -16,7 +16,7 @@ from .agents import (
     ROLE_WHOLESALER,
 )
 
-# Roles omitted here (ports, sea lanes) are not recorded.
+# Roles omitted here (ports, sea transports) are not recorded.
 _PROPS_BY_ROLE = {
     ROLE_PRODUCER: ("quantity_available", "unit_price", "active"),
     ROLE_CONSUMER: ("feed_received", "livestock_output", "active"),
@@ -61,10 +61,10 @@ class SupplyChainDataCollector(DataCollector):
                 self.add_agent_property(entry.archetype.name, prop)
 
         # Environment-level variables to record each step
-        self.add_environment_property("soja_price")
+        self.add_environment_property("soy_price")
         self.add_environment_property("feed_price")
         self.add_environment_property("shock_scale")
         self.add_environment_property("drought_severity")
-        self.add_environment_property("total_soja_supply")
+        self.add_environment_property("total_soy_supply")
         self.add_environment_property("transport_utilisation")
         self.add_environment_property("current_step")
