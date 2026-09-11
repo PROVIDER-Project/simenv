@@ -57,6 +57,63 @@ export const GAZETTEER: Record<string, GazEntry> = {
   dairy_farms: { lat: 45.4, lng: 2.0, label: 'EU dairy farms', illustrative: true },
 }
 
+/**
+ * Authored sea routes by edge id. Values are the intermediate waypoints only;
+ * the endpoints come from the resolved edge. Routes keep the Brazilian lanes
+ * offshore, leave Argentina through the Rio de la Plata, and take the US Gulf
+ * lane around Florida rather than across it.
+ */
+export const EDGE_ROUTES: Record<string, readonly GeoCoord[]> = {
+  'santos_port->rotterdam_port': [
+    { lat: -23.0, lng: -41.0 },
+    { lat: -17.0, lng: -33.0 },
+    { lat: -6.0, lng: -27.0 },
+    { lat: 8.0, lng: -23.0 },
+    { lat: 22.0, lng: -20.0 },
+    { lat: 36.0, lng: -16.0 },
+    { lat: 45.0, lng: -12.0 },
+    { lat: 49.0, lng: -7.0 },
+    { lat: 50.5, lng: -2.0 },
+    { lat: 51.2, lng: 1.4 },
+  ],
+  'paranagua_port->hamburg_port': [
+    { lat: -28.0, lng: -42.0 },
+    { lat: -24.0, lng: -34.0 },
+    { lat: -14.0, lng: -26.0 },
+    { lat: -1.0, lng: -20.0 },
+    { lat: 14.0, lng: -17.0 },
+    { lat: 29.0, lng: -13.0 },
+    { lat: 42.0, lng: -8.0 },
+    { lat: 49.0, lng: -3.0 },
+    { lat: 52.0, lng: 3.0 },
+    { lat: 53.0, lng: 6.0 },
+  ],
+  'argentina_wholesaler->rotterdam_port': [
+    { lat: -34.7, lng: -58.3 },
+    { lat: -37.0, lng: -54.0 },
+    { lat: -32.0, lng: -49.0 },
+    { lat: -23.0, lng: -44.0 },
+    { lat: -12.0, lng: -38.0 },
+    { lat: 1.0, lng: -33.0 },
+    { lat: 16.0, lng: -29.0 },
+    { lat: 31.0, lng: -25.0 },
+    { lat: 43.0, lng: -20.0 },
+    { lat: 48.0, lng: -13.0 },
+    { lat: 50.0, lng: -6.0 },
+  ],
+  'us_wholesaler->rotterdam_port': [
+    { lat: 25.5, lng: -84.0 },
+    { lat: 24.0, lng: -80.0 },
+    { lat: 29.0, lng: -71.0 },
+    { lat: 35.0, lng: -58.0 },
+    { lat: 41.0, lng: -44.0 },
+    { lat: 46.0, lng: -30.0 },
+    { lat: 49.0, lng: -17.0 },
+    { lat: 50.5, lng: -7.0 },
+    { lat: 51.2, lng: -1.0 },
+  ],
+}
+
 /** A single rendered marker (one node may yield several — see the pool split). */
 export interface Marker {
   /** Unique marker id: node id, or `${nodeId}::${entityId}` for a split node. */
@@ -71,7 +128,7 @@ export interface Marker {
   hasRecordedData: boolean
 }
 
-/** An edge with both endpoints resolved to coordinates, ready for `arcsData`. */
+/** An edge with both endpoints resolved to coordinates, ready for the globe layers. */
 export interface ResolvedEdge {
   id: string
   startLat: number
@@ -81,6 +138,8 @@ export interface ResolvedEdge {
   isSeaCrossing: boolean
   /** "Source → Target" in English, for the edge annotation. */
   label: string
+  /** Authored route including both endpoints; absent means draw a great-circle arc. */
+  path?: readonly GeoCoord[]
 }
 
 /** A node/edge that could not be placed, with the reason (for logging/UI). */
@@ -145,6 +204,7 @@ export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
       unplaced.push({ kind: 'edge', id: e.id, reason: 'endpoint has no placement' })
       continue
     }
+    const waypoints = EDGE_ROUTES[e.id]
     resolvedEdges.push({
       id: e.id,
       startLat: s.lat,
@@ -153,6 +213,7 @@ export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
       endLng: t.lng,
       isSeaCrossing: e.isSeaCrossing,
       label: `${nameById.get(e.source) ?? e.source} → ${nameById.get(e.target) ?? e.target}`,
+      path: waypoints ? [s, ...waypoints, t] : undefined,
     })
   }
 
