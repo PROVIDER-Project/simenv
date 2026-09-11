@@ -137,14 +137,18 @@ class Farmer(SupplyChainAgent):
 
     def _step_consumer(self):
         """
-        Collect feed from all feed traders (equal share per EU farmer),
-        then compute livestock output proportional to feed received.
+        Collect feed from all feed traders (equal share across every active
+        consumer agent), then compute livestock output proportional to feed
+        received.
         """
-        active_eu = getattr(self.model, self.list_name).filter(lambda f: f.active)
-        n_eu = len(active_eu)
+        n_consumers = sum(
+            len(getattr(self.model, entry.archetype.name).filter(lambda c: c.active))
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_CONSUMER
+        )
         active_traders = self.model.upstream(self.list_name)
         total_feed = sum(t.quantity_available for t in active_traders)
-        self.feed_received = total_feed / n_eu if n_eu > 0 else 0.0
+        self.feed_received = total_feed / n_consumers if n_consumers > 0 else 0.0
 
         # 100 units of feed → 100 units of livestock output (baseline).
         self.livestock_output = self.feed_received
