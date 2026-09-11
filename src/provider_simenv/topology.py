@@ -46,7 +46,6 @@ class Archetype:
     name: str              # model attribute name (parity with the current roster)
     agent_class: type
     role: str
-    count_attr: str        # scenario attribute holding the instance count
     # Declarative agent init, applied to instances by model.setup(); agents
     # never read it. Keys (all optional):
     #   "bindings"        semantic slot -> PDL (entity, impact_field) verbatim.
@@ -163,12 +162,12 @@ ARCHETYPE_REGISTRY: dict[str, tuple[type, str]] = {
     "feed_trader":       (Trader,  ROLE_FEED_TRADER),
 }
 
-_DECLARED_ARCHETYPES: dict[str, tuple[str, str, Mapping[str, Any]]] = {
-    "consumer":          ("eu_farmers", "n_eu_farmers", _FARMER_EU),
-    "processor":         ("processors", "n_processors", _PROCESSOR),
-    "feed_manufacturer": ("feed_manufacturers", "n_feed_manufacturers", _FEED_MFR),
-    "wholesaler":        ("", "n_wholesalers", _WHOLESALER),
-    "feed_trader":       ("feed_traders", "n_feed_traders", _FEED_TRADER),
+_DECLARED_ARCHETYPES: dict[str, tuple[str, Mapping[str, Any]]] = {
+    "consumer":          ("", _FARMER_EU),
+    "processor":         ("processors", _PROCESSOR),
+    "feed_manufacturer": ("feed_manufacturers", _FEED_MFR),
+    "wholesaler":        ("", _WHOLESALER),
+    "feed_trader":       ("feed_traders", _FEED_TRADER),
 }
 
 KNOWN_ARCHETYPES: frozenset[str] = frozenset(ARCHETYPE_REGISTRY)
@@ -277,30 +276,15 @@ class RosterEntry:
 _PRODUCER_SCENARIO_ATTRS = ("fixed_costs", "margin", "size_sigma")
 
 
-def _producer_count_attr(eid: str) -> str:
-    specific = f"n_{eid}"
-    if hasattr(SupplyChainScenario, specific):
-        return specific
-    logger.warning("producer %r has no %s; falling back to n_producer", eid, specific)
-    return "n_producer"
-
-
-def _transport_count_attr(list_name: str, fallback: str) -> str:
-    specific = f"n_{list_name}"
-    return specific if hasattr(SupplyChainScenario, specific) else fallback
-
-
 def _sea_transport_name(edge: SeaEdge) -> str:
     return f"sea_transport_{edge.src}__{edge.dst}"
 
 
 def _sea_transport_archetype(edge: SeaEdge) -> Archetype:
-    name = _sea_transport_name(edge)
     return Archetype(
-        name,
+        _sea_transport_name(edge),
         Transport,
         ROLE_SEA_TRANSPORT,
-        _transport_count_attr(name, "n_sea_transport"),
         _SEA_TRANSPORT,
     )
 
@@ -369,7 +353,6 @@ def _declared_archetype(
                 eid,
                 Transport,
                 ROLE_LAND_TRANSPORT,
-                _transport_count_attr(eid, "n_land_transport"),
                 _land_transport_params(eid, sea_edges),
             )
             if eid else None
@@ -379,10 +362,10 @@ def _declared_archetype(
         if spec is None or not eid:
             arc = None
         else:
-            default_name, count_attr, params = spec
+            default_name, params = spec
             cls, role = ARCHETYPE_REGISTRY[key]
-            name = eid if key == "wholesaler" else default_name
-            arc = Archetype(name, cls, role, count_attr, params)
+            name = default_name or eid
+            arc = Archetype(name, cls, role, params)
     if arc is None:
         logger.warning(
             "entity %r resolved to archetype %r but has no runtime recipe",
@@ -395,8 +378,8 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     """
     Ordered roster from PDL and sidecar entities, followed by sea-transport agents.
 
-    Producer kinds split per-entity (each carries its own id-named list, count, and
-    shock); declared non-producer kinds use their model recipes.
+    Producer kinds split per-entity (each carries its own id-named list and shock);
+    declared non-producer kinds use their model recipes.
     """
     doc = PDLLoader(pdl_path)._doc
     sidecar = load_roster_sidecar(pdl_path)
@@ -416,7 +399,6 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
             cls, role = ARCHETYPE_REGISTRY["producer"]
             arc = Archetype(
                 eid, cls, role,
-                _producer_count_attr(eid),
                 {
                     "bindings": _producer_input_bindings(eid, dependencies),
                     "scenario_attrs": _producer_scenario_attrs(eid),

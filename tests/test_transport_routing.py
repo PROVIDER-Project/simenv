@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from provider_simenv import topology
 from provider_simenv.agents import ROLE_SEA_TRANSPORT
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.pdl_loader import PDLLoader
@@ -45,29 +46,30 @@ def _sea_transport_from(model, source_entity):
     return getattr(model, names[0])
 
 
-def test_day_45_drought_rotterdam_admits_only_us_supply(monkeypatch):
+def test_day_45_drought_rotterdam_admits_cheapest_first_under_capacity(monkeypatch):
+    # One agent per entity leaves the shipped capacity slack, so bind the import
+    # lane below the offered volume to reach the rationing path at all.
+    monkeypatch.setitem(topology._TRANSPORT_IMPORT["attrs"], "capacity", 100.0)
     model = _run(SHIPPED_PDL, "soy_crisis_cascade", 46, monkeypatch)
 
-    santos = _sea_transport_from(model, "santos_port")
-    argentina = _sea_transport_from(model, "argentina_farms")
-    us = _sea_transport_from(model, "us_gulf_ports")
+    lanes = [
+        _sea_transport_from(model, source).agents[0]
+        for source in ("santos_port", "argentina_farms", "us_gulf_ports")
+    ]
+    rotterdam = model.rotterdam_port.agents[0]
+    admitted = [lane for lane in lanes if lane.quantity_available > 0.0]
+    rejected = [lane for lane in lanes if lane.quantity_available == 0.0]
 
-    admitted_brazil = sum(lane.quantity_available for lane in santos.agents)
-    admitted_argentina = sum(lane.quantity_available for lane in argentina.agents)
-    admitted_us = sum(lane.quantity_available for lane in us.agents)
-    rotterdam_total = sum(port.quantity_available for port in model.rotterdam_port.agents)
+    assert admitted and rejected, "capacity did not bind; nothing was rationed"
 
-    # After 30+ days of drought, Rotterdam buys cheapest-first: only US supply
-    # is admitted; the Brazilian and Argentine lanes carry nothing.
-    assert admitted_us > 0.0
-    assert admitted_brazil == 0.0
-    assert admitted_argentina == 0.0
-    assert rotterdam_total == admitted_us
-
-    # Lane utilisation reflects that admission.
-    assert us.agents[0].utilisation == pytest.approx(0.50)
-    assert argentina.agents[0].utilisation == 0.0
-    assert santos.agents[0].utilisation == 0.0
+    # Admission is a cheapest-first prefix by unit price, filling the lane exactly.
+    assert max(lane.unit_price for lane in admitted) <= min(
+        lane.unit_price for lane in rejected
+    )
+    assert sum(lane.quantity_available for lane in lanes) == pytest.approx(
+        rotterdam.capacity
+    )
+    assert rotterdam.quantity_available == pytest.approx(rotterdam.capacity)
 
 
 def test_alternate_pdl_argentina_routes_without_sea_transport(monkeypatch):

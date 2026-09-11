@@ -41,7 +41,6 @@ def _dump_roster(pdl_path):
             "name": e.archetype.name,
             "agent_class": e.archetype.agent_class.__name__,
             "role": e.archetype.role,
-            "count_attr": e.archetype.count_attr,
             "params": _freeze_params(e.archetype.params),
             "entity_ids": tuple(e.entity_ids),
         }
