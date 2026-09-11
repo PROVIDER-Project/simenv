@@ -14,20 +14,14 @@ class SupplyChainScenario(Scenario):
     """
 
     # --- Supply chain routing ---
-    santos_share: float = 0.7   # 70% of BRA exports via Santos
+    share_santos_port: float = 0.7   # explicit weight for the Santos route
 
     # --- Agent population size ---
-    n_bra_farmers: int = 10         # South American Farmers
-    n_wholesalers: int = 3          # buys from farmers, aggregate them, sell internationally
-    n_transport_sa_santos: int = 1  # Agents handling the Santos lane
-    n_transport_sa_paranagua: int = 1   # Agents handling the Paranagua lane
-    n_sea_lane_santos: int = 1        # Sea agents: Santos -> Rotterdam
-    n_sea_lane_paranagua: int = 1     # Sea agents: Paranagua -> Hamburg
-    n_sea_lane_arg: int = 1           # Sea agents: ARG direct -> Rotterdam
-    n_sea_lane_usa: int = 1           # Sea agents: USA Gulf -> Rotterdam
-    n_transport_eu_rtm: int = 1         # Rotterdam EU entry port agents
-    n_transport_eu_ham: int = 1         # Hamburg EU entry port agents
-    n_processors: int = 3           # Crushers / Verschrotung
+    n_brazil_farms: int = 10         # South American Farmers
+    n_wholesalers: int = 1          # originators per regional roster list
+    n_land_transport: int = 1         # fallback for a derived transport entity
+    n_sea_transport: int = 1          # fallback for a derived sea crossing
+    n_processors: int = 3           # Crushers / oil mills
     n_feed_manufacturers: int = 3
     n_feed_traders: int = 3
     n_eu_farmers: int = 10          # EU livestock farmers
@@ -43,7 +37,7 @@ class SupplyChainScenario(Scenario):
     # --- Fixed costs (€/step) ---
     # Total operating cost an agent pays each step regardless of volume.
     # the resulting price chain stays in a plausible EUR/ton range.
-    fixed_costs_bra_farmer: float = 36000.0          # farm labor, land, machinery
+    fixed_costs_brazil_farms: float = 36000.0          # farm labor, land, machinery
     fixed_costs_eu_farmer: float = 5000.0           # livestock farm operating cost
     fixed_costs_wholesaler: float = 15000.0         # aggregation, storage, logistics
     fixed_costs_feed_trader: float = 8000.0         # distribution, warehousing
@@ -55,7 +49,7 @@ class SupplyChainScenario(Scenario):
 
     # --- Margins ---
     # applied on top of total per unit cost at each chain node.
-    margin_bra_farmer: float = 0.10
+    margin_brazil_farms: float = 0.10
     margin_wholesaler: float = 0.10
     margin_feed_trader: float = 0.08
     margin_transport: float = 0.10          # shared across all transport roles
@@ -69,9 +63,9 @@ class SupplyChainScenario(Scenario):
     # log-normal size distribution for BRA, USA and EU farmers.
     # sigma = 0.0 -> all farms identical
     # sigma = 0.4 -> realistic spread (most farms near mean, few very large/small)
-    farm_size_sigma_bra: float = 0.0
-    farm_size_sigma_usa: float = 0.0
-    farm_size_sigma_arg: float = 0.0
+    size_sigma_brazil_farms: float = 0.0
+    size_sigma_us_farms: float = 0.0
+    size_sigma_argentina_farms: float = 0.0
     farm_size_sigma_eu: float = 0.0
     farm_size_seed: int = 42
 
@@ -80,9 +74,9 @@ class SupplyChainScenario(Scenario):
     #   - higher fixed_costs -> higher baseline price (EU prefers BRA under normal conditions)
     #   - unaffected by BRA shock -> stable supply when BRA supply is disrupted
     #   - base_yield acts as capacity ceiling
-    n_usa_farmers: int = 8
-    fixed_costs_usa_farmer: float = 48000.0
-    margin_usa_farmer: float = 0.10
+    n_us_farms: int = 8
+    fixed_costs_us_farms: float = 48000.0
+    margin_us_farms: float = 0.10
 
 
     # --- Argentina farmer parameters ---
@@ -90,8 +84,14 @@ class SupplyChainScenario(Scenario):
     #   - fixed_costs between BRA and USA
     #   - unaffected by BRA shock
     #   - No surplus_factor - ARG is a baseline supply, not emergency reserve
-    n_arg_farmers: int = 5
-    fixed_costs_arg_farmer: float = 42000.0
-    margin_arg_farmer: float = 0.10
+    n_argentina_farms: int = 5
+    fixed_costs_argentina_farms: float = 42000.0
+    margin_argentina_farms: float = 0.10
+
+    # generic producer fallback: synthetic sentinels, not a real country's costs
+    fixed_costs_producer: float = 1.0
+    margin_producer: float = 0.10
+    size_sigma_producer: float = 0.0
+    n_producer: int = 1
 
 

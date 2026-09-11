@@ -1,4 +1,4 @@
-# B5 fixture: Argentina is placed in the Netherlands so its route is not a sea crossing.
+# Fixture: Argentina is located in the Netherlands, so its Rotterdam route is not a sea crossing.
 pdl_version: "1.1"
 
 scenario:

@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
-import type { Marker, ResolvedEdge, RoutePortMarker } from '../data/gazetteer'
+import type { Marker, ResolvedEdge } from '../data/gazetteer'
 import { arc as arcTok, color, globe as globeTok, marker as markerTok, texture } from '../design/tokens'
-import { densifyPolyline, type LatLng } from './geo'
+import { arcApex, densifyPolyline, type LatLng } from './geo'
 import './labels.css'
 
-type AnchorKind = 'node'
+const SELECTED_MARKER_ID = 'brazil_farms'
+
+type LabelKind = 'node' | 'edge'
 type ArcLayer = 'halo' | 'glow' | 'core'
 
-/** One native `htmlElementsData` entry — a node annotation. */
+/** One native `htmlElementsData` entry — a node or edge annotation. */
 interface Anchor {
   id: string
   lat: number
   lng: number
   alt: number
   text: string
-  anchorKind: AnchorKind
+  kind: LabelKind
   illustrative: boolean
 }
 
@@ -23,21 +25,17 @@ interface Anchor {
 interface ArcDatum {
   layer: ArcLayer
   edgeId: string
-  flowKind: ResolvedEdge['kind']
-  overland: boolean
   startLat: number
   startLng: number
   endLat: number
   endLng: number
-  altitude: number | null
   intensity: number
 }
 
-/** One rendered path. Each physical ocean edge gets the same three-layer stack. */
+/** One rendered path. Each routed ocean edge gets the same three-layer stack. */
 interface PathDatum {
   layer: ArcLayer
   edgeId: string
-  flowKind: ResolvedEdge['kind']
   points: LatLng[]
   intensity: number
 }
@@ -45,7 +43,6 @@ interface PathDatum {
 /** A marker with its current (quantised) playback intensity baked in. */
 interface PointDatum extends Marker {
   intensity: number
-  selected: boolean
 }
 
 /**
@@ -63,9 +60,7 @@ function quantise(value: number): number {
 
 interface GlobeViewProps {
   markers: Marker[]
-  routePortMarkers?: RoutePortMarker[]
   edges: ResolvedEdge[]
-  visibleCommercialEdgeIds?: ReadonlySet<string>
   /** Per-node 0..1 disruption intensity for the current playback period. */
   markerIntensity?: Record<string, number>
   /** Per-edge 0..1 disruption intensity for the current playback period. */
@@ -75,7 +70,6 @@ interface GlobeViewProps {
 type Rgb = readonly [number, number, number]
 
 const NO_INTENSITY: Record<string, number> = {}
-const NO_VISIBLE_COMMERCIAL_EDGES: ReadonlySet<string> = new Set()
 
 function mix(a: Rgb | readonly number[], b: Rgb, t: number): [number, number, number] {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
@@ -94,8 +88,8 @@ function hexToRgb(hex: string): [number, number, number] {
   ]
 }
 
-function baseMarkerColor(marker: PointDatum): string {
-  if (marker.selected) return color.text
+function baseMarkerColor(marker: Marker): string {
+  if (marker.id === SELECTED_MARKER_ID) return color.text
   if (marker.role === 'producer') return color.positive
   if (!marker.hasRecordedData) return color.muted
   if (marker.illustrative) return color.warning
@@ -115,30 +109,25 @@ function arcSpec(layer: ArcLayer) {
   return layer === 'halo' ? arcTok.halo : layer === 'glow' ? arcTok.glow : arcTok.core
 }
 
-/** Arc layer colour, lerped teal → red by the edge intensity. */
+/** Corridor layer colour, lerped teal → red by the edge intensity. */
 function colorForCorridor(datum: ArcDatum | PathDatum, layerAlphaScale = 1): string[] {
   const spec = arcSpec(datum.layer)
   const t = Math.min(1, datum.intensity) * 0.85
-  const alphaScale = datum.flowKind === 'commercial' ? arcTok.commercialAlphaScale : 1
-  return spec.teal.map((teal) =>
-    rgba(mix(teal, arcTok.hot, t), spec.alpha * alphaScale * layerAlphaScale),
-  )
+  return spec.teal.map((teal) => rgba(mix(teal, arcTok.hot, t), spec.alpha * layerAlphaScale))
 }
 
 /**
  * 3D substrate and renderer for an already-resolved scene.
  *
- * Node annotations use globe.gl's NATIVE `htmlElementsData` layer, which
- * projects and occludes them each frame (anchors behind the globe hide
+ * Node and edge annotations use globe.gl's NATIVE `htmlElementsData` layer,
+ * which projects and occludes them each frame (anchors behind the globe hide
  * automatically) — no manual projection, occlusion, or collision code. The
  * blue-marble texture is pre-lit and carries the look on its own, so there is
  * no custom material, lighting, or post-processing.
  */
 export default function GlobeView({
   markers,
-  routePortMarkers = [],
   edges,
-  visibleCommercialEdgeIds = NO_VISIBLE_COMMERCIAL_EDGES,
   markerIntensity = NO_INTENSITY,
   edgeIntensity = NO_INTENSITY,
 }: GlobeViewProps) {
@@ -155,6 +144,24 @@ export default function GlobeView({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // An edge with an authored route renders as a surface path; everything else
+  // keeps the great-circle arc. A route is densified so long legs follow the
+  // globe instead of cutting through it as straight chords.
+  const pathEdges = useMemo(
+    () => edges.filter((edge) => edge.path !== undefined && edge.path.length > 1),
+    [edges],
+  )
+
+  const arcEdges = useMemo(
+    () => edges.filter((edge) => !(edge.path !== undefined && edge.path.length > 1)),
+    [edges],
+  )
+
+  const pathGeometry = useMemo(
+    () => pathEdges.map((edge) => ({ edge, points: densifyPolyline(edge.path ?? []) })),
+    [pathEdges],
+  )
+
   const anchors = useMemo<Anchor[]>(() => {
     const output: Anchor[] = []
     for (const marker of markers) {
@@ -164,92 +171,70 @@ export default function GlobeView({
         lng: marker.lng,
         alt: markerTok.altitude,
         text: marker.label,
-        anchorKind: 'node',
+        kind: 'node',
         illustrative: marker.illustrative,
       })
     }
+    for (const edge of arcEdges) {
+      // Anchor the edge label to the arc's actual rendered apex (not the
+      // great-circle midpoint) so it sits on the curve for arcs of any length.
+      const apex = arcApex(
+        { lat: edge.startLat, lng: edge.startLng },
+        { lat: edge.endLat, lng: edge.endLng },
+        arcTok.altitudeAutoScale,
+      )
+      output.push({
+        id: `edge:${edge.id}`,
+        lat: apex.lat,
+        lng: apex.lng,
+        alt: apex.alt,
+        text: edge.label,
+        kind: 'edge',
+        illustrative: false,
+      })
+    }
+    for (const { edge, points } of pathGeometry) {
+      // A routed edge has no arc apex; its label sits at the middle of the route.
+      const mid = points[Math.floor(points.length / 2)]
+      output.push({
+        id: `edge:${edge.id}`,
+        lat: mid.lat,
+        lng: mid.lng,
+        alt: arcTok.pathAltitude,
+        text: edge.label,
+        kind: 'edge',
+        illustrative: false,
+      })
+    }
     return output
-  }, [markers])
+  }, [markers, arcEdges, pathGeometry])
 
   // Signatures of the quantised intensities. useMemo compares deps by value, so a
   // new-but-identical signature string keeps the previous data reference — the
   // globe only rebuilds when disruption actually changes.
-  const pathEdges = useMemo(
-    () =>
-      edges.filter(
-        (edge) =>
-          edge.kind === 'physical' &&
-          edge.laneNodeId !== undefined &&
-          edge.path !== undefined &&
-          edge.path.length > 1,
-      ),
-    [edges],
-  )
-
-  // A lane edge without authored geometry deliberately remains in this set and
-  // falls back to an arc. Commercial relationships join only when requested.
-  const arcEdges = useMemo(
-    () =>
-      edges.filter(
-        (edge) =>
-          (edge.kind === 'commercial' && visibleCommercialEdgeIds.has(edge.id)) ||
-          (edge.kind === 'physical' &&
-            !(
-              edge.laneNodeId !== undefined &&
-              edge.path !== undefined &&
-              edge.path.length > 1
-            )),
-      ),
-    [edges, visibleCommercialEdgeIds],
-  )
-
-  const pathGeometry = useMemo(
-    () =>
-      pathEdges.map((edge) => ({
-        edge,
-        points: densifyPolyline(edge.path ?? []),
-      })),
-    [pathEdges],
-  )
-
-  const selectedMarker = useMemo(
-    () => markers.find((marker) => marker.role === 'producer') ?? markers[0],
-    [markers],
-  )
   const markerSig = markers.map((m) => quantise(markerIntensity[m.nodeId] ?? 0)).join(',')
   const arcSig = arcEdges.map((e) => `${e.id}:${quantise(edgeIntensity[e.id] ?? 0)}`).join(',')
   const pathSig = pathEdges.map((e) => `${e.id}:${quantise(edgeIntensity[e.id] ?? 0)}`).join(',')
 
   const pointData = useMemo<PointDatum[]>(
-    () =>
-      markers.map((marker) => ({
-        ...marker,
-        intensity: quantise(markerIntensity[marker.nodeId] ?? 0),
-        selected: marker.id === selectedMarker?.id,
-      })),
+    () => markers.map((marker) => ({ ...marker, intensity: quantise(markerIntensity[marker.nodeId] ?? 0) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [markers, selectedMarker, markerSig],
+    [markers, markerSig],
   )
 
   // Each edge becomes three stacked arcs (soft halo, mid glow, bright core).
   const arcData = useMemo<ArcDatum[]>(
     () =>
       arcEdges.flatMap((edge) =>
-        ARC_LAYERS.map((layer) => {
-          const overland = edge.kind === 'physical' && edge.laneNodeId === undefined
-          return {
-            layer,
-            edgeId: edge.id,
-            flowKind: edge.kind,
-            overland,
-            startLat: edge.startLat,
-            startLng: edge.startLng,
-            endLat: edge.endLat,
-            endLng: edge.endLng,
-            altitude: overland ? arcTok.overlandAltitude : null,
-            intensity: quantise(edgeIntensity[edge.id] ?? 0),
-          }
-        }),
+        ARC_LAYERS.map((layer) => ({
+          layer,
+          edgeId: edge.id,
+          startLat: edge.startLat,
+          startLng: edge.startLng,
+          endLat: edge.endLat,
+          endLng: edge.endLng,
+          intensity: quantise(edgeIntensity[edge.id] ?? 0),
+        })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [arcEdges, arcSig],
@@ -261,7 +246,6 @@ export default function GlobeView({
         ARC_LAYERS.map((layer) => ({
           layer,
           edgeId: edge.id,
-          flowKind: edge.kind,
           points,
           intensity: quantise(edgeIntensity[edge.id] ?? 0),
         })),
@@ -270,14 +254,20 @@ export default function GlobeView({
     [pathGeometry, pathSig],
   )
 
+  const selectedMarker = useMemo(
+    () => markers.find((marker) => marker.id === SELECTED_MARKER_ID) ?? markers[0],
+    [markers],
+  )
+
   // The native html layer positions and centres the OUTER node on the projected
-  // point each frame; the inner label floats above its marker.
+  // point each frame; the inner label offsets itself (nodes float above their
+  // marker, edge labels sit on the arc apex).
   const makeAnchorElement = useCallback((datum: object) => {
     const anchor = datum as Anchor
     const outer = document.createElement('div')
-    outer.className = `sim-anchor sim-anchor--${anchor.anchorKind}`
+    outer.className = `sim-anchor sim-anchor--${anchor.kind}`
     const label = document.createElement('div')
-    label.className = `sim-label sim-label--${anchor.anchorKind}${
+    label.className = `sim-label sim-label--${anchor.kind}${
       anchor.illustrative ? ' sim-label--illustrative' : ''
     }`
     label.textContent = anchor.text
@@ -295,7 +285,7 @@ export default function GlobeView({
     )
 
     const controls = globe.controls()
-    controls.autoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    controls.autoRotate = true
     controls.autoRotateSpeed = globeTok.autoRotateSpeed
     controls.enableDamping = true
     controls.dampingFactor = 0.08
@@ -307,14 +297,7 @@ export default function GlobeView({
   const globeOffset: [number, number] = [0, mobile ? -10 : -8]
 
   return (
-    <div
-      className="sim-globe-stage"
-      data-visible-arc-count={arcEdges.length}
-      data-visible-path-count={pathEdges.length}
-      data-route-port-count={routePortMarkers.length}
-      data-arc-signature={arcSig}
-      data-path-signature={pathSig}
-    >
+    <div className="sim-globe-stage">
       <Globe
         ref={globeRef}
         onGlobeReady={handleGlobeReady}
@@ -336,7 +319,7 @@ export default function GlobeView({
         pointAltitude={markerTok.altitude}
         pointRadius={(datum: object) => {
           const point = datum as PointDatum
-          const base = point.selected ? markerTok.selectedRadius : markerTok.radius
+          const base = point.id === SELECTED_MARKER_ID ? markerTok.selectedRadius : markerTok.radius
           return base * (1 + Math.min(1, point.intensity) * 0.7)
         }}
         pointResolution={18}
@@ -356,39 +339,16 @@ export default function GlobeView({
         arcStartLng={(datum) => (datum as ArcDatum).startLng}
         arcEndLat={(datum) => (datum as ArcDatum).endLat}
         arcEndLng={(datum) => (datum as ArcDatum).endLng}
-        arcAltitude={(datum) => (datum as ArcDatum).altitude}
         arcAltitudeAutoScale={arcTok.altitudeAutoScale}
         arcColor={(datum: object) => colorForCorridor(datum as ArcDatum)}
-        arcStroke={(datum: object) => {
-          const arc = datum as ArcDatum
-          const scale = arc.overland
-            ? arcTok.overlandStrokeScale
-            : arc.flowKind === 'commercial'
-              ? arcTok.commercialStrokeScale
-              : 1
-          return arcSpec(arc.layer).stroke * scale
-        }}
-        arcDashLength={(datum: object) => {
-          const arc = datum as ArcDatum
-          if (arc.flowKind === 'commercial' && arc.layer === 'core') {
-            return arcTok.commercialDashLength
-          }
-          return arc.layer === 'core' ? arcTok.coreDashLength : 1
-        }}
-        arcDashGap={(datum: object) => {
-          const arc = datum as ArcDatum
-          if (arc.flowKind === 'commercial' && arc.layer === 'core') {
-            return arcTok.commercialDashGap
-          }
-          return arc.layer === 'core' ? arcTok.coreDashGap : 0
-        }}
-        arcDashAnimateTime={(datum: object) => {
-          const arc = datum as ArcDatum
-          if (arc.layer !== 'core') return 0
-          return arc.flowKind === 'commercial'
-            ? arcTok.commercialDashAnimateMs
-            : arcTok.coreDashAnimateMs
-        }}
+        arcStroke={(datum: object) => arcSpec((datum as ArcDatum).layer).stroke}
+        arcDashLength={(datum: object) =>
+          (datum as ArcDatum).layer === 'core' ? arcTok.coreDashLength : 1
+        }
+        arcDashGap={(datum: object) => ((datum as ArcDatum).layer === 'core' ? arcTok.coreDashGap : 0)}
+        arcDashAnimateTime={(datum: object) =>
+          (datum as ArcDatum).layer === 'core' ? arcTok.coreDashAnimateMs : 0
+        }
         arcsTransitionDuration={0}
         pathsData={pathData}
         pathPoints={(datum) => (datum as PathDatum).points}
@@ -419,20 +379,6 @@ export default function GlobeView({
           (datum as PathDatum).layer === 'halo' ? 0 : arcTok.pathCoreDashAnimateMs
         }
         pathTransitionDuration={0}
-        labelsData={routePortMarkers}
-        labelLat={(datum) => (datum as RoutePortMarker).lat}
-        labelLng={(datum) => (datum as RoutePortMarker).lng}
-        labelText={(datum) => (datum as RoutePortMarker).label}
-        labelSize={markerTok.portLabelSize}
-        labelDotRadius={markerTok.portDotRadius}
-        labelColor={(datum) =>
-          (datum as RoutePortMarker).role === 'origin'
-            ? markerTok.portOriginColor
-            : markerTok.portDestinationColor
-        }
-        labelAltitude={markerTok.portAltitude}
-        labelResolution={2}
-        labelsTransitionDuration={0}
         htmlElementsData={anchors}
         htmlLat={(datum: object) => (datum as Anchor).lat}
         htmlLng={(datum: object) => (datum as Anchor).lng}

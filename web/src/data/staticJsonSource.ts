@@ -1,24 +1,18 @@
 /**
  * staticJsonSource — a `DataSource` backed by an exported `bundle.json`.
  *
- * It reads the JSON written from a simulation run's CSVs by
- * `provider_simenv.export_bundle` and is selected at the composition root.
+ * This is the Batch-5 swap target: it reads the JSON the Python exporter
+ * (`provider_simenv.export_bundle`) writes from a simulation run's CSVs, and is
+ * selected at the composition root (`main.tsx`) without touching any view file.
  *
  * The fetched payload is untrusted input, so it crosses a structural check
  * (`parseBundle`) before any view sees it, rather than being cast blindly.
  */
 
 import type { DataSource } from './source'
-import type { Bundle, Edge, EnvState, Node, Tick } from './types'
+import type { Bundle, Edge, EntityPlacement, EnvState, Node, Tick } from './types'
 
-const DEFAULT_BUNDLE_URL = '/bundle.json'
-
-function bundleUrl(): string {
-  const candidate = new URLSearchParams(window.location.search).get('bundle')
-  return candidate?.startsWith('/') && !candidate.startsWith('//') && candidate.endsWith('.json')
-    ? candidate
-    : DEFAULT_BUNDLE_URL
-}
+const BUNDLE_URL = '/bundle.json'
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -29,10 +23,32 @@ function requireArray(value: unknown, field: string): unknown[] {
   return value
 }
 
-function parseEdgeKind(value: unknown): Edge['kind'] {
-  if (value === undefined) return 'physical'
-  if (value === 'commercial' || value === 'physical') return value
-  throw new Error('bundle.edges[].kind must be commercial or physical')
+function requireString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`bundle.${field} must be a non-empty string`)
+  }
+  return value
+}
+
+function requireFiniteNumber(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`bundle.${field} must be a finite number`)
+  }
+  return value
+}
+
+function parsePlacement(value: unknown, nodeId: string): EntityPlacement {
+  if (!isObject(value)) throw new Error('bundle.nodes[].placements[] must be objects')
+  const entityId = requireString(value.entityId, 'nodes[].placements[].entityId')
+  const label = requireString(value.label, 'nodes[].placements[].label')
+  const lat = requireFiniteNumber(value.lat, 'nodes[].placements[].lat')
+  const lng = requireFiniteNumber(value.lng, 'nodes[].placements[].lng')
+  if (lat < -90 || lat > 90) throw new Error(`bundle node ${nodeId} has latitude outside [-90, 90]`)
+  if (lng < -180 || lng > 180) throw new Error(`bundle node ${nodeId} has longitude outside [-180, 180]`)
+  if (typeof value.illustrative !== 'boolean') {
+    throw new Error('bundle.nodes[].placements[].illustrative must be boolean')
+  }
+  return { entityId, label, lat, lng, illustrative: value.illustrative }
 }
 
 /** Validate the fetched payload at the trust boundary and return a typed Bundle. */
@@ -42,11 +58,27 @@ export function parseBundle(input: unknown): Bundle {
 
   const nodes = requireArray(input.nodes, 'nodes').map((n): Node => {
     if (!isObject(n)) throw new Error('bundle.nodes[] must be objects')
+    const id = String(n.id)
+    const entityIds = requireArray(n.entityIds, 'nodes[].entityIds').map(String)
+    const placements = (
+      n.placements === undefined ? [] : requireArray(n.placements, 'nodes[].placements')
+    ).map((placement) => parsePlacement(placement, id))
+    const seenPlacements = new Set<string>()
+    for (const placement of placements) {
+      if (!entityIds.includes(placement.entityId)) {
+        throw new Error(`bundle node ${id} has placement for unknown entity ${placement.entityId}`)
+      }
+      if (seenPlacements.has(placement.entityId)) {
+        throw new Error(`bundle node ${id} has duplicate placement for ${placement.entityId}`)
+      }
+      seenPlacements.add(placement.entityId)
+    }
     return {
-      id: String(n.id),
+      id,
       label: String(n.label),
       role: String(n.role),
-      entityIds: requireArray(n.entityIds, 'nodes[].entityIds').map(String),
+      entityIds,
+      placements,
       hasRecordedData: Boolean(n.hasRecordedData),
     }
   })
@@ -57,7 +89,6 @@ export function parseBundle(input: unknown): Bundle {
       id: String(e.id),
       source: String(e.source),
       target: String(e.target),
-      kind: parseEdgeKind(e.kind),
       isSeaCrossing: Boolean(e.isSeaCrossing),
     }
   })
@@ -75,11 +106,11 @@ export function parseBundle(input: unknown): Bundle {
     if (!isObject(s)) throw new Error('bundle.env[] must be objects')
     return {
       period: Number(s.period),
-      sojaPrice: Number(s.sojaPrice),
+      soyPrice: Number(s.soyPrice),
       feedPrice: Number(s.feedPrice),
       shockScale: Number(s.shockScale),
       droughtSeverity: Number(s.droughtSeverity),
-      totalSojaSupply: Number(s.totalSojaSupply),
+      totalSoySupply: Number(s.totalSoySupply),
       transportUtilisation: Number(s.transportUtilisation),
       currentStep: Number(s.currentStep),
     }
@@ -104,7 +135,7 @@ export function parseBundle(input: unknown): Bundle {
 export const staticJsonSource: DataSource = {
   name: 'bundle.json',
   async getBundle(): Promise<Bundle> {
-    const response = await fetch(bundleUrl())
+    const response = await fetch(BUNDLE_URL)
     if (!response.ok) throw new Error(`bundle request failed with HTTP ${response.status}`)
     const input: unknown = await response.json()
     return parseBundle(input)

@@ -1,15 +1,15 @@
 """
 Global supply chain market state.
-It tracks the global soja market: current prices, transport availability,
+It tracks the global soy market: current prices, transport availability,
 and the active disruption level (drought).
 
 Agents do not modify the environment directely.
 The env updates itself each step based on aggregate agent behavior.
 
 Tracked prices mirror the computed unit_price at key chain nodes:
-    soja_price: weighted average price from active wholesalers
+    soy_price: weighted average price from active wholesalers
     feed_price: weighted average price from active feed traders
-    total_soja_supply: sum of quantity_available across BRA + USA farmers
+    total_soy_supply: sum of quantity_available across the PDL's producer regions
     transport_utilisation: average utilisation of all transport agents
 """
 from __future__ import annotations
@@ -17,7 +17,13 @@ from typing import TYPE_CHECKING
 from Melodie import Environment
 
 
-from .shock_registry import DROUGHT_KEY
+from .agents import (
+    ROLE_PRODUCER,
+    ROLE_WHOLESALER,
+    ROLE_LAND_TRANSPORT,
+    ROLE_SEA_TRANSPORT,
+)
+from .shock_registry import DROUGHT_IMPACT_FIELD
 from .event_tracker import EventTracker
 
 
@@ -26,8 +32,8 @@ class SupplyChainEnvironment(Environment):
     Updated once per simulation step after all agents acted.
     """
 
-    # current price of raw soja
-    soja_price: float = 0.0
+    # current price of raw soy
+    soy_price: float = 0.0
 
     # current price of precessed animal feed
     feed_price: float = 0.0
@@ -39,8 +45,8 @@ class SupplyChainEnvironment(Environment):
     # drought severity this step
     drought_severity: float = 0.0
 
-    # total soja quantity available in the chain this step
-    total_soja_supply: float = 0.0
+    # total soy quantity available in the chain this step
+    total_soy_supply: float = 0.0
 
     # average transport capacity utilisation across all transport agents (0.0 ~ 1.0)
     transport_utilisation: float = 0.0
@@ -56,11 +62,11 @@ class SupplyChainEnvironment(Environment):
         """
         Initialise environment state form the scenario parameters.
         """
-        self.soja_price = 0.0
+        self.soy_price = 0.0
         self.feed_price = 0.0
         self.shock_scale = 0.0
         self.drought_severity = 0.0
-        self.total_soja_supply = 0.0
+        self.total_soy_supply = 0.0
         self.transport_utilisation = 0.0
         self.current_step = 0
 
@@ -86,10 +92,17 @@ class SupplyChainEnvironment(Environment):
 
         self.shock_scale = max(self.shock_scales.values(), default=0.0)
 
-        # Drought severity is defined as brazil_farms supply degradation (DROUGHT_KEY)
-        bra_scale = self.shock_scales.get(DROUGHT_KEY, 0.0)
-        bra_value = self.get_effective_value(*DROUGHT_KEY)
-        self.drought_severity = (bra_scale * (1.0 - bra_value))
+        # Drought severity: the worst active supply degradation across the PDL's producers,
+        # so a PDL that droughts a different producer reports the right value. A supply increase
+        # is not a drought, so the negative degradation it produces floor at zero.
+        severities = [
+            self.shock_scales.get((eid, DROUGHT_IMPACT_FIELD), 0.0)
+            * (1.0 - self.get_effective_value(eid, DROUGHT_IMPACT_FIELD))
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_PRODUCER
+            for eid in entry.entity_ids
+        ]
+        self.drought_severity = max([0.0, *severities])
 
 
 
@@ -113,32 +126,38 @@ class SupplyChainEnvironment(Environment):
 
     def step(self):
         """
-        Aggregate agent outputs into macro indicators (soja/feed prices, total supply,
+        Aggregate agent outputs into macro indicators (soy/feed prices, total supply,
         transport utilisation) after all agents have acted in the current step.
         """
         self.current_step += 1
 
-        # Soja supply: sum over the producer regions from the run's flow graph,
+        # Soy supply: sum over the producer regions from the run's flow graph,
         # so a swapped PDL's new region is counted. Producer order follows the
         # roster, so the float grouping (and recorded value) is unchanged for s1.
         from .topology import producer_lists
-        self.total_soja_supply = sum(
+        self.total_soy_supply = sum(
             sum(f.quantity_available
                 for f in getattr(self.model, name).filter(lambda f: f.active))
             for name in producer_lists(self.model._flow_adjacency)
         )
 
 
-        # Soja price (wholesaler lvl)
-        active_wholesalers = self.model.wholesalers.filter(lambda w: w.active)
+        # Soy price (wholesaler lvl)
+        active_wholesalers = [
+            wholesaler
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_WHOLESALER
+            for wholesaler in getattr(self.model, entry.archetype.name).agents
+            if wholesaler.active
+        ]
         total_w_vol = sum(w.quantity_available for w in active_wholesalers)
         if total_w_vol > 0:
-            self.soja_price = (
+            self.soy_price = (
                 sum(w.unit_price * w.quantity_available for w in active_wholesalers)
                 / total_w_vol
             )
         else:
-            self.soja_price = 0.0
+            self.soy_price = 0.0
 
         # Feed price (feed trader lvl)
         active_traders = self.model.feed_traders.filter(lambda t: t.active)
@@ -151,22 +170,36 @@ class SupplyChainEnvironment(Environment):
         else:
             self.feed_price = 0.0
 
-        # Transport util
-        all_transport = (
-            self.model.transport_sa_santos.filter(lambda a: a.active)
-            + self.model.transport_sa_paranagua.filter(lambda a: a.active)
-            + self.model.sea_lane_santos.filter(lambda a: a.active)
-            + self.model.sea_lane_paranagua.filter(lambda a: a.active)
-            + self.model.sea_lane_arg.filter(lambda a: a.active)
-            + self.model.sea_lane_usa.filter(lambda a: a.active)
-            + self.model.transport_eu_rtm.filter(lambda a: a.active)
-            + self.model.transport_eu_ham.filter(lambda a: a.active)
-        )
+        # Transport util: fold export-side land, then sea crossings, then
+        # import-side land, so the mean's float grouping matches the shipped
+        # chain order. Names come from the roster and flow graph, so a swapped
+        # PDL (or an absent lane) folds the same way without a code change.
+        adjacency = self.model._flow_adjacency
+        sea_lists = [
+            entry.archetype.name
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_SEA_TRANSPORT
+        ]
+        sea_set = set(sea_lists)
+        export_land, import_land = [], []
+        for entry in self.model._roster:
+            if entry.archetype.role != ROLE_LAND_TRANSPORT:
+                continue
+            name = entry.archetype.name
+            if any(src in sea_set for src in adjacency.get(name, ())):
+                import_land.append(name)
+            else:
+                export_land.append(name)
 
-        if all_transport:
+        active_transport = [
+            agent
+            for name in (*export_land, *sea_lists, *import_land)
+            for agent in getattr(self.model, name).filter(lambda a: a.active)
+        ]
+        if active_transport:
             self.transport_utilisation = sum(
-                a.utilisation for a in all_transport
-            ) / len(all_transport)
+                a.utilisation for a in active_transport
+            ) / len(active_transport)
         else:
             self.transport_utilisation = 0.0
 

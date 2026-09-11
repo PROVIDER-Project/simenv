@@ -8,25 +8,16 @@ Melodie calls three methods in fixed order:
     2. setup(): additional initialisation logic after creation
     3. run(): the simulation loop
 
-Step order each timestep:
-    1.  Farmer[sa]           produce soja (drought applied)
-    2.  Trader[wholesaler]   aggregate and price
-    3.  Transport[sa_santos]   move BRA + USA santos_share through Santos
-    3.  Transport[sa_paranagua] move BRA + USA (1-santos_share) through Paranagua
-    4a. Transport[sea_santos]   ship Santos output -> EU port (Rotterdam)
-    4b. Transport[sea_paranagua] ship Paranagua output -> EU port (Hamburg)
-    4c. Transport[sea_arg]       ship ARG direct -> EU port (Rotterdam, bypassing SA ports)
-    4d. Transport[sea_usa]       ship USA Gulf-> Rotterdam, bypassing SA ports
-    5a. Transport[eu_rtm]        Rotterdam: sea_santos + sea_arg + sea_usa -> processors
-    5b. Transport[eu_ham]        Hamburg: sea_paranagua -> processors
-    6. Process[processor]   crush soja -> meal
-    7. Process[feed_manufacturer]   produce compound meal
-    8. Trader[feed_trader]  distribute feed
-    9. Farmer[eu]           bid and receive feed
-    10. Environment         aggregate global state and update prices
-    11. DataCollector       record snapshot
+Step order each timestep (derived, not hardcoded):
+    1. Apply the day's shock scales to every bound parameter.
+    2. Step each roster list in flow-graph order (topology.execution_order),
+       so a list runs only after the upstream lists it consumes: producers as
+       sources, then transports, processors, traders and consumers along the
+       derived wiring. Region and route are not named here — they come from
+       the PDL roster.
+    3. Environment      aggregate global state and update prices.
+    4. DataCollector    record the snapshot.
 """
-import fontTools.misc.arrayTools
 import logging
 from Melodie import Model
 from pathlib import Path
@@ -49,7 +40,7 @@ class SupplyChainModel(Model):
         self.data_collector = self.create_data_collector(SupplyChainDataCollector)
 
         # PDL-driven roster: one AgentList per archetype, bound to its model
-        # attribute name (self.bra_farmers, ...) so the rest of the model still
+        # attribute name (self.brazil_farms, ...) so the rest of the model still
         # references lists by name. Replaces the old 16 hardcoded calls.
         self._roster = build_roster(self._roster_pdl_path())
         for entry in self._roster:
@@ -84,6 +75,7 @@ class SupplyChainModel(Model):
             scenario_attrs = arc.params.get("scenario_attrs", {})
             for agent in agent_list.agents:
                 agent.role = arc.role
+                agent.list_name = arc.name
                 agent.origin = origin
                 agent.binding = dict(bindings)   # per-agent copy of the declared slots
                 for attr, value in attrs.items():
@@ -129,6 +121,7 @@ class SupplyChainModel(Model):
 
         role_of = {e.archetype.name: e.archetype.role for e in self._roster}
         producers = producer_lists(self._flow_adjacency)
+        ports = export_port_lists(self._flow_adjacency, self._roster)
 
         def vw_price(name: str) -> float:
             active = getattr(self, name).filter(lambda a: a.active)
@@ -138,9 +131,7 @@ class SupplyChainModel(Model):
         def volume(name: str) -> float:
             return sum(a.quantity_available for a in getattr(self, name).filter(lambda a: a.active))
 
-        # label by role when it's unique among producers, else by list name, so
-        # the shipped PDL stays BRA/ARG/USA but split same-role regions (an extra
-        # arg-role china_farms) don't collide.
+        # label by role when unique among producers, else by list name.
         role_n = {r: sum(1 for n in producers if role_of.get(n, n) == r)
                   for r in {role_of.get(n, n) for n in producers}}
 
@@ -148,12 +139,21 @@ class SupplyChainModel(Model):
             role = role_of.get(name, name)
             return (role if role_n[role] == 1 else name).upper()
 
+        port_role_n = {
+            role: sum(1 for name in ports if role_of.get(name, name) == role)
+            for role in {role_of.get(name, name) for name in ports}
+        }
+
+        def port_label(name: str) -> str:
+            role = role_of.get(name, name)
+            return (role if port_role_n[role] == 1 else name).upper()
+
         return {
             "producers": {plabel(n): vw_price(n) for n in producers},
-            "ports": {role_of.get(n, n).upper(): volume(n) for n in export_port_lists(self._flow_adjacency)},
-            "soja_px": self.environment.soja_price,
+            "ports": {port_label(n): volume(n) for n in ports},
+            "soy_px": self.environment.soy_price,
             "feed_px": self.environment.feed_price,
-            "supply": self.environment.total_soja_supply,
+            "supply": self.environment.total_soy_supply,
             "n_active_shocks": sum(1 for v in self.environment.shock_scales.values() if v > 0),
         }
 
@@ -179,8 +179,8 @@ class SupplyChainModel(Model):
         """
         prod = " ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         logger.debug(
-            " ... day %03d   shocks=%d  %s soja=%.0f feed=%.0f supply=%.0ft",
-            t, snap['n_active_shocks'], prod, snap['soja_px'], snap['feed_px'], snap['supply'],
+            " ... day %03d   shocks=%d  %s soy=%.0f feed=%.0f supply=%.0ft",
+            t, snap['n_active_shocks'], prod, snap['soy_px'], snap['feed_px'], snap['supply'],
         )
 
 
@@ -192,7 +192,7 @@ class SupplyChainModel(Model):
         n_shocks = snap["n_active_shocks"]
         prod = "  ".join(f"{k}={v:.0f}" for k, v in snap["producers"].items())
         ports = "  ".join(f"{k}={v:.0f}t" for k, v in snap["ports"].items())
-        prices_line = f"  Final prices: {prod}  soja={snap['soja_px']:.0f}  feed={snap['feed_px']:.0f}"
+        prices_line = f"  Final prices: {prod}  soy={snap['soy_px']:.0f}  feed={snap['feed_px']:.0f}"
         supply_line = f"  Final supply: {snap['supply']:.0f}t  {ports}"
         logger.info(
             "Scenario %s complete\n"
@@ -339,8 +339,8 @@ class SupplyChainModel(Model):
                 yield {
                     "step": t,
                     "shock_scale": self.environment.shock_scale,
-                    "soja_price": self.environment.soja_price,
+                    "soy_price": self.environment.soy_price,
                     "feed_price": self.environment.feed_price,
-                    "total_soja_supply": self.environment.total_soja_supply,
+                    "total_soy_supply": self.environment.total_soy_supply,
                     "transport_utilisation": self.environment.transport_utilisation,
                 }

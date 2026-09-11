@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { staticJsonSource } from './data/staticJsonSource.ts'
 
-// Composition root: the only place a concrete DataSource is chosen.
+// Composition root: the ONLY place a concrete DataSource is chosen. A Postgres
+// source later swaps in here the same way; views do not change.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App source={staticJsonSource} />
