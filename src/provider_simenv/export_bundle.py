@@ -1,8 +1,8 @@
 """
 Export a simulation run's CSV output into the JSON bundle the web view consumes.
 
-Reads the ``Result_Simulator_*.csv`` files a run writes to ``data/output`` and emits
-a single ``bundle.json`` matching the frontend ``Bundle`` contract
+Reads the ``Result_Simulator_*.csv`` files a run writes to
+``data/output/<run-id>/`` and emits a single ``bundle.json`` matching the frontend ``Bundle`` contract
 (``web/src/data/types.ts``): nodes, edges, per-node time-series (``ticks``) and the
 environment time-series (``env``).
 
@@ -18,7 +18,7 @@ are drawn endpoint-to-endpoint rather than routed through sea-transport agents, 
 have no single map location.
 
 Usage:
-    python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--output FILE]
+    python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--run ID] [--output FILE]
 """
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ import pandas as pd
 from .agents import Transport
 from .data_collector import _PROPS_BY_ROLE, result_table_name
 from .pdl_loader import PDLLoader
+from .run_registry import resolve_run, run_dir
 from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
 
 logger = logging.getLogger(__name__)
@@ -280,19 +281,36 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    output_root = os.path.join(here, "data", "output")
 
     parser = argparse.ArgumentParser(description="Export a run's CSVs to the web bundle.json")
     parser.add_argument("--scenario", type=int, default=1,
                         help="id_scenario to export (0 = baseline, 1 = PDL shock). Default 1.")
-    parser.add_argument("--input", type=str, default=os.path.join(here, "data", "output"),
+    parser.add_argument("--input", type=str, default=None,
                         help="Directory holding Result_Simulator_*.csv.")
+    parser.add_argument("--run", type=str, default=None,
+                        help="Run id to export. Defaults to the newest completed run.")
     parser.add_argument("--output", type=str, default=os.path.join(repo_root, "web", "public", "bundle.json"),
                         help="Path to write bundle.json.")
     parser.add_argument("--pdl", type=str, default="s1-soja.pdl.yaml", help="PDL name for metadata.")
     args = parser.parse_args()
 
-    bundle = build_bundle(args.input, args.scenario, args.pdl)
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    if args.input is not None:
+        input_dir = args.input
+        logger.info(
+            "Using explicit input directory %s; not resolved through the run registry",
+            input_dir,
+        )
+    else:
+        try:
+            resolved_run_id = resolve_run(output_root, args.run)
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        input_dir = run_dir(output_root, resolved_run_id)
+        logger.info("Resolved run %s at %s", resolved_run_id, input_dir)
+
+    bundle = build_bundle(input_dir, args.scenario, args.pdl)
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(bundle, fh, ensure_ascii=False, separators=(",", ":"))
 

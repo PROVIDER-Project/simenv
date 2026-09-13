@@ -45,7 +45,9 @@ simenv/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
             │   └── SimulatorScenarios_template.csv   ← edit this; every run copies it
             └── output/                               ← generated at runtime
-                └── Result_Simulator_*.csv
+                ├── runs.json                         ← run index and status
+                └── <run-id>/
+                    └── Result_Simulator_*.csv
 ```
 
 ---
@@ -127,6 +129,9 @@ With `--pdl`, the live CSV is then rewritten to two rows: baseline (`id=0`) and 
 scenario (`id=1`). Shock magnitudes and timing come from PDL events at runtime, not from
 CSV columns.
 
+Each invocation writes its output into `data/output/<run-id>/`. The adjacent
+`data/output/runs.json` records each run's status and input metadata.
+
 **What runs automatically:**
 
 1. Simulation loop — each CSV row, `period_num` steps (default 365)
@@ -135,10 +140,16 @@ CSV columns.
 ### Update the globe frontend after a run
 
 ```bash
+# Export the newest completed run
 python -m provider_simenv.export_bundle --scenario 1
+
+# Export one recorded run by id
+python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
 ```
 
-The exporter writes `web/public/bundle.json`. See `web/README.md` for the frontend workflow.
+Without `--run` or `--input`, the exporter reads the newest completed run.
+`--input DIR` still reads a directory directly. The exporter writes
+`web/public/bundle.json`. See `web/README.md` for the frontend workflow.
 
 ---
 
@@ -279,7 +290,8 @@ from the repository root. This builds the database container, if it's not alread
 
 | File | Description |
 |---|---|
-| `data/output/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
+| `data/output/runs.json` | Run index containing status and provenance metadata |
+| `data/output/<run-id>/Result_Simulator_*.csv` | Raw per-agent per-step output for one run |
 | `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---
