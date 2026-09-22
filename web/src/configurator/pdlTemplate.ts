@@ -174,11 +174,25 @@ function timelineEventIds(cascadeBlock: string): string[] {
   return [...cascadeBlock.matchAll(/^ {8}event: (.+)$/gm)].map((match) => match[1])
 }
 
+function sanitizeCauses(block: string, retainedEventIds: Set<string>): string {
+  const match = block.match(/^ {4}causes: \[(.*)\]$/m)
+  if (!match) return block
+
+  const causes = match[1]
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => retainedEventIds.has(value))
+
+  if (causes.length === 0) return block.replace(/^ {4}causes: \[.*\]\n/m, '')
+  return block.replace(/^ {4}causes: \[.*\]$/m, `    causes: [${causes.join(', ')}]`)
+}
+
 function keepOnlyEvents(doc: string, eventIds: string[]): string {
+  const retainedEventIds = new Set(eventIds)
   const blocks = eventIds.map((eventId) => {
     const match = doc.match(eventBlockPattern(eventId))
     if (!match) throw new Error(`Missing event block: ${eventId}`)
-    return match[0].trimEnd()
+    return sanitizeCauses(match[0].trimEnd(), retainedEventIds)
   })
   return doc.replace(/^events:\n[\s\S]*?^cascades:\n/m, `events:\n${blocks.join('\n')}\n\ncascades:\n`)
 }

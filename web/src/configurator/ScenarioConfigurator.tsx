@@ -131,7 +131,12 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             <span>Active cascade</span>
             <select
               value={config.cascadeId}
-              onChange={(event) => setCascade(event.target.value as CascadeId)}
+              onChange={(event) => {
+                const nextCascade = event.target.value
+                if (nextCascade === 'soy_crisis_cascade' || nextCascade === 'energy_food_cascade') {
+                  setCascade(nextCascade)
+                }
+              }}
             >
               <option value="soy_crisis_cascade">{cascadeLabel('soy_crisis_cascade')}</option>
               <option value="energy_food_cascade">{cascadeLabel('energy_food_cascade')}</option>
@@ -406,11 +411,15 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             <textarea readOnly value={pdl} spellCheck={false} />
           </label>
 
-          <p className="sim-configurator-notice" aria-live="polite">
-            {notice || 'Export the document and run provider_simenv.main --pdl <file> later.'}
-          </p>
         </>
       )}
+
+      <p className="sim-configurator-notice" aria-live="polite">
+        {notice ||
+          (collapsed
+            ? 'Open the configurator to tune and export a PDL scenario.'
+            : 'Export the document and run provider_simenv.main --pdl <file> later.')}
+      </p>
     </aside>
   )
 }
