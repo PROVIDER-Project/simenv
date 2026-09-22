@@ -19,6 +19,8 @@ enough to see the view.
 | **Python simulation** (`src/provider_simenv`) | only to regenerate data | Produces the CSVs that `export_bundle.py` turns into a new `bundle.json`. |
 | **PostgreSQL** | no | Not used by the frontend. It is an output target of the simulation only. |
 
+The globe now also includes an integrated **PDL configurator**. It adjusts a first-pass set of disruption parameters in the live visualization and emits a downloadable `*.pdl.yaml` document for later execution through `provider_simenv.main --pdl ...`.
+
 ---
 
 ## Prerequisites
@@ -71,6 +73,21 @@ npm run lint        # eslint src
 ```
 
 `npm run build` runs `tsc -b` first, so a type error fails the build.
+
+### Scenario configurator
+
+Inside the running app, open **PDL configurator** from the top-right panel to:
+
+- switch between the soy-crisis and energy-food cascades
+- tune a first set of event magnitudes, durations, and activation days with sliders
+- toggle mitigation and contingency events with switches
+- copy or download a runnable PDL document built from the current settings
+
+The generated file keeps the shipped scenario topology and narrows the document to the currently selected cascade, so it can be saved and used later with:
+
+```bash
+python -m provider_simenv.main --pdl /path/to/generated-scenario.pdl.yaml
+```
 
 ---
 

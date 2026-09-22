@@ -1,0 +1,185 @@
+.sim-configurator {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 5;
+  width: min(420px, calc(100vw - 48px));
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--sim-color-border);
+  border-radius: var(--sim-radius-lg);
+  background: linear-gradient(180deg, rgba(9, 19, 34, 0.92), rgba(6, 13, 24, 0.88));
+  box-shadow: var(--sim-shadow-ambient);
+  backdrop-filter: blur(16px);
+  overflow: auto;
+}
+
+.sim-configurator--collapsed {
+  width: min(240px, calc(100vw - 48px));
+  max-height: none;
+}
+
+.sim-configurator-header,
+.sim-configurator-field-row,
+.sim-configurator-actions,
+.sim-configurator-meta,
+.sim-configurator-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sim-configurator-header h2,
+.sim-configurator-section h3,
+.sim-configurator-preview span,
+.sim-configurator-text-field span,
+.sim-configurator-notice,
+.sim-configurator-copy,
+.sim-configurator-eyebrow {
+  margin: 0;
+}
+
+.sim-configurator-eyebrow {
+  color: var(--sim-color-accent-bright);
+  font: 600 10px/1.1 var(--sim-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.sim-configurator-header h2 {
+  font: 520 24px/1.05 var(--sim-font-display);
+}
+
+.sim-configurator-copy {
+  color: var(--sim-color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sim-configurator-collapse,
+.sim-configurator-actions button {
+  border: 1px solid rgba(126, 213, 255, 0.3);
+  border-radius: var(--sim-radius-md);
+  background: rgba(67, 183, 255, 0.12);
+  color: var(--sim-color-text);
+  font: 600 11px/1 var(--sim-font-mono);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.sim-configurator-collapse {
+  padding: 9px 12px;
+}
+
+.sim-configurator-actions button {
+  flex: 1;
+  padding: 11px 14px;
+}
+
+.sim-configurator-text-field,
+.sim-configurator-preview,
+.sim-configurator-section,
+.sim-configurator-field {
+  display: grid;
+  gap: 8px;
+}
+
+.sim-configurator-text-field input,
+.sim-configurator-text-field select,
+.sim-configurator-preview textarea {
+  width: 100%;
+  border: 1px solid var(--sim-color-border);
+  border-radius: var(--sim-radius-md);
+  background: rgba(2, 8, 16, 0.8);
+  color: var(--sim-color-text);
+  font: 500 12px/1.4 var(--sim-font-body);
+}
+
+.sim-configurator-text-field input,
+.sim-configurator-text-field select {
+  padding: 10px 12px;
+}
+
+.sim-configurator-text-field span,
+.sim-configurator-preview span,
+.sim-configurator-section h3,
+.sim-configurator-field,
+.sim-configurator-toggle,
+.sim-configurator-meta,
+.sim-configurator-notice {
+  color: var(--sim-color-text-muted);
+  font: 500 11px/1.4 var(--sim-font-mono);
+}
+
+.sim-configurator-section {
+  padding: 12px;
+  border: 1px solid rgba(151, 201, 239, 0.1);
+  border-radius: var(--sim-radius-md);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sim-configurator-section h3 {
+  color: var(--sim-color-text);
+  font-size: 12px;
+}
+
+.sim-configurator-field-row b,
+.sim-configurator-meta span:last-child {
+  color: var(--sim-color-text);
+}
+
+.sim-configurator-field input[type='range'] {
+  width: 100%;
+  accent-color: var(--sim-color-accent);
+}
+
+.sim-configurator-toggle {
+  justify-content: flex-start;
+}
+
+.sim-configurator-toggle input {
+  margin: 0;
+  accent-color: var(--sim-color-accent);
+}
+
+.sim-configurator-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sim-configurator-summary span {
+  padding: 6px 8px;
+  border: 1px solid rgba(151, 201, 239, 0.12);
+  border-radius: 999px;
+  background: rgba(81, 227, 165, 0.08);
+  color: var(--sim-color-accent-bright);
+  font: 500 10px/1.2 var(--sim-font-mono);
+}
+
+.sim-configurator-preview textarea {
+  min-height: 240px;
+  padding: 12px;
+  resize: vertical;
+  font-family: var(--sim-font-mono);
+}
+
+.sim-configurator-notice {
+  color: var(--sim-color-text-faint);
+}
+
+@media (max-width: 900px) {
+  .sim-configurator {
+    top: auto;
+    right: 14px;
+    bottom: 118px;
+    left: 14px;
+    width: auto;
+    max-height: min(70vh, 720px);
+    padding: 14px;
+  }
+}
