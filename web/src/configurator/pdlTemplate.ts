@@ -95,6 +95,35 @@ const CASCADE_LABEL: Record<CascadeId, string> = {
   energy_food_cascade: 'Energy-food cascade',
 }
 
+const SOY_TIMELINE_OFFSETS = {
+  brazil_drought: 0,
+  soy_export_reduction: 14,
+  argentina_supply_increase: 14,
+  port_congestion: 21,
+  port_route_shift: 21,
+  feed_price_spike: 28,
+  reserve_release: 28,
+  alternative_protein_activation: 35,
+  livestock_pressure: 42,
+  us_supply_activated: 45,
+  consumer_price_increase: 60,
+  consumer_substitution: 75,
+  feed_demand_reduction: 90,
+} as const
+
+const ENERGY_TIMELINE_OFFSETS = {
+  gas_price_spike: 0,
+  ammonia_halt: 7,
+  oil_mill_slowdown: 14,
+  soy_oil_shortage: 18,
+  feed_price_spike: 21,
+  reserve_release: 21,
+  alternative_protein_activation: 28,
+  livestock_pressure: 35,
+  consumer_price_increase: 50,
+  consumer_substitution: 65,
+} as const
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -164,9 +193,12 @@ function setTimelineEnabled(block: string, eventId: string, enabled: boolean, da
   return block.replace(pattern, match[0].replace(/^ {6}- at: .*$/m, `      - at: ${Math.round(day)}d`))
 }
 
-function shiftTimelineDays(block: string, delta: number): string {
-  if (delta === 0) return block
-  return block.replace(/^ {6}- at: (\d+)d$/gm, (_, day) => `      - at: ${Math.max(0, Number(day) + delta)}d`)
+function setTimelineDays(block: string, days: Record<string, number>): string {
+  let next = block
+  for (const [eventId, day] of Object.entries(days)) {
+    next = setTimelineDay(next, eventId, day)
+  }
+  return next
 }
 
 function keepOnlyCascade(doc: string, cascadeId: CascadeId): string {
@@ -242,73 +274,54 @@ export function buildPdl(config: ScenarioConfig): string {
   )
 
   doc = updateCascadeBlock(doc, 'soy_crisis_cascade', (block) => {
-    let next = shiftTimelineDays(block, config.soy.droughtDay)
-    next = setTimelineDay(next, 'brazil_drought', config.soy.droughtDay)
-    next = setTimelineEnabled(
-      next,
-      'argentina_supply_increase',
-      config.soy.argentinaSupplyEnabled,
-      config.soy.droughtDay + config.soy.argentinaSupplyDay,
+    const soyDays = Object.fromEntries(
+      Object.entries(SOY_TIMELINE_OFFSETS).map(([eventId, offset]) => [eventId, config.soy.droughtDay + offset]),
     )
-    next = setTimelineEnabled(
-      next,
-      'port_congestion',
-      config.soy.portCongestionEnabled,
-      config.soy.droughtDay + config.soy.portCongestionDay,
-    )
-    next = setTimelineEnabled(
-      next,
-      'port_route_shift',
-      config.soy.portCongestionEnabled,
-      config.soy.droughtDay + config.soy.portCongestionDay,
-    )
-    next = setTimelineEnabled(
-      next,
-      'reserve_release',
-      config.soy.reserveReleaseEnabled,
-      config.soy.droughtDay + config.soy.reserveReleaseDay,
-    )
+    soyDays.argentina_supply_increase = config.soy.droughtDay + config.soy.argentinaSupplyDay
+    soyDays.port_congestion = config.soy.droughtDay + config.soy.portCongestionDay
+    soyDays.port_route_shift = config.soy.droughtDay + config.soy.portCongestionDay
+    soyDays.reserve_release = config.soy.droughtDay + config.soy.reserveReleaseDay
+    soyDays.alternative_protein_activation = config.soy.droughtDay + config.soy.alternativeProteinDay
+    soyDays.us_supply_activated = config.soy.droughtDay + config.soy.usEmergencyDay
+
+    let next = setTimelineDays(block, soyDays)
+    next = setTimelineEnabled(next, 'argentina_supply_increase', config.soy.argentinaSupplyEnabled, soyDays.argentina_supply_increase)
+    next = setTimelineEnabled(next, 'port_congestion', config.soy.portCongestionEnabled, soyDays.port_congestion)
+    next = setTimelineEnabled(next, 'port_route_shift', config.soy.portCongestionEnabled, soyDays.port_route_shift)
+    next = setTimelineEnabled(next, 'reserve_release', config.soy.reserveReleaseEnabled, soyDays.reserve_release)
     next = setTimelineEnabled(
       next,
       'alternative_protein_activation',
       config.soy.alternativeProteinEnabled,
-      config.soy.droughtDay + config.soy.alternativeProteinDay,
+      soyDays.alternative_protein_activation,
     )
-    next = setTimelineEnabled(
-      next,
-      'us_supply_activated',
-      config.soy.usEmergencyEnabled,
-      config.soy.droughtDay + config.soy.usEmergencyDay,
-    )
+    next = setTimelineEnabled(next, 'us_supply_activated', config.soy.usEmergencyEnabled, soyDays.us_supply_activated)
     return next.replace(/\n{3,}/g, '\n\n')
   })
 
   doc = updateCascadeBlock(doc, 'energy_food_cascade', (block) => {
-    let next = shiftTimelineDays(block, config.energy.gasPriceDay)
-    next = setTimelineDay(next, 'gas_price_spike', config.energy.gasPriceDay)
-    next = setTimelineEnabled(
-      next,
-      'ammonia_halt',
-      config.energy.ammoniaHaltEnabled,
-      config.energy.gasPriceDay + config.energy.ammoniaHaltDay,
+    const energyDays = Object.fromEntries(
+      Object.entries(ENERGY_TIMELINE_OFFSETS).map(([eventId, offset]) => [eventId, config.energy.gasPriceDay + offset]),
     )
+    energyDays.ammonia_halt = config.energy.gasPriceDay + config.energy.ammoniaHaltDay
+    energyDays.oil_mill_slowdown = config.energy.gasPriceDay + config.energy.oilMillSlowdownDay
+    energyDays.reserve_release = config.energy.gasPriceDay + config.energy.reserveReleaseDay
+    energyDays.alternative_protein_activation = config.energy.gasPriceDay + config.energy.alternativeProteinDay
+
+    let next = setTimelineDays(block, energyDays)
+    next = setTimelineEnabled(next, 'ammonia_halt', config.energy.ammoniaHaltEnabled, energyDays.ammonia_halt)
     next = setTimelineEnabled(
       next,
       'oil_mill_slowdown',
       config.energy.oilMillSlowdownEnabled,
-      config.energy.gasPriceDay + config.energy.oilMillSlowdownDay,
+      energyDays.oil_mill_slowdown,
     )
-    next = setTimelineEnabled(
-      next,
-      'reserve_release',
-      config.energy.reserveReleaseEnabled,
-      config.energy.gasPriceDay + config.energy.reserveReleaseDay,
-    )
+    next = setTimelineEnabled(next, 'reserve_release', config.energy.reserveReleaseEnabled, energyDays.reserve_release)
     next = setTimelineEnabled(
       next,
       'alternative_protein_activation',
       config.energy.alternativeProteinEnabled,
-      config.energy.gasPriceDay + config.energy.alternativeProteinDay,
+      energyDays.alternative_protein_activation,
     )
     return next.replace(/\n{3,}/g, '\n\n')
   })

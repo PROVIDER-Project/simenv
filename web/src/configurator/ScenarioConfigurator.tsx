@@ -65,6 +65,7 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
 export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState<string>('')
+  const [exporting, setExporting] = useState<'copy' | 'download' | null>(null)
   const [config, setConfig] = useState<ScenarioConfig>(() => ({
     ...defaultScenarioConfig,
     scenarioName: meta.scenario && meta.scenario !== 'scenario-1' ? meta.scenario : defaultScenarioConfig.scenarioName,
@@ -81,22 +82,29 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
   const setCascade = (cascadeId: CascadeId) => setConfig((current) => ({ ...current, cascadeId }))
 
   const download = () => {
+    setExporting('download')
     const blob = new Blob([pdl], { type: 'application/yaml;charset=utf-8' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = href
     link.download = fileName
     link.click()
-    window.setTimeout(() => URL.revokeObjectURL(href), 0)
+    window.setTimeout(() => {
+      URL.revokeObjectURL(href)
+      setExporting(null)
+    }, 0)
     setNotice(`Downloaded ${fileName}`)
   }
 
   const copy = async () => {
+    setExporting('copy')
     try {
       await navigator.clipboard.writeText(pdl)
       setNotice(`Copied ${fileName} to the clipboard`)
     } catch {
       setNotice('Clipboard export failed in this browser context. Use Download PDL instead.')
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -392,12 +400,22 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             </>
           )}
 
-          <div className="sim-configurator-actions">
-            <button type="button" onClick={() => void copy()}>
-              Copy PDL
+          <div className="sim-configurator-actions" role="group" aria-describedby="sim-configurator-status">
+            <button
+              type="button"
+              onClick={() => void copy()}
+              disabled={exporting !== null}
+              aria-describedby="sim-configurator-status"
+            >
+              {exporting === 'copy' ? 'Copying…' : 'Copy PDL'}
             </button>
-            <button type="button" onClick={download}>
-              Download PDL
+            <button
+              type="button"
+              onClick={download}
+              disabled={exporting !== null}
+              aria-describedby="sim-configurator-status"
+            >
+              {exporting === 'download' ? 'Downloading…' : 'Download PDL'}
             </button>
           </div>
 
@@ -414,7 +432,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
         </>
       )}
 
-      <p className="sim-configurator-notice" aria-live="polite">
+      <p id="sim-configurator-status" className="sim-configurator-notice" aria-live="polite">
         {notice ||
           (collapsed
             ? 'Open the configurator to tune and export a PDL scenario.'
