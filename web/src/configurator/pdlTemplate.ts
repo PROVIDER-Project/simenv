@@ -170,6 +170,19 @@ function keepOnlyCascade(doc: string, cascadeId: CascadeId): string {
   return doc.replace(/^cascades:\n[\s\S]*$/m, `cascades:\n${match[0].trimEnd()}\n`)
 }
 
+function timelineEventIds(cascadeBlock: string): string[] {
+  return [...cascadeBlock.matchAll(/^ {8}event: (.+)$/gm)].map((match) => match[1])
+}
+
+function keepOnlyEvents(doc: string, eventIds: string[]): string {
+  const blocks = eventIds.map((eventId) => {
+    const match = doc.match(eventBlockPattern(eventId))
+    if (!match) throw new Error(`Missing event block: ${eventId}`)
+    return match[0].trimEnd()
+  })
+  return doc.replace(/^events:\n[\s\S]*?^cascades:\n/m, `events:\n${blocks.join('\n')}\n\ncascades:\n`)
+}
+
 function formatLoss(pct: number): string {
   return `-${Math.round(pct)}%`
 }
@@ -239,6 +252,10 @@ export function buildPdl(config: ScenarioConfig): string {
     return next.replace(/\n{3,}/g, '\n\n')
   })
 
+  const selectedCascade = doc.match(cascadeBlockPattern(config.cascadeId))?.[0]
+  if (!selectedCascade) throw new Error(`Missing cascade block: ${config.cascadeId}`)
+
+  doc = keepOnlyEvents(doc, timelineEventIds(selectedCascade))
   doc = keepOnlyCascade(doc, config.cascadeId)
   return `${GENERATED_HEADER}${doc.trimEnd()}\n`
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { BundleMeta } from '../data/types'
 import {
   buildPdl,
@@ -63,12 +63,16 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
 }
 
 export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps) {
-  const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 900)
+  const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState<string>('')
   const [config, setConfig] = useState<ScenarioConfig>(() => ({
     ...defaultScenarioConfig,
     scenarioName: meta.scenario && meta.scenario !== 'scenario-1' ? meta.scenario : defaultScenarioConfig.scenarioName,
   }))
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) setCollapsed(true)
+  }, [])
 
   const pdl = useMemo(() => buildPdl(config), [config])
   const summary = useMemo(() => cascadeSummary(config), [config])
@@ -83,13 +87,17 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
     link.href = href
     link.download = fileName
     link.click()
-    URL.revokeObjectURL(href)
+    window.setTimeout(() => URL.revokeObjectURL(href), 0)
     setNotice(`Downloaded ${fileName}`)
   }
 
   const copy = async () => {
-    await navigator.clipboard.writeText(pdl)
-    setNotice(`Copied ${fileName} to the clipboard`)
+    try {
+      await navigator.clipboard.writeText(pdl)
+      setNotice(`Copied ${fileName} to the clipboard`)
+    } catch {
+      setNotice('Clipboard export failed in this browser context. Use Download PDL instead.')
+    }
   }
 
   return (
