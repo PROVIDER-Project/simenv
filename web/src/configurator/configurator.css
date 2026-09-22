@@ -152,7 +152,13 @@
   gap: 6px;
 }
 
-.sim-configurator-summary span {
+.sim-configurator-summary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sim-configurator-summary li {
   padding: 6px 8px;
   border: 1px solid rgba(151, 201, 239, 0.12);
   border-radius: 999px;

@@ -143,11 +143,11 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             </select>
           </label>
 
-          <div className="sim-configurator-summary" aria-label="Selected parameter summary">
+          <ul className="sim-configurator-summary" aria-label="Selected parameter summary">
             {summary.map((entry) => (
-              <span key={entry}>{entry}</span>
+              <li key={entry}>{entry}</li>
             ))}
-          </div>
+          </ul>
 
           {config.cascadeId === 'soy_crisis_cascade' ? (
             <>
@@ -203,7 +203,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, soy: { ...current.soy, portCongestionDurationDays: value } }))}
                 />
                 <RangeField
-                  label="Congestion start day"
+                  label="Congestion offset"
                   min={0}
                   max={180}
                   value={config.soy.portCongestionDay}
@@ -220,7 +220,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, soy: { ...current.soy, argentinaSupplyEnabled: value } }))}
                 />
                 <RangeField
-                  label="Argentina response day"
+                  label="Argentina response offset"
                   min={0}
                   max={180}
                   value={config.soy.argentinaSupplyDay}
@@ -233,7 +233,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, soy: { ...current.soy, usEmergencyEnabled: value } }))}
                 />
                 <RangeField
-                  label="US response day"
+                  label="US response offset"
                   min={0}
                   max={180}
                   value={config.soy.usEmergencyDay}
@@ -246,7 +246,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, soy: { ...current.soy, reserveReleaseEnabled: value } }))}
                 />
                 <RangeField
-                  label="Reserve release day"
+                  label="Reserve release offset"
                   min={0}
                   max={180}
                   value={config.soy.reserveReleaseDay}
@@ -259,7 +259,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, soy: { ...current.soy, alternativeProteinEnabled: value } }))}
                 />
                 <RangeField
-                  label="Alternative protein day"
+                  label="Alternative protein offset"
                   min={0}
                   max={180}
                   value={config.soy.alternativeProteinDay}
@@ -322,7 +322,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, energy: { ...current.energy, ammoniaHaltDurationDays: value } }))}
                 />
                 <RangeField
-                  label="Ammonia halt day"
+                  label="Ammonia halt offset"
                   min={0}
                   max={180}
                   value={config.energy.ammoniaHaltDay}
@@ -351,7 +351,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, energy: { ...current.energy, oilMillSlowdownDurationDays: value } }))}
                 />
                 <RangeField
-                  label="Oil mill day"
+                  label="Oil mill offset"
                   min={0}
                   max={180}
                   value={config.energy.oilMillSlowdownDay}
@@ -368,7 +368,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, energy: { ...current.energy, reserveReleaseEnabled: value } }))}
                 />
                 <RangeField
-                  label="Reserve release day"
+                  label="Reserve release offset"
                   min={0}
                   max={180}
                   value={config.energy.reserveReleaseDay}
@@ -381,7 +381,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, energy: { ...current.energy, alternativeProteinEnabled: value } }))}
                 />
                 <RangeField
-                  label="Alternative protein day"
+                  label="Alternative protein offset"
                   min={0}
                   max={180}
                   value={config.energy.alternativeProteinDay}
