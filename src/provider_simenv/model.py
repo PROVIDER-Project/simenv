@@ -265,6 +265,15 @@ class SupplyChainModel(Model):
         # Record snapshot
         self.data_collector.collect(t)
 
+        tick_writer = getattr(self.__class__, "_tick_writer", None)
+        if tick_writer is not None:
+            tick_writer.write_tick(
+                self,
+                id_scenario=self.scenario.id,
+                run_id=self.__class__._run_id,
+                t=t,
+            )
+
 
     def _init_event_tracker(self) -> None:
         """
@@ -324,18 +333,11 @@ class SupplyChainModel(Model):
             Generator variant for external step-by-step control (e.g. RL agents).
             Yields a state snapshot dict after every step; the caller drives the loop.
             """
-            from .db_config import PostgresDBConfig
-            from .tick_writer import TickWriter
-
-            id_scenario = getattr(self.scenario, "id", 0)
-            tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
-
             self._init_event_tracker()
             self._crosscheck_bindings()
 
             for t in range(self.scenario.period_num):
                 self._do_step(t)
-                tick_writer.write_tick(self, id_scenario=id_scenario, id_run=0, t=t)
                 yield {
                     "step": t,
                     "shock_scale": self.environment.shock_scale,

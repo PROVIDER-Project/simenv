@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import argparse
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -11,10 +12,13 @@ from Melodie import Config, Simulator
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
+from provider_simenv.db_config import PostgresDBConfig
+from provider_simenv.tick_writer import TickWriter
 from provider_simenv.run_registry import (
     finish_run,
     new_run_id,
     run_dir,
+    run_record,
     start_run,
 )
 
@@ -64,6 +68,14 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Optional label stored with the run.",
+    )
+    parser.add_argument(
+        "--no-postgres",
+        action="store_true",
+        help=(
+            "Run without writing to PostgreSQL. Without this flag an unreachable "
+            "database fails the run rather than being skipped silently."
+        ),
     )
 
     args = parser.parse_args()
@@ -157,23 +169,42 @@ if __name__ == "__main__":
         # swapped PDL with new entities/regions instantiates the matching lists.
         SupplyChainModel._pdl_path = args.pdl
 
-    start_run(
-        output_root,
+    record = run_record(
         run_id,
         pdl=args.pdl,
         scenario_ids=scenario_ids,
         period_num=period_num,
         label=args.label,
+        started_at=datetime.now(timezone.utc),
     )
+    start_run(output_root, record)
+
+    tick_writer = None
     try:
+        if not args.no_postgres:
+            tick_writer = TickWriter.from_config(PostgresDBConfig())
+            tick_writer.open_run(record)
+            SupplyChainModel._tick_writer = tick_writer
+            SupplyChainModel._run_id = run_id
         simulator.run()
     except Exception:
         finish_run(output_root, run_id, status="failed")
+        if tick_writer is not None:
+            try:
+                tick_writer.close_run(run_id, status="failed")
+            except Exception as exc:
+                logger.warning("could not record the failed run in sim_run: %s", exc)
         raise
     else:
         finish_run(output_root, run_id, status="completed")
+        if tick_writer is not None:
+            tick_writer.close_run(run_id, status="completed")
     finally:
         if hasattr(SupplyChainModel, "_event_registry"):
             del SupplyChainModel._event_registry
         if hasattr(SupplyChainModel, "_pdl_path"):
             del SupplyChainModel._pdl_path
+        if hasattr(SupplyChainModel, "_tick_writer"):
+            del SupplyChainModel._tick_writer
+        if hasattr(SupplyChainModel, "_run_id"):
+            del SupplyChainModel._run_id

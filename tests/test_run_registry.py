@@ -10,7 +10,7 @@ from provider_simenv import run_registry
 
 @pytest.fixture(autouse=True)
 def stable_git_sha(monkeypatch):
-    monkeypatch.setattr(run_registry, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(run_registry, "git_sha", lambda: "abc123")
 
 
 def record_run(
@@ -21,10 +21,12 @@ def record_run(
     (output_root / run_id).mkdir()
     run_registry.start_run(
         str(output_root),
-        run_id,
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
+        run_registry.run_record(
+            run_id,
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+        ),
     )
     if status is not None:
         run_registry.finish_run(str(output_root), run_id, status=status)
@@ -62,11 +64,13 @@ def test_start_then_finish_round_trips(tmp_path):
 
     run_registry.start_run(
         str(tmp_path),
-        run_id,
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
-        label="smoke",
+        run_registry.run_record(
+            run_id,
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+            label="smoke",
+        ),
     )
     run_registry.finish_run(str(tmp_path), run_id, status="completed")
 
@@ -162,10 +166,12 @@ def test_start_run_repairs_corrupt_manifest(tmp_path, contents):
 
     run_registry.start_run(
         str(tmp_path),
-        "20260913T100000Z-aaaaaaaa",
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
+        run_registry.run_record(
+            "20260913T100000Z-aaaaaaaa",
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+        ),
     )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

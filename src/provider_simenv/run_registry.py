@@ -69,34 +69,48 @@ def run_dir(output_root: str, run_id: str) -> str:
     return os.path.join(output_root, run_id)
 
 
-def start_run(
-    output_root: str,
+def run_record(
     run_id: str,
     *,
     pdl: str | None,
     scenario_ids: list[int],
     period_num: int,
     label: str | None = None,
-) -> None:
+    started_at: datetime | None = None,
+) -> dict:
     """
-    Appends run_id's entry with status "running".
+    The record describing one run, written to runs.json and to sim_run.
 
-    Creates the output root if it is missing; the run directory itself is
-    left to Config, which makes it on the way to writing the CSVs.
+    Built in one place so the two stores cannot drift: the PDL basename, its
+    hash and the git sha are derived here and nowhere else. started_at
+    defaults to now; main.py passes one so both stores record the same instant.
     """
-    manifest = _read_manifest(output_root, repair=True)
-    manifest["runs"].append({
+    return {
         "run_id": run_id,
-        "started_at": _now(),
+        "started_at": started_at.isoformat() if started_at else _now(),
         "finished_at": None,
         "status": "running",
         "pdl": os.path.basename(pdl) if pdl else None,
         "pdl_sha256": _file_sha256(pdl) if pdl else None,
         "scenario_ids": [int(i) for i in scenario_ids],
         "period_num": int(period_num),
-        "git_sha": _git_sha(),
+        "git_sha": git_sha(),
         "label": label,
-    })
+    }
+
+
+def start_run(output_root: str, record: dict) -> None:
+    """
+    Appends record to runs.json.
+
+    Creates the output root if it is missing; the run directory itself is
+    left to Config, which makes it on the way to writing the CSVs.
+
+    The record comes from run_record(), which main.py also hands to the tick
+    writer for sim_run, so the two stores describe the run identically.
+    """
+    manifest = _read_manifest(output_root, repair=True)
+    manifest["runs"].append(record)
     _write_manifest(output_root, manifest)
 
 
@@ -241,7 +255,7 @@ def _file_sha256(path: str) -> str | None:
         return None
 
 
-def _git_sha() -> str | None:
+def git_sha() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
     try:
         proc = subprocess.run(
