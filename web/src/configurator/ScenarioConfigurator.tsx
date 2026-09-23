@@ -469,7 +469,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             <textarea readOnly value={roster} spellCheck={false} />
           </section>
 
-        </>
+        </div>
       )}
 
       <p id="sim-configurator-status" className="sim-configurator-notice" aria-live="polite">
