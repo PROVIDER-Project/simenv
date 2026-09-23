@@ -125,9 +125,10 @@ if __name__ == "__main__":
         # swapped PDL with new entities/regions instantiates the matching lists.
         SupplyChainModel._pdl_path = args.pdl
 
-    simulator.run()
-
-    if hasattr(SupplyChainModel, "_event_registry"):
-        del SupplyChainModel._event_registry
-    if hasattr(SupplyChainModel, "_pdl_path"):
-        del SupplyChainModel._pdl_path
+    try:
+        simulator.run()
+    finally:
+        if hasattr(SupplyChainModel, "_event_registry"):
+            del SupplyChainModel._event_registry
+        if hasattr(SupplyChainModel, "_pdl_path"):
+            del SupplyChainModel._pdl_path

@@ -292,7 +292,8 @@ def main() -> None:
     args = parser.parse_args()
 
     bundle = build_bundle(args.input, args.scenario, args.pdl)
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    output_dir = os.path.dirname(args.output) or "."
+    os.makedirs(output_dir, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(bundle, fh, ensure_ascii=False, separators=(",", ":"))
 

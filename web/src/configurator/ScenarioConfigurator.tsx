@@ -118,7 +118,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
     <aside className={`sim-configurator${collapsed ? ' sim-configurator--collapsed' : ''}`}>
       <div className="sim-configurator-header">
         <div>
-          <p className="sim-configurator-eyebrow">Issue #22 · scenario builder</p>
+          <p className="sim-configurator-eyebrow">Interactive scenario builder</p>
           <h2>PDL configurator</h2>
         </div>
         <button type="button" className="sim-configurator-collapse" onClick={() => setCollapsed((value) => !value)}>
