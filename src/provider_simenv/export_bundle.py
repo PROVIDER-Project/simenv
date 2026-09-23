@@ -71,10 +71,7 @@ def _resolve_input_dir(input_dir: str) -> str:
         if (resolved / "Result_Simulator_Environment.csv").is_file():
             return str(resolved)
 
-    raise FileNotFoundError(
-        f"No exportable simulation CSV set found in '{input_dir}'. "
-        f"Pass --input <run directory> or run the simulation first."
-    )
+    return str(path)
 
 
 def _entity_metadata(pdl_path: Path) -> dict[str, dict]:
