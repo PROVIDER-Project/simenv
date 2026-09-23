@@ -38,6 +38,7 @@ from .pdl_loader import PDLLoader
 from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
 
 logger = logging.getLogger(__name__)
+LATEST_RUN_FILE = "LATEST_RUN"
 
 # Column aggregation rules for collapsing a list's instances into one node/step.
 SUM_COLS = {
@@ -56,6 +57,24 @@ def _resolve_pdl_path(pdl: str) -> Path:
         if scenario_path.is_file():
             return scenario_path
     raise FileNotFoundError(f"PDL file not found: {pdl}")
+
+
+def _resolve_input_dir(input_dir: str) -> str:
+    path = Path(input_dir)
+    env_csv = path / "Result_Simulator_Environment.csv"
+    if env_csv.is_file():
+        return str(path)
+
+    latest_run = path / LATEST_RUN_FILE
+    if latest_run.is_file():
+        resolved = Path(latest_run.read_text(encoding="utf-8").strip())
+        if (resolved / "Result_Simulator_Environment.csv").is_file():
+            return str(resolved)
+
+    raise FileNotFoundError(
+        f"No exportable simulation CSV set found in '{input_dir}'. "
+        f"Pass --input <run directory> or run the simulation first."
+    )
 
 
 def _entity_metadata(pdl_path: Path) -> dict[str, dict]:
@@ -217,6 +236,7 @@ def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
 
 
 def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
+    input_dir = _resolve_input_dir(input_dir)
     pdl_path = _resolve_pdl_path(pdl)
     roster = build_roster(pdl_path)
     adjacency = build_flow_adjacency(pdl_path)

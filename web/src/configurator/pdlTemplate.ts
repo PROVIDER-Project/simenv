@@ -428,8 +428,11 @@ export function buildPdl(config: ScenarioConfig): string {
     doc = updateEventBlock(doc, eventId, (block) => replaceCondition(block, condition))
   }
 
+  const finalCascade = doc.match(cascadeBlockPattern(config.cascadeId))?.[0]
+  if (!finalCascade) throw new Error(`Missing cascade block: ${config.cascadeId}`)
+
   doc = keepOnlyEvents(doc, eventIds)
-  doc = keepOnlyCascade(doc, keepOnlyTimelineEvents(selectedCascade, eventIds))
+  doc = keepOnlyCascade(doc, keepOnlyTimelineEvents(finalCascade, eventIds))
   return `${GENERATED_HEADER}${doc.trimEnd()}\n`
 }
 

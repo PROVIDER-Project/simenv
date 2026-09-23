@@ -45,7 +45,8 @@ simenv/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
             │   └── SimulatorScenarios_template.csv   ← edit this; every run copies it
             └── output/                               ← generated at runtime
-                └── Result_Simulator_*.csv
+                ├── LATEST_RUN                        ← path to the latest run directory
+                └── <run-id>/Result_Simulator_*.csv
 ```
 
 ---
@@ -132,13 +133,20 @@ CSV columns.
 1. Simulation loop — each CSV row, `period_num` steps (default 365)
 2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
 
+Each execution writes its CSVs into a fresh timestamped subdirectory under
+`src/provider_simenv/data/output/` and updates `LATEST_RUN` to point at that directory. This
+keeps concurrent or back-to-back runs isolated while still letting the exporter resolve the newest
+run by default.
+
 ### Update the globe frontend after a run
 
 ```bash
 python -m provider_simenv.export_bundle --scenario 1
 ```
 
-The exporter writes `web/public/bundle.json`. See `web/README.md` for the frontend workflow.
+The exporter writes `web/public/bundle.json`. By default it resolves the latest run via
+`src/provider_simenv/data/output/LATEST_RUN`; pass `--input` with a specific run directory to
+export an older or non-latest run. See `web/README.md` for the frontend workflow.
 
 ---
 
@@ -279,7 +287,7 @@ from the repository root. This builds the database container, if it's not alread
 
 | File | Description |
 |---|---|
-| `data/output/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
+| `data/output/<run-id>/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
 | `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---

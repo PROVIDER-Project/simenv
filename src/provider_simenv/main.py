@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import argparse
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -13,6 +14,7 @@ from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
 
 logger = logging.getLogger(__name__)
+LATEST_RUN_FILE = "LATEST_RUN"
 
 # --------------------
 # Main
@@ -63,7 +65,9 @@ if __name__ == "__main__":
     # Folder paths (both needed for PDL injection and Config)
     here = os.path.dirname(os.path.abspath(__file__))
     input_folder = os.path.join(here, "data", "input")
-    output_folder = os.path.join(here, "data", "output")
+    output_root = os.path.join(here, "data", "output")
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{os.getpid()}"
+    output_folder = os.path.join(output_root, run_id)
     csv_path = os.path.join(input_folder, "SimulatorScenarios.csv")
     template_path = os.path.join(input_folder, "SimulatorScenarios_template.csv")
 
@@ -73,10 +77,7 @@ if __name__ == "__main__":
         shutil.copy2(template_path, csv_path)
 
     os.makedirs(output_folder, exist_ok=True)
-    for name in os.listdir(output_folder):
-        if not (name.startswith("Result_Simulator_") and name.endswith(".csv")):
-            continue
-        os.remove(os.path.join(output_folder, name))
+    logger.info("Writing simulation CSVs to %s", output_folder)
 
     # PDL Injection: a PDL run adds one shock scenario row (id=1) to SimulatorScenario.csv
     # Shock values and timing are derived at runtime by the EventTracker from the PDL itself
@@ -131,8 +132,11 @@ if __name__ == "__main__":
         # swapped PDL with new entities/regions instantiates the matching lists.
         SupplyChainModel._pdl_path = args.pdl
 
+    latest_run_path = os.path.join(output_root, LATEST_RUN_FILE)
     try:
         simulator.run()
+        with open(latest_run_path, "w", encoding="utf-8") as fh:
+            fh.write(output_folder)
     finally:
         if hasattr(SupplyChainModel, "_event_registry"):
             del SupplyChainModel._event_registry
