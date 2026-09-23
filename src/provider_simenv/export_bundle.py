@@ -68,6 +68,8 @@ def _resolve_input_dir(input_dir: str) -> str:
     latest_run = path / LATEST_RUN_FILE
     if latest_run.is_file():
         resolved = Path(latest_run.read_text(encoding="utf-8").strip())
+        if not resolved.is_absolute():
+            resolved = path / resolved
         if (resolved / "Result_Simulator_Environment.csv").is_file():
             return str(resolved)
 

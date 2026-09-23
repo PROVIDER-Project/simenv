@@ -148,17 +148,16 @@ function replaceScenarioName(doc: string, name: string): string {
 }
 
 function eventBlockPattern(eventId: string): RegExp {
-  return new RegExp(`(^  - id: ${escapeRegex(eventId)}\\n[\\s\\S]*?)(?=^  - id: |^cascades:|(?![\\s\\S]))`, 'm')
+  return new RegExp(`(^|\\n)(  - id: ${escapeRegex(eventId)}\\n[\\s\\S]*?)(?=\\n  - id: |\\ncascades:|$)`)
 }
 
 function cascadeBlockPattern(cascadeId: CascadeId): RegExp {
-  return new RegExp(`(^  - id: ${escapeRegex(cascadeId)}\\n[\\s\\S]*?)(?=^  - id: |(?![\\s\\S]))`, 'm')
+  return new RegExp(`(^|\\n)(  - id: ${escapeRegex(cascadeId)}\\n[\\s\\S]*?)(?=\\n  - id: |$)`)
 }
 
 function timelineEntryPattern(eventId: string): RegExp {
   return new RegExp(
-    `(^      - at: .*\\n        event: ${escapeRegex(eventId)}\\n[\\s\\S]*?)(?=^      - at: |^    probability:|(?![\\s\\S]))`,
-    'm',
+    `(^|\\n)(      - at: .*\\n        event: ${escapeRegex(eventId)}\\n[\\s\\S]*?)(?=\\n      - at: |\\n    probability:|$)`,
   )
 }
 
@@ -168,9 +167,9 @@ function updateEventBlock(
   updater: (block: string) => string,
 ): string {
   const pattern = eventBlockPattern(eventId)
-  const match = doc.match(pattern)
+  const match = pattern.exec(doc)
   if (!match) throw new Error(`Missing event block: ${eventId}`)
-  return doc.replace(pattern, updater(match[0]))
+  return doc.replace(pattern, (_whole, prefix: string, block: string) => `${prefix}${updater(block)}`)
 }
 
 function updateCascadeBlock(
@@ -179,9 +178,9 @@ function updateCascadeBlock(
   updater: (block: string) => string,
 ): string {
   const pattern = cascadeBlockPattern(cascadeId)
-  const match = doc.match(pattern)
+  const match = pattern.exec(doc)
   if (!match) throw new Error(`Missing cascade block: ${cascadeId}`)
-  return doc.replace(pattern, updater(match[0]))
+  return doc.replace(pattern, (_whole, prefix: string, block: string) => `${prefix}${updater(block)}`)
 }
 
 function replaceImpact(block: string, field: 'supply' | 'price', value: string): string {
@@ -202,17 +201,25 @@ function replaceCondition(block: string, condition: string | null): string {
 
 function setTimelineDay(block: string, eventId: string, day: number): string {
   const pattern = timelineEntryPattern(eventId)
-  const match = block.match(pattern)
+  const match = pattern.exec(block)
   if (!match) throw new Error(`Missing timeline entry: ${eventId}`)
-  return block.replace(pattern, match[0].replace(/^ {6}- at: .*$/m, `      - at: ${Math.round(day)}d`))
+  return block.replace(
+    pattern,
+    (_whole, prefix: string, entry: string) =>
+      `${prefix}${entry.replace(/^ {6}- at: .*$/m, `      - at: ${Math.round(day)}d`)}`,
+  )
 }
 
 function setTimelineEnabled(block: string, eventId: string, enabled: boolean, day: number): string {
   const pattern = timelineEntryPattern(eventId)
-  const match = block.match(pattern)
+  const match = pattern.exec(block)
   if (!match) throw new Error(`Missing timeline entry: ${eventId}`)
   if (!enabled) return block.replace(pattern, '')
-  return block.replace(pattern, match[0].replace(/^ {6}- at: .*$/m, `      - at: ${Math.round(day)}d`))
+  return block.replace(
+    pattern,
+    (_whole, prefix: string, entry: string) =>
+      `${prefix}${entry.replace(/^ {6}- at: .*$/m, `      - at: ${Math.round(day)}d`)}`,
+  )
 }
 
 function setTimelineDays(block: string, days: Record<string, number>): string {
@@ -321,9 +328,9 @@ function keepOnlyTimelineEvents(cascadeBlock: string, eventIds: string[]): strin
 function keepOnlyEvents(doc: string, eventIds: string[]): string {
   const retainedEventIds = new Set(eventIds)
   const blocks = eventIds.map((eventId) => {
-    const match = doc.match(eventBlockPattern(eventId))
+    const match = eventBlockPattern(eventId).exec(doc)
     if (!match) throw new Error(`Missing event block: ${eventId}`)
-    return sanitizeCauses(match[0].trimEnd(), retainedEventIds)
+    return sanitizeCauses(match[2].trimEnd(), retainedEventIds)
   })
   return doc.replace(/^events:\n[\s\S]*?^cascades:\n/m, `events:\n${blocks.join('\n')}\n\ncascades:\n`)
 }
@@ -420,7 +427,7 @@ export function buildPdl(config: ScenarioConfig): string {
     return next.replace(/\n{3,}/g, '\n\n')
   })
 
-  const selectedCascade = doc.match(cascadeBlockPattern(config.cascadeId))?.[0]
+  const selectedCascade = cascadeBlockPattern(config.cascadeId).exec(doc)?.[2]
   if (!selectedCascade) throw new Error(`Missing cascade block: ${config.cascadeId}`)
 
   const { eventIds, sanitizedConditions } = resolveRetainedEvents(doc, timelineEventIds(selectedCascade))
@@ -428,7 +435,7 @@ export function buildPdl(config: ScenarioConfig): string {
     doc = updateEventBlock(doc, eventId, (block) => replaceCondition(block, condition))
   }
 
-  const finalCascade = doc.match(cascadeBlockPattern(config.cascadeId))?.[0]
+  const finalCascade = cascadeBlockPattern(config.cascadeId).exec(doc)?.[2]
   if (!finalCascade) throw new Error(`Missing cascade block: ${config.cascadeId}`)
 
   doc = keepOnlyEvents(doc, eventIds)
@@ -468,7 +475,11 @@ export function cascadeLabel(cascadeId: CascadeId): string {
 }
 
 export function suggestedFileName(config: ScenarioConfig): string {
-  const base = (config.scenarioName.trim() || cascadeLabel(config.cascadeId)).toLowerCase()
+  const base = (config.scenarioName.trim() || cascadeLabel(config.cascadeId))
+    .normalize('NFKD')
+    .replace(/ß/g, 'ss')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
   const slug = base
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')

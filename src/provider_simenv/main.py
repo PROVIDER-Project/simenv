@@ -135,8 +135,10 @@ if __name__ == "__main__":
     latest_run_path = os.path.join(output_root, LATEST_RUN_FILE)
     try:
         simulator.run()
-        with open(latest_run_path, "w", encoding="utf-8") as fh:
+        latest_run_tmp_path = latest_run_path + ".tmp"
+        with open(latest_run_tmp_path, "w", encoding="utf-8") as fh:
             fh.write(output_folder)
+        os.replace(latest_run_tmp_path, latest_run_path)
     finally:
         if hasattr(SupplyChainModel, "_event_registry"):
             del SupplyChainModel._event_registry
