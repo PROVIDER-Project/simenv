@@ -72,6 +72,12 @@ if __name__ == "__main__":
     if os.path.exists(template_path):
         shutil.copy2(template_path, csv_path)
 
+    os.makedirs(output_folder, exist_ok=True)
+    for name in os.listdir(output_folder):
+        if not (name.startswith("Result_Simulator_") and name.endswith(".csv")):
+            continue
+        os.remove(os.path.join(output_folder, name))
+
     # PDL Injection: a PDL run adds one shock scenario row (id=1) to SimulatorScenario.csv
     # Shock values and timing are derived at runtime by the EventTracker from the PDL itself
     if args.pdl:

@@ -228,7 +228,10 @@ function keepOnlyCascade(doc: string, cascadeBlock: string): string {
 }
 
 function timelineEventIds(cascadeBlock: string): string[] {
-  return [...cascadeBlock.matchAll(/^ {8}event: (.+)$/gm)].map((match) => match[1])
+  return cascadeBlock
+    .split('\n')
+    .map((line) => line.match(/^\s{8}event:\s+(.+)$/)?.[1] ?? null)
+    .filter((eventId): eventId is string => eventId !== null)
 }
 
 function conditionExpression(block: string): string | null {
