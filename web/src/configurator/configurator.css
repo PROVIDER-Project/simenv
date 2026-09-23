@@ -110,7 +110,8 @@
 .sim-configurator-field,
 .sim-configurator-toggle,
 .sim-configurator-meta,
-.sim-configurator-notice {
+.sim-configurator-notice,
+.sim-configurator-preview-header code {
   color: var(--sim-color-text-muted);
   font: 500 11px/1.4 var(--sim-font-mono);
 }
@@ -165,6 +166,28 @@
   background: rgba(81, 227, 165, 0.08);
   color: var(--sim-color-accent-bright);
   font: 500 10px/1.2 var(--sim-font-mono);
+}
+
+.sim-configurator-preview {
+  padding: 12px;
+  border: 1px solid rgba(151, 201, 239, 0.1);
+  border-radius: var(--sim-radius-md);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sim-configurator-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sim-configurator-preview-header span {
+  color: var(--sim-color-text);
+}
+
+.sim-configurator-preview-header code {
+  overflow-wrap: anywhere;
 }
 
 .sim-configurator-preview textarea {

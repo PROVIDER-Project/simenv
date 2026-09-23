@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BundleMeta } from '../data/types'
 import {
+  buildRosterSidecar,
   buildPdl,
   cascadeLabel,
   cascadeSummary,
   defaultScenarioConfig,
   suggestedFileName,
+  suggestedRosterFileName,
   type CascadeId,
   type ScenarioConfig,
 } from './pdlTemplate'
@@ -65,7 +67,9 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
 export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState<string>('')
-  const [exporting, setExporting] = useState<'copy' | 'download' | null>(null)
+  const [exporting, setExporting] = useState<'copy-pdl' | 'download-pdl' | 'copy-roster' | 'download-roster' | null>(
+    null,
+  )
   const [config, setConfig] = useState<ScenarioConfig>(() => ({
     ...defaultScenarioConfig,
     scenarioName: meta.scenario && meta.scenario !== 'scenario-1' ? meta.scenario : defaultScenarioConfig.scenarioName,
@@ -76,33 +80,35 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
   }, [])
 
   const pdl = useMemo(() => buildPdl(config), [config])
+  const roster = useMemo(() => buildRosterSidecar(config), [config])
   const summary = useMemo(() => cascadeSummary(config), [config])
   const fileName = useMemo(() => suggestedFileName(config), [config])
+  const rosterFileName = useMemo(() => suggestedRosterFileName(config), [config])
 
   const setCascade = (cascadeId: CascadeId) => setConfig((current) => ({ ...current, cascadeId }))
 
-  const download = () => {
-    setExporting('download')
-    const blob = new Blob([pdl], { type: 'application/yaml;charset=utf-8' })
+  const download = (content: string, name: string, kind: 'download-pdl' | 'download-roster') => {
+    setExporting(kind)
+    const blob = new Blob([content], { type: 'application/yaml;charset=utf-8' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = href
-    link.download = fileName
+    link.download = name
     link.click()
     window.setTimeout(() => {
       URL.revokeObjectURL(href)
       setExporting(null)
     }, 0)
-    setNotice(`Downloaded ${fileName}`)
+    setNotice(`Downloaded ${name}`)
   }
 
-  const copy = async () => {
-    setExporting('copy')
+  const copy = async (content: string, name: string, kind: 'copy-pdl' | 'copy-roster') => {
+    setExporting(kind)
     try {
-      await navigator.clipboard.writeText(pdl)
-      setNotice(`Copied ${fileName} to the clipboard`)
+      await navigator.clipboard.writeText(content)
+      setNotice(`Copied ${name} to the clipboard`)
     } catch {
-      setNotice('Clipboard export failed in this browser context. Use Download PDL instead.')
+      setNotice('Clipboard export failed in this browser context. Use the download buttons instead.')
     } finally {
       setExporting(null)
     }
@@ -123,7 +129,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
       {!collapsed && (
         <>
           <p className="sim-configurator-copy">
-            Tune a first-pass disruption scenario inside the globe view and export a runnable PDL document.
+            Tune a first-pass disruption scenario inside the globe view and export a runnable PDL package.
           </p>
 
           <label className="sim-configurator-text-field">
@@ -400,34 +406,62 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
             </>
           )}
 
-          <div className="sim-configurator-actions" role="group" aria-describedby="sim-configurator-status">
-            <button
-              type="button"
-              onClick={() => void copy()}
-              disabled={exporting !== null}
-              aria-describedby="sim-configurator-status"
-            >
-              {exporting === 'copy' ? 'Copying…' : 'Copy PDL'}
-            </button>
-            <button
-              type="button"
-              onClick={download}
-              disabled={exporting !== null}
-              aria-describedby="sim-configurator-status"
-            >
-              {exporting === 'download' ? 'Downloading…' : 'Download PDL'}
-            </button>
-          </div>
-
           <div className="sim-configurator-meta">
             <span>Based on {meta.pdl}</span>
-            <span>{fileName}</span>
+            <span>Export both files together</span>
           </div>
 
-          <label className="sim-configurator-preview">
-            <span>Generated PDL</span>
+          <section className="sim-configurator-preview">
+            <div className="sim-configurator-preview-header">
+              <span>Generated PDL</span>
+              <code>{fileName}</code>
+            </div>
+            <div className="sim-configurator-actions" role="group" aria-describedby="sim-configurator-status">
+              <button
+                type="button"
+                onClick={() => void copy(pdl, fileName, 'copy-pdl')}
+                disabled={exporting !== null}
+                aria-describedby="sim-configurator-status"
+              >
+                {exporting === 'copy-pdl' ? 'Copying…' : 'Copy PDL'}
+              </button>
+              <button
+                type="button"
+                onClick={() => download(pdl, fileName, 'download-pdl')}
+                disabled={exporting !== null}
+                aria-describedby="sim-configurator-status"
+              >
+                {exporting === 'download-pdl' ? 'Downloading…' : 'Download PDL'}
+              </button>
+            </div>
             <textarea readOnly value={pdl} spellCheck={false} />
-          </label>
+          </section>
+
+          <section className="sim-configurator-preview">
+            <div className="sim-configurator-preview-header">
+              <span>Generated roster sidecar</span>
+              <code>{rosterFileName}</code>
+            </div>
+            <div className="sim-configurator-actions" role="group" aria-describedby="sim-configurator-status">
+              <button
+                type="button"
+                onClick={() => void copy(roster, rosterFileName, 'copy-roster')}
+                disabled={exporting !== null}
+                aria-describedby="sim-configurator-status"
+              >
+                {exporting === 'copy-roster' ? 'Copying…' : 'Copy roster'}
+              </button>
+              <button
+                type="button"
+                onClick={() => download(roster, rosterFileName, 'download-roster')}
+                disabled={exporting !== null}
+                aria-describedby="sim-configurator-status"
+              >
+                {exporting === 'download-roster' ? 'Downloading…' : 'Download roster'}
+              </button>
+            </div>
+            <textarea readOnly value={roster} spellCheck={false} />
+          </section>
 
         </>
       )}
@@ -436,7 +470,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
         {notice ||
           (collapsed
             ? 'Open the configurator to tune and export a PDL scenario.'
-            : 'Export the document and run provider_simenv.main --pdl <file> later.')}
+            : 'Export both files, keep them side-by-side, and run provider_simenv.main --pdl <file> later.')}
       </p>
     </aside>
   )

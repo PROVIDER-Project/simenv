@@ -19,7 +19,7 @@ enough to see the view.
 | **Python simulation** (`src/provider_simenv`) | only to regenerate data | Produces the CSVs that `export_bundle.py` turns into a new `bundle.json`. |
 | **PostgreSQL** | no | Not used by the frontend. It is an output target of the simulation only. |
 
-The globe now also includes an integrated **PDL configurator**. It adjusts a first-pass set of disruption parameters in the live visualization and emits a downloadable `*.pdl.yaml` document for later execution through `provider_simenv.main --pdl ...`.
+The globe now also includes an integrated **PDL configurator**. It adjusts a first-pass set of disruption parameters in the live visualization and emits a downloadable `*.pdl.yaml` document plus its matching `*.roster.yaml` sidecar for later execution through `provider_simenv.main --pdl ...`.
 
 ---
 
@@ -81,9 +81,9 @@ Inside the running app, open **PDL configurator** from the top-right panel to:
 - switch between the soy-crisis and energy-food cascades
 - tune a first set of event magnitudes, durations, and activation days with sliders
 - toggle mitigation and contingency events with switches
-- copy or download a runnable PDL document built from the current settings
+- copy or download a runnable PDL document and the matching roster sidecar built from the current settings
 
-The generated file keeps the shipped scenario topology and narrows the document to the currently selected cascade, so it can be saved and used later with:
+The generated files keep the shipped scenario topology and narrow the document to the currently selected cascade. Save both files beside each other so simenv can resolve the sidecar automatically, then run:
 
 ```bash
 python -m provider_simenv.main --pdl /path/to/generated-scenario.pdl.yaml
