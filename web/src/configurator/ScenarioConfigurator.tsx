@@ -121,19 +121,19 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
           <p className="sim-configurator-eyebrow">Interactive scenario builder</p>
           <h2>PDL configurator</h2>
         </div>
-      <button
-        type="button"
-        className="sim-configurator-collapse"
-        aria-expanded={!collapsed}
-        aria-controls="sim-configurator-panel"
-        onClick={() => setCollapsed((value) => !value)}
-      >
-        {collapsed ? 'Open' : 'Hide'}
-      </button>
+        <button
+          type="button"
+          className="sim-configurator-collapse"
+          aria-expanded={!collapsed}
+          aria-controls="sim-configurator-panel"
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          {collapsed ? 'Open' : 'Hide'}
+        </button>
       </div>
 
       {!collapsed && (
-      <div id="sim-configurator-panel">
+        <div id="sim-configurator-panel">
           <p className="sim-configurator-copy">
             Tune a first-pass disruption scenario inside the globe view and export a runnable PDL package.
           </p>
@@ -409,7 +409,7 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
                   onChange={(value) => setConfig((current) => ({ ...current, energy: { ...current.energy, alternativeProteinDay: value } }))}
                 />
               </section>
-            </div>
+            </>
           )}
 
           <div className="sim-configurator-meta">
