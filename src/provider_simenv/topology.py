@@ -414,6 +414,10 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
             ids_by_arc[arc] = []
         ids_by_arc[arc].append(eid)
 
+    for arc, ids in ids_by_arc.items():
+        if len(ids) > 1:
+            raise ValueError(f"roster list {arc.name!r} would merge entities {ids}; one entity per agent is not yet supported for this archetype")
+
     for edge in sea_edges:
         arc = _sea_transport_archetype(edge)
         if arc not in ids_by_arc:

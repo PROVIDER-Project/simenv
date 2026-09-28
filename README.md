@@ -251,7 +251,9 @@ Result_Simulator_UsWholesaler
 Result_Simulator_Processors
 Result_Simulator_FeedManufacturers
 Result_Simulator_FeedTraders
-Result_Simulator_EuFarmers
+Result_Simulator_PoultryFarms
+Result_Simulator_PigFarms
+Result_Simulator_DairyFarms
 ```
 
 Tables are dropped and recreated on the first tick of each full simulation run (first scenario only).
