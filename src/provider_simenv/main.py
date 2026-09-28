@@ -11,6 +11,12 @@ from Melodie import Config, Simulator
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
 from provider_simenv.pdl_loader import PDLLoader
+from provider_simenv.run_registry import (
+    finish_run,
+    new_run_id,
+    run_dir,
+    start_run,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,12 @@ if __name__ == "__main__":
             "PDL cascade id to use for timing. Defaults to the first cascade in the PDL file."
         ),
     )
+    parser.add_argument(
+        "--label",
+        type=str,
+        default=None,
+        help="Optional label stored with the run.",
+    )
 
     args = parser.parse_args()
 
@@ -63,7 +75,7 @@ if __name__ == "__main__":
     # Folder paths (both needed for PDL injection and Config)
     here = os.path.dirname(os.path.abspath(__file__))
     input_folder = os.path.join(here, "data", "input")
-    output_folder = os.path.join(here, "data", "output")
+    output_root = os.path.join(here, "data", "output")
     csv_path = os.path.join(input_folder, "SimulatorScenarios.csv")
     template_path = os.path.join(input_folder, "SimulatorScenarios_template.csv")
 
@@ -103,7 +115,27 @@ if __name__ == "__main__":
         n_conditional = sum(1 for e in event_registry["events"] if e["condition"])
         logger.info("Registry: %d events, %d with shocks, %d conditional", n_total, n_shocking, n_conditional)
 
+    scenario_rows = pd.read_csv(csv_path)
+    missing = {"id", "period_num"} - set(scenario_rows.columns)
+    if missing:
+        logger.error(
+            "SimulatorScenarios.csv is missing required column(s): %s",
+            ", ".join(sorted(missing)),
+        )
+        raise SystemExit(1)
+    period_nums = scenario_rows["period_num"]
+    if period_nums.isna().any() or period_nums.nunique() != 1:
+        logger.error(
+            "All scenarios in one run must have the same period_num; found %s",
+            period_nums.drop_duplicates().tolist(),
+        )
+        raise SystemExit(1)
 
+    scenario_ids = [int(value) for value in scenario_rows["id"]]
+    period_num = int(period_nums.iloc[0])
+    run_id = new_run_id()
+    output_folder = run_dir(output_root, run_id)
+    logger.info("Run id: %s", run_id)
 
     config = Config(
         project_name= "provider-simenv",
@@ -125,9 +157,23 @@ if __name__ == "__main__":
         # swapped PDL with new entities/regions instantiates the matching lists.
         SupplyChainModel._pdl_path = args.pdl
 
-    simulator.run()
-
-    if hasattr(SupplyChainModel, "_event_registry"):
-        del SupplyChainModel._event_registry
-    if hasattr(SupplyChainModel, "_pdl_path"):
-        del SupplyChainModel._pdl_path
+    start_run(
+        output_root,
+        run_id,
+        pdl=args.pdl,
+        scenario_ids=scenario_ids,
+        period_num=period_num,
+        label=args.label,
+    )
+    try:
+        simulator.run()
+    except Exception:
+        finish_run(output_root, run_id, status="failed")
+        raise
+    else:
+        finish_run(output_root, run_id, status="completed")
+    finally:
+        if hasattr(SupplyChainModel, "_event_registry"):
+            del SupplyChainModel._event_registry
+        if hasattr(SupplyChainModel, "_pdl_path"):
+            del SupplyChainModel._pdl_path

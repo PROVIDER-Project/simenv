@@ -81,7 +81,7 @@ The view never talks to the simulation directly. It reads a single JSON bundle t
 
 ```
 simulation run (Melodie)
-  └─ src/provider_simenv/data/output/Result_Simulator_*.csv
+  └─ src/provider_simenv/data/output/<run-id>/Result_Simulator_*.csv
        └─ python -m provider_simenv.export_bundle
             └─ web/public/bundle.json
                  └─ staticJsonSource  →  DataSource  →  views
@@ -105,22 +105,28 @@ Only needed after a new simulation run. From the **repository root**, with the P
 environment installed (`pip install -e '.[dev]'`):
 
 ```bash
-# 1. Run the simulation (writes Result_Simulator_*.csv to data/output/).
+# 1. Run the simulation (writes Result_Simulator_*.csv to data/output/<run-id>/).
 #    Run from the package directory — Melodie resolves data/ paths from the cwd.
 cd src/provider_simenv
 python main.py --pdl scenarios/s1-soja.pdl.yaml
 cd ../..
 
-# 2. Export the CSVs to the web bundle
+# 2. Export the CSVs to the web bundle (newest completed run)
 python -m provider_simenv.export_bundle --scenario 1
+
+# ...or export one recorded run by id
+python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
 ```
 
-This writes `web/public/bundle.json`. Options:
+This writes `web/public/bundle.json`. Each simulation run writes into its own
+`data/output/<run-id>/` directory, indexed in `data/output/runs.json`. Without `--run` or
+`--input` the exporter reads the newest completed run. Options:
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--scenario` | `1` | `id_scenario` to export. `0` = baseline, `1` = PDL shock. |
-| `--input` | `src/provider_simenv/data/output` | Directory holding the `Result_Simulator_*.csv` files. |
+| `--run` | newest completed run | Run id to export, as listed in `data/output/runs.json`. |
+| `--input` | — | Directory holding the `Result_Simulator_*.csv` files. Read directly, bypassing the run registry. |
 | `--output` | `web/public/bundle.json` | Target path. |
 | `--pdl` | `s1-soja.pdl.yaml` | PDL name recorded in the bundle metadata. |
 
