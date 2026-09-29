@@ -1,9 +1,9 @@
 """
 Export a simulation run into the JSON bundle the web view consumes.
 
-Reads a run either from the ``Result_Simulator_*.csv`` files it writes to
-``data/output/<run-id>/`` (``--source csv``, the default) or from the PostgreSQL
-views (``--source postgres``), and emits a single ``bundle.json`` matching the frontend ``Bundle`` contract
+Reads a run either from the PostgreSQL views (``--source postgres``, the default)
+or from the ``Result_Simulator_*.csv`` files it writes to ``data/output/<run-id>/``
+(``--source csv``), and emits a single ``bundle.json`` matching the frontend ``Bundle`` contract
 (``web/src/data/types.ts``): nodes, edges, per-node time-series (``ticks``) and the
 environment time-series (``env``). Both sources feed the same aggregation, so the
 same run gives the same bundle.
@@ -20,7 +20,7 @@ are drawn endpoint-to-endpoint rather than routed through sea-transport agents, 
 have no single map location.
 
 Usage:
-    python -m provider_simenv.export_bundle [--scenario 1] [--source csv|postgres] [--input DIR] [--run ID] [--output FILE]
+    python -m provider_simenv.export_bundle [--scenario 1] [--source postgres|csv] [--input DIR] [--run ID] [--output FILE]
 """
 from __future__ import annotations
 
@@ -424,13 +424,13 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=os.path.join(repo_root, "web", "public", "bundle.json"),
                         help="Path to write bundle.json.")
     parser.add_argument("--pdl", type=str, default="s1-soja.pdl.yaml", help="PDL name for metadata.")
-    parser.add_argument("--source", choices=("csv", "postgres"), default="csv",
-                        help="Read the run from its CSV files or from PostgreSQL. Default csv.")
+    parser.add_argument("--source", choices=("postgres", "csv"), default="postgres",
+                        help="Read the run from PostgreSQL or from its CSV files. Default postgres.")
     args = parser.parse_args()
 
     if args.source == "postgres":
         if args.input is not None:
-            parser.error("--input names a CSV directory and cannot be used with --source postgres")
+            parser.error("--input names a CSV directory; add --source csv to read it")
         try:
             bundle = _postgres_bundle(args.run, args.scenario, args.pdl)
         except RuntimeError as exc:

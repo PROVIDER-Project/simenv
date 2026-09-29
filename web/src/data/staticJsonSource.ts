@@ -2,7 +2,7 @@
  * staticJsonSource — a `DataSource` backed by an exported `bundle.json`.
  *
  * This is the Batch-5 swap target: it reads the JSON the Python exporter
- * (`provider_simenv.export_bundle`) writes from a simulation run's CSVs, and is
+ * (`provider_simenv.export_bundle`) writes from a simulation run, and is
  * selected at the composition root (`main.tsx`) without touching any view file.
  *
  * The fetched payload is untrusted input, so it crosses a structural check

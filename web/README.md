@@ -16,8 +16,8 @@ enough to see the view.
 |---|---|---|
 | **Node.js + npm** | yes | Builds and serves the frontend. |
 | **`public/bundle.json`** | yes | The run data the view renders. A committed export is already in the repo. |
-| **Python simulation** (`src/provider_simenv`) | only to regenerate data | Produces the CSVs that `export_bundle.py` turns into a new `bundle.json`. |
-| **PostgreSQL** | no | Not used by the frontend. It is an output target of the simulation only. |
+| **Python simulation** (`src/provider_simenv`) | only to regenerate data | Produces the run data that `export_bundle.py` turns into a new `bundle.json`. |
+| **PostgreSQL** | only to regenerate data | The simulation writes each run to it, and `export_bundle.py` reads the bundle from it by default. The frontend itself never connects to it. |
 
 ---
 
@@ -81,11 +81,14 @@ The view never talks to the simulation directly. It reads a single JSON bundle t
 
 ```
 simulation run (Melodie)
-  └─ src/provider_simenv/data/output/<run-id>/Result_Simulator_*.csv
+  ├─ PostgreSQL sim_* views                                (read by default)
+  └─ src/provider_simenv/data/output/<run-id>/Result_Simulator_*.csv   (--source csv)
        └─ python -m provider_simenv.export_bundle
             └─ web/public/bundle.json
                  └─ staticJsonSource  →  DataSource  →  views
 ```
+
+Both sources hold the same values and give the same `bundle.json`.
 
 - `src/data/source.ts` — the `DataSource` interface. Every view depends on this and never on
   a concrete source.
@@ -102,33 +105,42 @@ wrong placement. Positions are approximate, not GIS accurate.
 ### Regenerating `bundle.json`
 
 Only needed after a new simulation run. From the **repository root**, with the Python
-environment installed (`pip install -e '.[dev]'`):
+environment installed (`pip install -e '.[dev]'`) and PostgreSQL running (see "PostgreSQL
+Setup" in the root `README.md`):
 
 ```bash
-# 1. Run the simulation (writes Result_Simulator_*.csv to data/output/<run-id>/).
+# 1. Run the simulation (writes the run to PostgreSQL and Result_Simulator_*.csv
+#    to data/output/<run-id>/).
 #    Run from the package directory — Melodie resolves data/ paths from the cwd.
 cd src/provider_simenv
 python main.py --pdl scenarios/s1-soja.pdl.yaml
 cd ../..
 
-# 2. Export the CSVs to the web bundle (newest completed run)
+# 2. Export the run to the web bundle (newest completed run, from PostgreSQL)
 python -m provider_simenv.export_bundle --scenario 1
 
 # ...or export one recorded run by id
 python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
+
+# ...or read the run's CSV files instead of PostgreSQL
+python -m provider_simenv.export_bundle --scenario 1 --source csv
 ```
 
-This writes `web/public/bundle.json`. Each simulation run writes into its own
-`data/output/<run-id>/` directory, indexed in `data/output/runs.json`. Without `--run` or
-`--input` the exporter reads the newest completed run. Options:
+This writes `web/public/bundle.json`. Each run is recorded in PostgreSQL (`sim_run`) and in
+its own `data/output/<run-id>/` directory, indexed in `data/output/runs.json`. Without `--run`
+the exporter reads the newest completed run. Options:
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--scenario` | `1` | `id_scenario` to export. `0` = baseline, `1` = PDL shock. |
-| `--run` | newest completed run | Run id to export, as listed in `data/output/runs.json`. |
-| `--input` | — | Directory holding the `Result_Simulator_*.csv` files. Read directly, bypassing the run registry. |
+| `--source` | `postgres` | Where to read the run: `postgres` (the `sim_*` views) or `csv` (the run's CSV files). |
+| `--run` | newest completed run | Run id to export, as listed in `sim_run` (or in `data/output/runs.json` with `--source csv`). |
+| `--input` | — | Directory holding the `Result_Simulator_*.csv` files. Read directly, bypassing the run registry. Needs `--source csv`. |
 | `--output` | `web/public/bundle.json` | Target path. |
-| `--pdl` | `s1-soja.pdl.yaml` | PDL name recorded in the bundle metadata. |
+| `--pdl` | `s1-soja.pdl.yaml` | PDL the run was made with; supplies the topology and the bundle metadata. With `--source postgres` its hash must match the run's, or the export is refused. |
+
+A run started without `--pdl`, or with `--no-postgres`, can only be exported with
+`--source csv`.
 
 On Windows, set `PYTHONIOENCODING=utf-8` before running either step — the scenario summary
 prints box-drawing characters that raise `UnicodeEncodeError` on a cp1252 console.

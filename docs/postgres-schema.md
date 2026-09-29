@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS sim_run (
 | `finished_at` | `timestamptz` | UTC, written when the run ends. `NULL` while running, and on a run that died without recording an end. |
 | `status` | `text` | `running`, `completed` or `failed`. A row stuck at `running` is a crashed run. |
 | `pdl` | `text` | PDL filename, basename only. `NULL` for a run without `--pdl`. |
-| `pdl_sha256` | `text` | SHA-256 of the PDL file as read. The exact provenance of the input. |
+| `pdl_sha256` | `text` | SHA-256 of the PDL file as read. The exact provenance of the input. The exporter refuses to pair a run with a PDL file whose hash differs, so a run with no recorded PDL cannot be exported from this database. |
 | `scenario_ids` | `integer[]` | The scenario ids this run executed, e.g. `{0,1}`. |
 | `period_num` | `integer` | Periods per scenario. All scenarios in one run share it. |
 | `git_sha` | `text` | What `HEAD` pointed at. Not proof the working tree matched it. |
@@ -242,6 +242,11 @@ The views are how this database is meant to be read, by the export, by the parit
 an external consumer. They are defined with `CREATE OR REPLACE VIEW` at the start of every run,
 generated from the fixed role and metric lists in the code. They hold no data of their own.
 
+The web bundle is exported from the role views by default (`export_bundle.py`, `--source
+postgres`). The opt-in parity tests in `tests/test_postgres_csv_parity.py` prove, for a real
+run, that every value here equals its CSV value exactly and that the bundle built from the
+views is byte-identical to the one built from the CSVs.
+
 ### `sim_tick_readable` — the long form, with names
 
 One row per `sim_tick` row, keys resolved:
@@ -382,3 +387,7 @@ The per-entity `Result_Simulator_*` tables are no longer written to Postgres. Th
 as CSV files under `data/output/<run-id>/`, which the parity test compares against, and their
 names still come from the simenv code. Their shape depends on the input PDL, which is exactly
 why they could not carry an external contract.
+
+The CSVs are no longer the source of truth. They remain as the reference the parity tests
+compare against, and as the `--source csv` fallback for the export, including for runs made with
+`--no-postgres`, which have no rows here.

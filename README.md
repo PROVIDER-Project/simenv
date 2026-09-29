@@ -30,8 +30,9 @@ simenv/
         ├── pdl_loader.py         ← PDL YAML → events / entities
         ├── data_collector.py     ← Melodie output registration
         ├── tick_writer.py        ← per-tick PostgreSQL writer
+        ├── db_schema.py          ← PostgreSQL tables, views and metric catalogue
         ├── db_config.py          ← PostgreSQL connection config
-        ├── export_bundle.py      ← CSV run → web/public/bundle.json
+        ├── export_bundle.py      ← run (PostgreSQL or CSV) → web/public/bundle.json
         ├── scenarios/
         │   ├── s1-soja.pdl.yaml
         │   └── s1-soja.roster.yaml
@@ -65,15 +66,16 @@ numpy
 pyyaml
 ```
 
-**Optional — only needed for PostgreSQL output:**
+**PostgreSQL output (the `db` extra):**
 
 ```
 sqlalchemy
 psycopg2-binary
 ```
 
-If `sqlalchemy` / `psycopg2-binary` are not installed, the tick writer disables itself
-silently and the simulation continues normally. CSV output is unaffected.
+A run writes to PostgreSQL by default. If these packages are missing or the database is
+unreachable, the run fails with an error rather than finishing without its data. Pass
+`--no-postgres` to run with CSV output only.
 
 ### Install
 
@@ -96,7 +98,7 @@ pip install '.[dev]'
 # This should ususally be done in editable mode for development purposes:
 pip install -e '.[dev]'
 
-# Optional: Install with PostgreSQL support (run in project root)
+# Install with PostgreSQL support, needed unless you run with --no-postgres (run in project root)
 pip install '.[db]'
 ```
 
@@ -135,21 +137,31 @@ Each invocation writes its output into `data/output/<run-id>/`. The adjacent
 **What runs automatically:**
 
 1. Simulation loop — each CSV row, `period_num` steps (default 365)
-2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
+2. Per-tick PostgreSQL writes via `tick_writer.py`. An unreachable database or a failed write
+   fails the run; `--no-postgres` runs without the database
 
 ### Update the globe frontend after a run
 
 ```bash
-# Export the newest completed run
+# Export the newest completed run from PostgreSQL
 python -m provider_simenv.export_bundle --scenario 1
 
 # Export one recorded run by id
 python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
+
+# Export from the run's CSV files instead
+python -m provider_simenv.export_bundle --scenario 1 --source csv
 ```
 
-Without `--run` or `--input`, the exporter reads the newest completed run.
-`--input DIR` still reads a directory directly. The exporter writes
-`web/public/bundle.json`. See `web/README.md` for the frontend workflow.
+The exporter reads PostgreSQL by default. Without `--run` it takes the newest completed run
+in `sim_run`. The `--pdl` file (default `s1-soja.pdl.yaml`) must be the file the run was made
+with; the exporter checks its hash and refuses a mismatch. Runs started without `--pdl`
+record no PDL and can only be exported with `--source csv`.
+
+`--source csv` reads the run's CSV files instead and resolves runs through
+`data/output/runs.json`; both sources give the same bundle. `--input DIR` reads a CSV
+directory directly and needs `--source csv`. The exporter writes `web/public/bundle.json`.
+See `web/README.md` for the frontend workflow.
 
 ---
 
@@ -205,10 +217,12 @@ If the PDL has a roster sidecar, mount the directory that contains both files
 
 ---
 
-## PostgreSQL Setup (Optional)
+## PostgreSQL Setup
 
-PostgreSQL enables live data access during the simulation — required for future palaestrAI
-integration. Without it, everything works via CSV + SQLite.
+Every run writes its results to PostgreSQL by default, one step at a time, so a run can be
+queried while it is still running. The exporter reads the web bundle from there. To run
+without a database, pass `--no-postgres`: the run then writes CSV output only, and its bundle
+must be exported with `--source csv`.
 
 ### Start a local instance with Docker
 
@@ -234,42 +248,40 @@ docker run --name provider-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_US
 | user | `postgres` |
 | password | `postgres` |
 
-Override by constructing `PostgresDBConfig` with different values or passing env vars at runtime.
+Override with the environment variables `PROVIDER_SIMENV_PG_HOST`, `_PORT`, `_DB`, `_USER`
+and `_PASSWORD`, or with one URL in `PROVIDER_SIMENV_POSTGRES_URL` (the simulation also
+accepts it as `--postgres-url`).
+
+### Tables and views
+
+The schema is fixed and does not depend on the PDL: a different PDL adds rows, never tables,
+columns or views. Nothing drops a table, so every run's rows stay, keyed by its run id.
+
+| Object | One row per |
+|---|---|
+| `sim_run` | simulation run, mirroring its `runs.json` entry |
+| `sim_agent` | recorded agent in a run, including the environment |
+| `sim_metric` | kind of measurement, with its unit |
+| `sim_tick` | measured value |
+| `sim_tick_readable` (view) | measured value, with names instead of keys |
+| `sim_<role>_view` (views) | agent and period, one column per metric |
+
+Read the views, not the tables. `docs/postgres-schema.md` documents every column, unit and
+view, and which of them an external consumer may rely on.
 
 ### Verify data after a run
 
 ```sql
--- PDL run: 2 scenarios, each COUNT = period_num (default 365)
+-- Newest runs and their status
+SELECT run_id, status, started_at, finished_at FROM sim_run ORDER BY run_id DESC LIMIT 5;
+
+-- Values per scenario for one run
 SELECT id_scenario, COUNT(*)
-FROM "Result_Simulator_Environment"
+FROM sim_tick_readable
+WHERE run_id = '<run id>'
 GROUP BY id_scenario
 ORDER BY id_scenario;
 ```
-
-### Tables written by tick_writer
-
-Table names derive from the PDL entity id (`brazil_farms` ->
-`Result_Simulator_BrazilFarms`), identical to the Melodie CSV names, so a PDL
-declaring different entities produces the matching tables with no code change.
-One table per roster list whose role has recorded properties, plus the
-environment table. For the shipped PDL:
-
-```
-Result_Simulator_Environment
-Result_Simulator_BrazilFarms
-Result_Simulator_ArgentinaFarms
-Result_Simulator_UsFarms
-Result_Simulator_BrazilWholesaler
-Result_Simulator_ArgentinaWholesaler
-Result_Simulator_UsWholesaler
-Result_Simulator_Processors
-Result_Simulator_FeedManufacturers
-Result_Simulator_FeedTraders
-Result_Simulator_EuFarmers
-```
-
-Tables are dropped and recreated on the first tick of each full simulation run (first scenario only).
-Subsequent scenarios within the same run append to the existing tables.
 
 ---
 
@@ -292,6 +304,7 @@ from the repository root. This builds the database container, if it's not alread
 |---|---|
 | `data/output/runs.json` | Run index containing status and provenance metadata |
 | `data/output/<run-id>/Result_Simulator_*.csv` | Raw per-agent per-step output for one run |
+| PostgreSQL `sim_*` tables and views | The same values for every run, keyed by run id (see PostgreSQL Setup) |
 | `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---
@@ -299,7 +312,7 @@ from the repository root. This builds the database container, if it's not alread
 ## Known Issues / Notes
 
 - **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from `main.py`'s location, not the cwd.
-- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soja_price, feed_price, ...}` after every simulation step.
+- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soy_price, feed_price, ...}` after every simulation step. It records to PostgreSQL only when the caller has opened the run, as `main.py` does (see its docstring).
 
 ---
 
