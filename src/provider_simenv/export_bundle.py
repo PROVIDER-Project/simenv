@@ -1,10 +1,12 @@
 """
-Export a simulation run's CSV output into the JSON bundle the web view consumes.
+Export a simulation run into the JSON bundle the web view consumes.
 
-Reads the ``Result_Simulator_*.csv`` files a run writes to
-``data/output/<run-id>/`` and emits a single ``bundle.json`` matching the frontend ``Bundle`` contract
+Reads a run either from the ``Result_Simulator_*.csv`` files it writes to
+``data/output/<run-id>/`` (``--source csv``, the default) or from the PostgreSQL
+views (``--source postgres``), and emits a single ``bundle.json`` matching the frontend ``Bundle`` contract
 (``web/src/data/types.ts``): nodes, edges, per-node time-series (``ticks``) and the
-environment time-series (``env``).
+environment time-series (``env``). Both sources feed the same aggregation, so the
+same run gives the same bundle.
 
 Each recorded agent list holds many instances; a map node is the aggregate of its
 list per step — extensive quantities are summed, prices/utilisation are averaged,
@@ -18,11 +20,12 @@ are drawn endpoint-to-endpoint rather than routed through sea-transport agents, 
 have no single map location.
 
 Usage:
-    python -m provider_simenv.export_bundle [--scenario 1] [--input DIR] [--run ID] [--output FILE]
+    python -m provider_simenv.export_bundle [--scenario 1] [--source csv|postgres] [--input DIR] [--run ID] [--output FILE]
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -34,6 +37,8 @@ import pandas as pd
 
 from .agents import Transport
 from .data_collector import _PROPS_BY_ROLE, result_table_name
+from .db_config import PostgresDBConfig
+from .db_schema import ENVIRONMENT_ROLE, role_view_name
 from .pdl_loader import PDLLoader
 from .run_registry import resolve_run, run_dir
 from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
@@ -217,7 +222,81 @@ def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
     return out
 
 
-def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
+class CsvRunReader:
+    """A run's per-instance rows from its Result_Simulator_*.csv files."""
+
+    def __init__(self, input_dir: str) -> None:
+        self.input_dir = input_dir
+
+    def agent_rows(
+        self, node_id: str, role: str, scenario: int,
+    ) -> pd.DataFrame | None:
+        path = os.path.join(self.input_dir, f"{result_table_name(node_id)}.csv")
+        if not os.path.exists(path):
+            logger.warning("missing CSV for %s: %s", node_id, path)
+            return None
+        df = pd.read_csv(path)
+        return df[df["id_scenario"] == scenario]
+
+    def environment_rows(self, scenario: int) -> pd.DataFrame:
+        env_path = os.path.join(self.input_dir, "Result_Simulator_Environment.csv")
+        edf = pd.read_csv(env_path)
+        return edf[edf["id_scenario"] == scenario].sort_values("period")
+
+
+class PostgresRunReader:
+    """
+    A run's per-instance rows from the sim_<role>_view views. Rows come back
+    in period, then agent order - the order Melodie writes the CSVs in - so
+    aggregation sums in the same order and the bundle matches the CSV one.
+    """
+
+    def __init__(self, conn, run_id: str) -> None:
+        self.conn = conn
+        self.run_id = run_id
+
+    def agent_rows(
+        self, node_id: str, role: str, scenario: int,
+    ) -> pd.DataFrame | None:
+        from sqlalchemy import text
+        columns = ", ".join(_PROPS_BY_ROLE[role])
+        query = text(
+            f"SELECT period, agent_id AS id, {columns}"
+            f" FROM {role_view_name(role)}"
+            " WHERE run_id = :run_id AND id_scenario = :scenario"
+            " AND entity_id = :entity_id ORDER BY period, agent_id"
+        )
+        df = pd.read_sql(query, self.conn, params={
+            "run_id": self.run_id, "scenario": scenario, "entity_id": node_id,
+        })
+        if df.empty:
+            logger.warning("no rows for %s in run %s", node_id, self.run_id)
+            return None
+        return df
+
+    def environment_rows(self, scenario: int) -> pd.DataFrame:
+        from sqlalchemy import text
+        columns = ", ".join(csv_col for csv_col, _ in ENV_COLS)
+        query = text(
+            f"SELECT period, {columns}"
+            f" FROM {role_view_name(ENVIRONMENT_ROLE)}"
+            " WHERE run_id = :run_id AND id_scenario = :scenario"
+            " ORDER BY period"
+        )
+        return pd.read_sql(query, self.conn, params={
+            "run_id": self.run_id, "scenario": scenario,
+        })
+
+
+def build_bundle(
+    source: str | CsvRunReader | PostgresRunReader, scenario: int, pdl: str,
+) -> dict:
+    """
+    The bundle for one scenario of a run. source is a CSV run directory or a
+    reader; everything after reading is shared, so the source cannot change
+    the bundle.
+    """
+    reader = CsvRunReader(source) if isinstance(source, str) else source
     pdl_path = _resolve_pdl_path(pdl)
     roster = build_roster(pdl_path)
     adjacency = build_flow_adjacency(pdl_path)
@@ -240,12 +319,9 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
         props = _PROPS_BY_ROLE.get(entry.archetype.role)
         if props is None:
             continue
-        path = os.path.join(input_dir, f"{result_table_name(node_id)}.csv")
-        if not os.path.exists(path):
-            logger.warning("missing CSV for %s: %s", node_id, path)
+        df = reader.agent_rows(node_id, entry.archetype.role, scenario)
+        if df is None:
             continue
-        df = pd.read_csv(path)
-        df = df[df["id_scenario"] == scenario]
         for period, values in _aggregate(df, list(props)).items():
             ticks.append({"period": period, "nodeId": node_id, "values": values})
 
@@ -253,9 +329,7 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
 
     # Environment series.
     env: list[dict] = []
-    env_path = os.path.join(input_dir, "Result_Simulator_Environment.csv")
-    edf = pd.read_csv(env_path)
-    edf = edf[edf["id_scenario"] == scenario].sort_values("period")
+    edf = reader.environment_rows(scenario)
     for _, row in edf.iterrows():
         snapshot = {"period": int(row["period"])}
         for csv_col, out_key in ENV_COLS:
@@ -277,6 +351,63 @@ def build_bundle(input_dir: str, scenario: int, pdl: str) -> dict:
     }
 
 
+def _postgres_bundle(run_id: str | None, scenario: int, pdl: str) -> dict:
+    """
+    The bundle for a run read from PostgreSQL: the named run, or the newest
+    completed one in sim_run. The --pdl file must be the one the run was made
+    with (sim_run.pdl_sha256), so one PDL's topology is never bound to another
+    run's numbers.
+    """
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.exc import OperationalError
+
+    url = PostgresDBConfig().sqlalchemy_url()
+    engine = create_engine(url)
+    try:
+        try:
+            engine.connect().close()
+        except OperationalError as exc:
+            masked = make_url(url).render_as_string(hide_password=True)
+            raise RuntimeError(
+                f"could not connect to Postgres at {masked}: {exc}"
+            ) from exc
+
+        with engine.connect() as conn:
+            if run_id is None:
+                run = conn.execute(text(
+                    "SELECT run_id, status, pdl, pdl_sha256 FROM sim_run"
+                    " WHERE status = 'completed'"
+                    " ORDER BY run_id DESC LIMIT 1"
+                )).one_or_none()
+                if run is None:
+                    raise RuntimeError("no completed run in sim_run")
+            else:
+                run = conn.execute(text(
+                    "SELECT run_id, status, pdl, pdl_sha256 FROM sim_run"
+                    " WHERE run_id = :run_id"
+                ), {"run_id": run_id}).one_or_none()
+                if run is None:
+                    raise RuntimeError(f"run {run_id} is not in sim_run")
+            if run.status != "completed":
+                logger.warning("run %s has status %s", run.run_id, run.status)
+
+            pdl_path = _resolve_pdl_path(pdl)
+            digest = hashlib.sha256(pdl_path.read_bytes()).hexdigest()
+            if digest != run.pdl_sha256:
+                raise RuntimeError(
+                    f"--pdl {pdl_path.name} is not the PDL run {run.run_id} "
+                    f"was made with ({run.pdl or 'none recorded'})"
+                )
+
+            logger.info("Resolved run %s from sim_run", run.run_id)
+            return build_bundle(
+                PostgresRunReader(conn, run.run_id), scenario, pdl,
+            )
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     here = os.path.dirname(os.path.abspath(__file__))
@@ -293,23 +424,32 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=os.path.join(repo_root, "web", "public", "bundle.json"),
                         help="Path to write bundle.json.")
     parser.add_argument("--pdl", type=str, default="s1-soja.pdl.yaml", help="PDL name for metadata.")
+    parser.add_argument("--source", choices=("csv", "postgres"), default="csv",
+                        help="Read the run from its CSV files or from PostgreSQL. Default csv.")
     args = parser.parse_args()
 
-    if args.input is not None:
-        input_dir = args.input
-        logger.info(
-            "Using explicit input directory %s; not resolved through the run registry",
-            input_dir,
-        )
-    else:
+    if args.source == "postgres":
+        if args.input is not None:
+            parser.error("--input names a CSV directory and cannot be used with --source postgres")
         try:
-            resolved_run_id = resolve_run(output_root, args.run)
+            bundle = _postgres_bundle(args.run, args.scenario, args.pdl)
         except RuntimeError as exc:
             parser.error(str(exc))
-        input_dir = run_dir(output_root, resolved_run_id)
-        logger.info("Resolved run %s at %s", resolved_run_id, input_dir)
-
-    bundle = build_bundle(input_dir, args.scenario, args.pdl)
+    else:
+        if args.input is not None:
+            input_dir = args.input
+            logger.info(
+                "Using explicit input directory %s; not resolved through the run registry",
+                input_dir,
+            )
+        else:
+            try:
+                resolved_run_id = resolve_run(output_root, args.run)
+            except RuntimeError as exc:
+                parser.error(str(exc))
+            input_dir = run_dir(output_root, resolved_run_id)
+            logger.info("Resolved run %s at %s", resolved_run_id, input_dir)
+        bundle = build_bundle(input_dir, args.scenario, args.pdl)
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(bundle, fh, ensure_ascii=False, separators=(",", ":"))

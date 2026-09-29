@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -6,7 +7,7 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
-from provider_simenv import run_registry
+from provider_simenv import export_bundle, run_registry
 from provider_simenv.data_collector import result_table_name
 from provider_simenv.db_config import PostgresDBConfig
 from provider_simenv.db_schema import (
@@ -18,6 +19,23 @@ PARITY_RUN_VAR = "PROVIDER_SIMENV_PARITY_RUN"
 OUTPUT_ROOT = Path(run_registry.__file__).parent / "data" / "output"
 ENVIRONMENT_CSV = "Result_Simulator_Environment.csv"
 KEY_COLUMNS = {"id_scenario", "id_run", "period", "id"}
+
+
+def bundle_text(bundle: dict) -> str:
+    meta = {**bundle["meta"], "generatedAt": ""}
+    return json.dumps(
+        {**bundle, "meta": meta}, ensure_ascii=False, separators=(",", ":"),
+    )
+
+
+def first_difference(left: str, right: str) -> str:
+    for i, (a, b) in enumerate(zip(left, right)):
+        if a != b:
+            return (
+                f"char {i}: csv ...{left[max(0, i - 60):i + 60]}... "
+                f"postgres ...{right[max(0, i - 60):i + 60]}..."
+            )
+    return f"lengths {len(left)} and {len(right)}"
 
 
 def csv_values(path: Path, entity_id: str) -> dict:
@@ -136,3 +154,29 @@ def test_live_parity_values_are_identical(parity):
         f"{len(differing)} values differ (key, csv, postgres), "
         f"e.g. {differing[:5]}"
     )
+
+
+def test_live_parity_bundle_is_identical(parity):
+    run_id, _csv, _db, _unmatched = parity
+    engine = create_engine(PostgresDBConfig().sqlalchemy_url())
+    with engine.connect() as conn:
+        run = conn.execute(
+            text("SELECT pdl, scenario_ids FROM sim_run WHERE run_id = :r"),
+            {"r": run_id},
+        ).one()
+    engine.dispose()
+    if run.pdl is None:
+        pytest.skip(f"run {run_id} recorded no PDL to export it with")
+
+    for scenario in run.scenario_ids:
+        from_csv = bundle_text(export_bundle.build_bundle(
+            str(OUTPUT_ROOT / run_id), scenario, run.pdl,
+        ))
+        from_postgres = bundle_text(export_bundle._postgres_bundle(
+            run_id, scenario, run.pdl,
+        ))
+
+        assert from_csv == from_postgres, (
+            f"scenario {scenario} bundles differ at "
+            f"{first_difference(from_csv, from_postgres)}"
+        )
