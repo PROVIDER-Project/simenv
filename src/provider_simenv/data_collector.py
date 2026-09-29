@@ -28,6 +28,12 @@ _PROPS_BY_ROLE = {
     ROLE_FEED_TRADER: ("quantity_available", "unit_price"),
 }
 
+# Environment-level variables to record each step
+ENVIRONMENT_PROPS = (
+    "soy_price", "feed_price", "shock_scale", "drought_severity",
+    "total_soy_supply", "transport_utilisation", "current_step",
+)
+
 
 def result_table_name(list_name: str) -> str:
     """
@@ -60,11 +66,5 @@ class SupplyChainDataCollector(DataCollector):
             for prop in props:
                 self.add_agent_property(entry.archetype.name, prop)
 
-        # Environment-level variables to record each step
-        self.add_environment_property("soy_price")
-        self.add_environment_property("feed_price")
-        self.add_environment_property("shock_scale")
-        self.add_environment_property("drought_severity")
-        self.add_environment_property("total_soy_supply")
-        self.add_environment_property("transport_utilisation")
-        self.add_environment_property("current_step")
+        for prop in ENVIRONMENT_PROPS:
+            self.add_environment_property(prop)

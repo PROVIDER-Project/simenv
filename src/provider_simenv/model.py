@@ -332,6 +332,13 @@ class SupplyChainModel(Model):
             """
             Generator variant for external step-by-step control (e.g. RL agents).
             Yields a state snapshot dict after every step; the caller drives the loop.
+
+            Does not open or close a run. A step is recorded to Postgres only when
+            `_tick_writer` and `_run_id` are set on the class; the caller builds the
+            writer, calls `open_run()` before the first step and `close_run()` after
+            the last, as `main.py` does. A writer set without an opened run fails at
+            the first step on the foreign key to `sim_run`. Without a writer, nothing
+            is recorded.
             """
             self._init_event_tracker()
             self._crosscheck_bindings()
