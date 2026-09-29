@@ -27,7 +27,7 @@ an external consumer may rely on.
 import re
 from typing import NamedTuple
 
-from .data_collector import ENVIRONMENT_PROPS, _PROPS_BY_ROLE
+from .data_collector import _PROPS_BY_ROLE, ENVIRONMENT_PROPS
 
 # The environment is recorded as one agent per run, under these sentinels.
 ENVIRONMENT_ENTITY_ID = "environment"

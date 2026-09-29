@@ -34,10 +34,11 @@ Failure handling:
 """
 
 from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 
-from .data_collector import ENVIRONMENT_PROPS, _PROPS_BY_ROLE
+from .data_collector import _PROPS_BY_ROLE, ENVIRONMENT_PROPS
 from .db_schema import (
     DDL,
     ENVIRONMENT_AGENT_ID,
@@ -217,25 +218,26 @@ class TickWriter:
         Call this once per tick, after _do_step(t) has run. A failure raises:
         the run fails rather than finishing with rows missing.
         """
-        if self._conn is None:
+        conn = self._conn
+        if conn is None:
             raise RuntimeError(
                 f"tick write at step {t} before open_run() - the caller must "
                 "open the run first"
             )
         try:
-            rows = self._agent_rows(model, id_scenario, run_id, t)
+            rows = self._agent_rows(conn, model, id_scenario, run_id, t)
             rows += self._environment_rows(
-                model.environment, id_scenario, run_id, t,
+                conn, model.environment, id_scenario, run_id, t,
             )
             if rows:
-                self._conn.execute(self._tick_insert, rows)
-            self._conn.commit()
+                conn.execute(self._tick_insert, rows)
+            conn.commit()
         except Exception as exc:
             raise RuntimeError(f"tick write failed at step {t}: {exc}") from exc
 
 
     def _agent_rows(
-        self, model, id_scenario: int, run_id: str, t: int,
+        self, conn, model, id_scenario: int, run_id: str, t: int,
     ) -> list[dict]:
         """
         sim_tick rows for every agent in every roster list with tracked props.
@@ -256,7 +258,7 @@ class TickWriter:
 
             for agent in agent_list.agents:
                 agent_key = self._agent_key(
-                    run_id, node_id, entry.archetype.role, agent.id,
+                    conn, run_id, node_id, entry.archetype.role, agent.id,
                 )
                 rows.extend(
                     self._value_rows(agent, props, agent_key, id_scenario, t)
@@ -265,11 +267,11 @@ class TickWriter:
 
 
     def _environment_rows(
-        self, env, id_scenario: int, run_id: str, t: int,
+        self, conn, env, id_scenario: int, run_id: str, t: int,
     ) -> list[dict]:
         """sim_tick rows for the environment, recorded as one agent."""
         agent_key = self._agent_key(
-            run_id, ENVIRONMENT_ENTITY_ID, ENVIRONMENT_ROLE,
+            conn, run_id, ENVIRONMENT_ENTITY_ID, ENVIRONMENT_ROLE,
             ENVIRONMENT_AGENT_ID,
         )
         return self._value_rows(
@@ -305,7 +307,7 @@ class TickWriter:
 
 
     def _agent_key(
-        self, run_id: str, entity_id: str, role: str, agent_id: int,
+        self, conn, run_id: str, entity_id: str, role: str, agent_id: int,
     ) -> int:
         """
         The agent's sim_agent key, registering it the first time it is seen
@@ -316,7 +318,7 @@ class TickWriter:
         key = (entity_id, role, agent_id)
         agent_key = self._agent_keys.get(key)
         if agent_key is None:
-            agent_key = self._conn.execute(
+            agent_key = conn.execute(
                 self._agent_insert,
                 {
                     "run_id": run_id,

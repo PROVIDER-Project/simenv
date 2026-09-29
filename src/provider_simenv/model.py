@@ -21,15 +21,19 @@ Step order each timestep (derived, not hardcoded):
 import logging
 from Melodie import Model
 from pathlib import Path
+from typing import ClassVar
 from .event_tracker import EventTracker
 from .topology import build_roster
 from .environment import SupplyChainEnvironment
 from .data_collector import SupplyChainDataCollector
+from .tick_writer import TickWriter
 
 logger = logging.getLogger(__name__)
 
 
 class SupplyChainModel(Model):
+    _tick_writer: ClassVar[TickWriter]
+    _run_id: ClassVar[str]
 
     def create(self):
         """
