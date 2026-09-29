@@ -337,8 +337,8 @@ class SupplyChainModel(Model):
             `_tick_writer` and `_run_id` are set on the class; the caller builds the
             writer, calls `open_run()` before the first step and `close_run()` after
             the last, as `main.py` does. A writer set without an opened run fails at
-            the first step on the foreign key to `sim_run`. Without a writer, nothing
-            is recorded.
+            the first step with an error saying no run was opened. Without a writer,
+            nothing is recorded.
             """
             self._init_event_tracker()
             self._crosscheck_bindings()

@@ -187,6 +187,9 @@ if __name__ == "__main__":
             SupplyChainModel._tick_writer = tick_writer
             SupplyChainModel._run_id = run_id
         simulator.run()
+        if tick_writer is not None:
+            tick_writer.close_run(run_id, status="completed")
+        finish_run(output_root, run_id, status="completed")
     except Exception:
         finish_run(output_root, run_id, status="failed")
         if tick_writer is not None:
@@ -195,10 +198,6 @@ if __name__ == "__main__":
             except Exception as exc:
                 logger.warning("could not record the failed run in sim_run: %s", exc)
         raise
-    else:
-        finish_run(output_root, run_id, status="completed")
-        if tick_writer is not None:
-            tick_writer.close_run(run_id, status="completed")
     finally:
         if hasattr(SupplyChainModel, "_event_registry"):
             del SupplyChainModel._event_registry

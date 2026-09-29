@@ -191,8 +191,9 @@ conventional. A consumer must therefore treat a missing `(agent, metric)` pair a
 has no such metric", not as a gap in the data.
 
 **The row count is proportional to the PDL.** The `s1-soja` scenario over 2 scenarios × 365
-periods produces 97,090 `sim_tick` rows (values): 46 recorded agents carrying 2 or 3 metrics each, plus
-7 environment metrics, against 47 `sim_agent` rows and 13 `sim_metric` rows.
+periods produces 97,090 `sim_tick` rows (values): 45 recorded agents carrying 2 or 3 metrics
+each, plus 7 environment metrics, against 46 `sim_agent` rows (the 45 agents and the
+environment) and 13 `sim_metric` rows.
 
 ---
 
@@ -201,7 +202,8 @@ periods produces 97,090 `sim_tick` rows (values): 46 recorded agents carrying 2 
 This is the content of `sim_metric`. The unit column records what the code actually computes.
 Where the codebase does not declare a unit, this says so rather than inventing one — the
 `s1-soja` scenario is parameterised in tonnes and an unnamed currency, but nothing in the model
-enforces either.
+enforces either. The `unit` values below are the stored strings, character for character;
+section 4 explains why they never change in place.
 
 ### Agent metrics
 
@@ -209,7 +211,7 @@ enforces either.
 |---|---|---|---|
 | `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader | output units per period | How much of its output good the agent has ready this period. |
 | `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader | currency per output unit | The agent's asking price this period. `0.0` when it has nothing to sell. |
-| `storage_utilization` | wholesaler | ratio, 0.0–1.0 | Stock divided by storage capacity. |
+| `storage_utilization` | wholesaler | ratio, 0.0-1.0 | Stock divided by storage capacity. |
 | `feed_received` | consumer | feed units per period | Feed collected from upstream traders, split evenly across active consumers. |
 | `livestock_output` | consumer | output units per period | Livestock produced, proportional to `feed_received`. |
 | `active` | producer, consumer | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
@@ -227,9 +229,9 @@ All belong to the `environment` agent.
 | `soy_price` | currency per unit | Weighted average price across active wholesalers. |
 | `feed_price` | currency per unit | Weighted average price across active feed traders. |
 | `shock_scale` | multiplier | Largest active shock multiplier this period. `0.0` when nothing is shocked. |
-| `drought_severity` | ratio, 0.0–1.0 | Largest active drought severity this period. |
+| `drought_severity` | ratio, 0.0-1.0 | Largest active drought severity this period. |
 | `total_soy_supply` | output units | Sum of `quantity_available` across the PDL's producer regions. |
-| `transport_utilisation` | ratio, 0.0–1.0 | Average utilisation across transport agents. |
+| `transport_utilisation` | ratio, 0.0-1.0 | Average utilisation across transport agents. |
 | `current_step` | day | The period index. Redundant with `period`; see section 8. |
 
 ---
