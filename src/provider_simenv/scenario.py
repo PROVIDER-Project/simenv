@@ -16,16 +16,6 @@ class SupplyChainScenario(Scenario):
     # --- Supply chain routing ---
     share_santos_port: float = 0.7   # explicit weight for the Santos route
 
-    # --- Agent population size ---
-    n_brazil_farms: int = 10         # South American Farmers
-    n_wholesalers: int = 1          # originators per regional roster list
-    n_land_transport: int = 1         # fallback for a derived transport entity
-    n_sea_transport: int = 1          # fallback for a derived sea crossing
-    n_processors: int = 3           # Crushers / oil mills
-    n_feed_manufacturers: int = 3
-    n_feed_traders: int = 3
-    n_eu_farmers: int = 10          # EU livestock farmers
-
     # --- Storage capacities (t/step)
     # Maximum inventory a wholesaler can hold in a single simulation step
     # set to realistic value (e.g. 20_000) to observe capacity-binding behavior under brazil_drought scenario.
@@ -74,7 +64,6 @@ class SupplyChainScenario(Scenario):
     #   - higher fixed_costs -> higher baseline price (EU prefers BRA under normal conditions)
     #   - unaffected by BRA shock -> stable supply when BRA supply is disrupted
     #   - base_yield acts as capacity ceiling
-    n_us_farms: int = 8
     fixed_costs_us_farms: float = 48000.0
     margin_us_farms: float = 0.10
 
@@ -84,7 +73,6 @@ class SupplyChainScenario(Scenario):
     #   - fixed_costs between BRA and USA
     #   - unaffected by BRA shock
     #   - No surplus_factor - ARG is a baseline supply, not emergency reserve
-    n_argentina_farms: int = 5
     fixed_costs_argentina_farms: float = 42000.0
     margin_argentina_farms: float = 0.10
 
@@ -92,6 +80,5 @@ class SupplyChainScenario(Scenario):
     fixed_costs_producer: float = 1.0
     margin_producer: float = 0.10
     size_sigma_producer: float = 0.0
-    n_producer: int = 1
 
 

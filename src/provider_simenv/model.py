@@ -59,14 +59,15 @@ class SupplyChainModel(Model):
 
     def setup(self):
         """
-        Populate every AgentList in the derived roster, assign roles, and apply
-        each archetype's declared params — bindings, literal attrs, and
-        scenario-sourced attrs — so agents carry no role-specific init.
+        Populate every AgentList in the derived roster with one agent per roster
+        entry, assign roles, and apply each archetype's declared params —
+        bindings, literal attrs, and scenario-sourced attrs — so agents carry no
+        role-specific init.
         """
         for entry in self._roster:
             arc = entry.archetype
             agent_list = getattr(self, arc.name)
-            agent_list.setup_agents(getattr(self.scenario, arc.count_attr))
+            agent_list.setup_agents(1)
             # entity-driven capacity binding: an agent reads its own entity's supply shock.
             capacity_key = (entry.entity_ids[0], "supply") if len(entry.entity_ids) == 1 else None
             origin = entry.entity_ids[0] if len(entry.entity_ids) == 1 else ""
