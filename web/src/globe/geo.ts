@@ -1,17 +1,10 @@
 /**
- * Geographic helpers for placing annotations on the rendered globe.
+ * Geographic helpers for rendered globe geometry.
  *
- * Edge-label placement is the non-obvious piece. globe.gl (three-globe) does NOT
- * draw an arc along the geographic great circle: it builds a cubic Bézier through
- * the great-circle points at t=0.25 and t=0.75, each lifted to 1.5× the arc's
- * apex altitude, from surface start to surface end. For a long arc at a small
- * fixed altitude the Bézier apex sinks below the surface and the middle of the
- * arc is occluded — so labels must anchor to the ACTUAL Bézier apex, not the
- * great-circle midpoint, and the arc altitude must scale with length.
- *
- * `arcApex` replicates three-globe's `calcCurve` exactly (same control-point
- * placement, altitude auto-scaling, and axis convention) and returns the apex as
- * lat/lng/alt, so a label anchored there sits on the rendered curve.
+ * `arcApex` preserves three-globe's cubic Bézier calculation for arc geometry;
+ * long arcs must use the matching altitude auto-scale or their midpoint can sink
+ * below the globe. `densifyPolyline` protects surface paths from the equivalent
+ * chord-through-the-globe artefact by bounding every great-circle segment.
  */
 
 export interface LatLng {
@@ -26,6 +19,10 @@ export interface Apex {
 }
 
 const DEG = Math.PI / 180
+const EARTH_RADIUS_KM = 6371.0088
+
+/** Longest permitted surface segment before a path is densified. */
+export const MAX_SEGMENT_KM = 250
 
 /** Wrap a longitude in degrees into the (-180, 180] range. */
 function wrapLng(lng: number): number {
@@ -69,6 +66,39 @@ function slerp(a: LatLng, b: LatLng, t: number): LatLng {
     s1 * va[2] + s2 * vb[2],
   ])
   return { lat: p.lat, lng: p.lng }
+}
+
+function greatCircleKm(a: LatLng, b: LatLng): number {
+  const va = polarToCartesian(a.lat, a.lng, 0)
+  const vb = polarToCartesian(b.lat, b.lng, 0)
+  const angular = Math.acos(Math.max(-1, Math.min(1, dot3(va, vb))))
+  return angular * EARTH_RADIUS_KM
+}
+
+/**
+ * Split every waypoint leg into great-circle segments no longer than the given
+ * surface distance. Interpolation stays in Cartesian space so paths follow the
+ * globe surface instead of cutting through it as long straight chords.
+ */
+export function densifyPolyline(
+  points: readonly LatLng[],
+  maxSegmentKm = MAX_SEGMENT_KM,
+): LatLng[] {
+  if (maxSegmentKm <= 0) {
+    throw new Error(`Polyline segment limit must be positive, received ${maxSegmentKm}`)
+  }
+  if (points.length < 2) return points.map((point) => ({ ...point }))
+
+  const output: LatLng[] = [{ ...points[0] }]
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1]
+    const end = points[index]
+    const segmentCount = Math.max(1, Math.ceil(greatCircleKm(start, end) / maxSegmentKm))
+    for (let segment = 1; segment <= segmentCount; segment += 1) {
+      output.push(slerp(start, end, segment / segmentCount))
+    }
+  }
+  return output
 }
 
 /**

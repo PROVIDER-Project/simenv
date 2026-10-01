@@ -77,8 +77,22 @@ export const globe = {
  * cyan atmosphere rather than the reference's shock-red.
  */
 export const arc = {
-  /** Matches the globe's `arcAltitudeAutoScale`; edge apex is derived from it. */
+  /** Matches the globe's `arcAltitudeAutoScale` and `arcApex` geometry. */
   altitudeAutoScale: 0.45,
+  /** Low lift for short physical land connectors. */
+  overlandAltitude: 0.006,
+  overlandStrokeScale: 0.45,
+  /** Surface path z-budget: above the globe, below markers at 0.014. */
+  pathAltitude: 0.008,
+  /** Path-specific hierarchy: moving glow/core dominate a restrained solid halo. */
+  pathStrokeScale: { halo: 1, glow: 1.8, core: 2.4 },
+  pathAlphaScale: { halo: 0.35, glow: 1, core: 1 },
+  /** Commercial relationships are optional context, not geographic routes. */
+  commercialAlphaScale: 0.24,
+  commercialStrokeScale: 0.45,
+  commercialDashLength: 0.16,
+  commercialDashGap: 0.1,
+  commercialDashAnimateMs: 3600,
   /** Disruption colour: corridors lerp teal → this as tick intensity rises. */
   hot: [255, 96, 80] as [number, number, number],
   halo: { stroke: 2.8, alpha: 0.16, teal: [[57, 208, 200], [126, 224, 230]] },
@@ -87,6 +101,11 @@ export const arc = {
   coreDashLength: 0.4,
   coreDashGap: 0.22,
   coreDashAnimateMs: 1400,
+  pathCoreDashLength: 0.1,
+  pathCoreDashGap: 0.065,
+  pathCoreDashAnimateMs: 1800,
+  /** Slight phase offset broadens the moving pulse without filling its visible gap. */
+  pathGlowDashInitialGap: 0.025,
 } as const
 
 export const marker = {
@@ -96,6 +115,11 @@ export const marker = {
   haloRadius: 4.2,
   haloSpeed: 0.55,
   haloRepeatMs: 1800,
+  portAltitude: 0.009,
+  portLabelSize: 0.45,
+  portDotRadius: 0.4,
+  portOriginColor: 'rgba(246, 197, 91, 0.95)',
+  portDestinationColor: 'rgba(185, 233, 255, 0.85)',
 } as const
 
 /** CSS custom properties consumed by the frame and annotation stylesheets. */

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import type { Marker, ResolvedEdge } from '../data/gazetteer'
 import { arc as arcTok, color, globe as globeTok, marker as markerTok, texture } from '../design/tokens'
-import { arcApex } from './geo'
+import { arcApex, densifyPolyline, type LatLng } from './geo'
 import './labels.css'
 
 const SELECTED_MARKER_ID = 'brazil_farms'
@@ -29,6 +29,14 @@ interface ArcDatum {
   startLng: number
   endLat: number
   endLng: number
+  intensity: number
+}
+
+/** One rendered path. Each routed ocean edge gets the same three-layer stack. */
+interface PathDatum {
+  layer: ArcLayer
+  edgeId: string
+  points: LatLng[]
   intensity: number
 }
 
@@ -101,11 +109,11 @@ function arcSpec(layer: ArcLayer) {
   return layer === 'halo' ? arcTok.halo : layer === 'glow' ? arcTok.glow : arcTok.core
 }
 
-/** Arc layer colour, lerped teal → red by the edge intensity. */
-function colorForArc(datum: ArcDatum): string[] {
+/** Corridor layer colour, lerped teal → red by the edge intensity. */
+function colorForCorridor(datum: ArcDatum | PathDatum, layerAlphaScale = 1): string[] {
   const spec = arcSpec(datum.layer)
   const t = Math.min(1, datum.intensity) * 0.85
-  return spec.teal.map((teal) => rgba(mix(teal, arcTok.hot, t), spec.alpha))
+  return spec.teal.map((teal) => rgba(mix(teal, arcTok.hot, t), spec.alpha * layerAlphaScale))
 }
 
 /**
@@ -136,6 +144,24 @@ export default function GlobeView({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // An edge with an authored route renders as a surface path; everything else
+  // keeps the great-circle arc. A route is densified so long legs follow the
+  // globe instead of cutting through it as straight chords.
+  const pathEdges = useMemo(
+    () => edges.filter((edge) => edge.path !== undefined && edge.path.length > 1),
+    [edges],
+  )
+
+  const arcEdges = useMemo(
+    () => edges.filter((edge) => !(edge.path !== undefined && edge.path.length > 1)),
+    [edges],
+  )
+
+  const pathGeometry = useMemo(
+    () => pathEdges.map((edge) => ({ edge, points: densifyPolyline(edge.path ?? []) })),
+    [pathEdges],
+  )
+
   const anchors = useMemo<Anchor[]>(() => {
     const output: Anchor[] = []
     for (const marker of markers) {
@@ -149,7 +175,7 @@ export default function GlobeView({
         illustrative: marker.illustrative,
       })
     }
-    for (const edge of edges) {
+    for (const edge of arcEdges) {
       // Anchor the edge label to the arc's actual rendered apex (not the
       // great-circle midpoint) so it sits on the curve for arcs of any length.
       const apex = arcApex(
@@ -167,14 +193,28 @@ export default function GlobeView({
         illustrative: false,
       })
     }
+    for (const { edge, points } of pathGeometry) {
+      // A routed edge has no arc apex; its label sits at the middle of the route.
+      const mid = points[Math.floor(points.length / 2)]
+      output.push({
+        id: `edge:${edge.id}`,
+        lat: mid.lat,
+        lng: mid.lng,
+        alt: arcTok.pathAltitude,
+        text: edge.label,
+        kind: 'edge',
+        illustrative: false,
+      })
+    }
     return output
-  }, [markers, edges])
+  }, [markers, arcEdges, pathGeometry])
 
   // Signatures of the quantised intensities. useMemo compares deps by value, so a
   // new-but-identical signature string keeps the previous data reference — the
   // globe only rebuilds when disruption actually changes.
   const markerSig = markers.map((m) => quantise(markerIntensity[m.nodeId] ?? 0)).join(',')
-  const edgeSig = edges.map((e) => quantise(edgeIntensity[e.id] ?? 0)).join(',')
+  const arcSig = arcEdges.map((e) => `${e.id}:${quantise(edgeIntensity[e.id] ?? 0)}`).join(',')
+  const pathSig = pathEdges.map((e) => `${e.id}:${quantise(edgeIntensity[e.id] ?? 0)}`).join(',')
 
   const pointData = useMemo<PointDatum[]>(
     () => markers.map((marker) => ({ ...marker, intensity: quantise(markerIntensity[marker.nodeId] ?? 0) })),
@@ -185,7 +225,7 @@ export default function GlobeView({
   // Each edge becomes three stacked arcs (soft halo, mid glow, bright core).
   const arcData = useMemo<ArcDatum[]>(
     () =>
-      edges.flatMap((edge) =>
+      arcEdges.flatMap((edge) =>
         ARC_LAYERS.map((layer) => ({
           layer,
           edgeId: edge.id,
@@ -197,7 +237,21 @@ export default function GlobeView({
         })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [edges, edgeSig],
+    [arcEdges, arcSig],
+  )
+
+  const pathData = useMemo<PathDatum[]>(
+    () =>
+      pathGeometry.flatMap(({ edge, points }) =>
+        ARC_LAYERS.map((layer) => ({
+          layer,
+          edgeId: edge.id,
+          points,
+          intensity: quantise(edgeIntensity[edge.id] ?? 0),
+        })),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pathGeometry, pathSig],
   )
 
   const selectedMarker = useMemo(
@@ -286,7 +340,7 @@ export default function GlobeView({
         arcEndLat={(datum) => (datum as ArcDatum).endLat}
         arcEndLng={(datum) => (datum as ArcDatum).endLng}
         arcAltitudeAutoScale={arcTok.altitudeAutoScale}
-        arcColor={(datum: object) => colorForArc(datum as ArcDatum)}
+        arcColor={(datum: object) => colorForCorridor(datum as ArcDatum)}
         arcStroke={(datum: object) => arcSpec((datum as ArcDatum).layer).stroke}
         arcDashLength={(datum: object) =>
           (datum as ArcDatum).layer === 'core' ? arcTok.coreDashLength : 1
@@ -296,6 +350,35 @@ export default function GlobeView({
           (datum as ArcDatum).layer === 'core' ? arcTok.coreDashAnimateMs : 0
         }
         arcsTransitionDuration={0}
+        pathsData={pathData}
+        pathPoints={(datum) => (datum as PathDatum).points}
+        pathPointLat={(point) => (point as LatLng).lat}
+        pathPointLng={(point) => (point as LatLng).lng}
+        pathPointAlt={arcTok.pathAltitude}
+        pathResolution={2}
+        pathColor={(datum: object) => {
+          const path = datum as PathDatum
+          return colorForCorridor(path, arcTok.pathAlphaScale[path.layer])
+        }}
+        pathStroke={(datum: object) => {
+          const path = datum as PathDatum
+          return arcSpec(path.layer).stroke * arcTok.pathStrokeScale[path.layer]
+        }}
+        pathDashLength={(datum: object) => {
+          const layer = (datum as PathDatum).layer
+          return layer === 'halo' ? 1 : arcTok.pathCoreDashLength
+        }}
+        pathDashGap={(datum: object) => {
+          const layer = (datum as PathDatum).layer
+          return layer === 'halo' ? 0 : arcTok.pathCoreDashGap
+        }}
+        pathDashInitialGap={(datum: object) =>
+          (datum as PathDatum).layer === 'glow' ? arcTok.pathGlowDashInitialGap : 0
+        }
+        pathDashAnimateTime={(datum: object) =>
+          (datum as PathDatum).layer === 'halo' ? 0 : arcTok.pathCoreDashAnimateMs
+        }
+        pathTransitionDuration={0}
         htmlElementsData={anchors}
         htmlLat={(datum: object) => (datum as Anchor).lat}
         htmlLng={(datum: object) => (datum as Anchor).lng}
