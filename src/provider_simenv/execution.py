@@ -281,13 +281,15 @@ def _execute(
             )
 
     try:
+        injections = {}
         if registry is not None:
-            SupplyChainModel._event_registry = registry
-            SupplyChainModel._pdl_path = pdl
+            injections.update(_event_registry=registry, _pdl_path=pdl)
         if progress_path is not None:
             # staticmethod avoids binding the model instance to the callback.
-            SupplyChainModel._progress_callback = staticmethod(publish)
+            injections["_progress_callback"] = staticmethod(publish)
             publish(None, 0)
+        for key, value in injections.items():
+            setattr(SupplyChainModel, key, value)
         start_run(
             str(output_root),
             identity,

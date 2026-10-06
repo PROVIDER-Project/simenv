@@ -17,6 +17,18 @@ def submit(store, label=None):
     return run, store.add(run)
 
 
+def require_job(store, identity) -> dict:
+    job = store.get(identity)
+    assert job is not None
+    return job
+
+
+def claim_job(store) -> dict:
+    job = store.claim_next()
+    assert job is not None
+    return job
+
+
 def wait_for(predicate, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

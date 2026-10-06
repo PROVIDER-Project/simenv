@@ -67,7 +67,9 @@ class JobStore:
                 "VALUES (?, 'queued', ?, ?, ?, ?)",
                 (run.id, run.label, run.cascade, now(), json.dumps(progress)),
             )
-        return self.get(run.id)
+        job = self.get(run.id)
+        assert job is not None
+        return job
 
     def _refresh(self, job_id: str) -> None:
         snapshot = read_progress(
@@ -122,7 +124,9 @@ class JobStore:
                 + " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 params + (limit, offset),
             ).fetchall()
-        items = [self.get(row["id"]) for row in ids]
+        items = [
+            job for row in ids if (job := self.get(row["id"])) is not None
+        ]
         # A worker can finish between selecting IDs and refreshing progress.
         if status is not None:
             items = [job for job in items if job["status"] == status]

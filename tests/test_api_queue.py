@@ -2,7 +2,7 @@ import subprocess
 import sys
 import threading
 
-from api_helpers import submit, wait_for
+from api_helpers import require_job, submit, wait_for
 
 from provider_simenv.api.queue import SimulationQueue
 from provider_simenv.api.store import JobStore
@@ -40,13 +40,18 @@ def test_serial_workers_capture_logs_and_exit_status(tmp_path):
                 in (first_run.directory / "simulation.log").read_text()
             )
         )
-        assert store.get(first["id"])["status"] == "running"
-        assert store.get(second["id"])["status"] == "queued"
+        assert require_job(store, first["id"])["status"] == "running"
+        assert require_job(store, second["id"])["status"] == "queued"
         release.touch()
-        wait_for(lambda: store.get(second["id"])["status"] == "failed")
-        assert store.get(first["id"])["status"] == "completed"
-        assert store.get(first["id"])["progress"]["percent_complete"] == 100
-        assert "7" in store.get(second["id"])["error"]
+        wait_for(
+            lambda: require_job(store, second["id"])["status"] == "failed"
+        )
+        assert require_job(store, first["id"])["status"] == "completed"
+        assert (
+            require_job(store, first["id"])["progress"]["percent_complete"]
+            == 100
+        )
+        assert "7" in require_job(store, second["id"])["error"]
         assert (
             "failure detail"
             in (second_run.directory / "simulation.log").read_text()
@@ -72,9 +77,13 @@ def test_launch_failure_does_not_stall_next_job(tmp_path):
     queue = SimulationQueue(store, launcher=launcher)
     queue.start()
     try:
-        wait_for(lambda: store.get(second["id"])["status"] == "completed")
-        assert store.get(first["id"])["status"] == "failed"
-        assert "worker unavailable" in store.get(first["id"])["error"]
+        wait_for(
+            lambda: require_job(store, second["id"])["status"] == "completed"
+        )
+        assert require_job(store, first["id"])["status"] == "failed"
+        assert (
+            "worker unavailable" in require_job(store, first["id"])["error"]
+        )
     finally:
         queue.stop()
 
@@ -106,8 +115,8 @@ def test_shutdown_during_launch_reaps_worker_and_keeps_queue(tmp_path):
     stopping.join(10)
     assert not stopping.is_alive()
     assert processes[0].poll() is not None
-    assert store.get(first["id"])["status"] == "failed"
-    assert store.get(second["id"])["status"] == "queued"
+    assert require_job(store, first["id"])["status"] == "failed"
+    assert require_job(store, second["id"])["status"] == "queued"
 
 
 def test_restart_resumes_queued_jobs(tmp_path):
@@ -123,8 +132,10 @@ def test_restart_resumes_queued_jobs(tmp_path):
     )
     queue.start()
     try:
-        wait_for(lambda: store.get(second["id"])["status"] == "completed")
-        assert store.get(first["id"])["status"] == "failed"
+        wait_for(
+            lambda: require_job(store, second["id"])["status"] == "completed"
+        )
+        assert require_job(store, first["id"])["status"] == "failed"
     finally:
         queue.stop()
 
@@ -161,7 +172,7 @@ def test_shutdown_kills_worker_that_ignores_termination(tmp_path):
     finally:
         queue.stop()
     assert processes[0].poll() is not None
-    assert store.get(job["id"])["status"] == "failed"
+    assert require_job(store, job["id"])["status"] == "failed"
 
 
 def test_unexpected_controller_error_reports_unhealthy(tmp_path, monkeypatch):
