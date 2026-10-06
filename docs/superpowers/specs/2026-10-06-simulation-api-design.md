@@ -206,8 +206,8 @@ boundary for lifecycle tests. Verify:
 10. Existing simulation and run-registry tests remain passing.
 
 Run relevant lint/type checks. Validate Compose configuration and build/run
-the API image when a Docker runtime is available; report any environment
-limitations explicitly in the pull request.
+the Docker-targeted API image locally with Podman, as requested by the user;
+report any environment limitations explicitly in the pull request.
 
 ## Delivery
 

@@ -113,7 +113,7 @@ All Python paths below are under `src/provider_simenv/` unless fully specified.
 - [ ] Run `python3 -m pytest tests/test_api_integration.py -v`; investigate any failure before changing deployment.
 - [ ] Create a Python slim API image installing `.[api]`, running as non-root on port 8000 with one Uvicorn worker, writable `/data`, and a standard-library HTTP health check. Compose includes only this service, a named data volume, port mapping, and a shutdown grace period. Preserve bundled inputs in Docker context.
 - [ ] Document local install/start, Docker and Compose commands, request JSON, a runnable Python submission example reading both shipped files, polling and log pagination, running-only endpoint, one-ID semantics, persistence/restarts, and single-worker limits. Link documentation from README.
-- [ ] Build a wheel and inspect/install it in a fresh environment; verify template and shipped scenario availability and run a short installed-package simulation. If Docker is available, run `docker compose -f compose.api.yml config`, `docker compose -f compose.api.yml build`, and an HTTP submission smoke test against the container. If unavailable, record that limitation.
+- [ ] Build a wheel and inspect/install it in a fresh environment; verify template and shipped scenario availability and run a short installed-package simulation. Docker is the deployment target. Test locally using installed Podman: validate `compose.api.yml` with its Compose provider, build `Dockerfile.api` with Podman, and run an HTTP submission smoke test against the container. Record any runtime limitations.
 - [ ] Commit with `feat: containerize and document the simulation API (#49)`.
 
 ### Task 5: Verification, review, and GitHub delivery
@@ -132,5 +132,6 @@ All Python paths below are under `src/provider_simenv/` unless fully specified.
 GitHub CLI is authenticated as `Sponn`. Git identity is unset; use per-command
 author settings `Lasse Hammer <18366001+Sponn@users.noreply.github.com>` rather
 than changing Git configuration. Python 3 is available; uv and Docker are not
-currently on PATH. Establish an isolated development environment before
-implementation and report unavailable runtime verification honestly.
+currently on PATH. Podman is available for local testing of Docker-targeted
+images and Compose configuration. Establish an isolated development
+environment before implementation and report runtime verification honestly.

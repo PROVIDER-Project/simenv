@@ -28,3 +28,6 @@ line-length = 78
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+provider_simenv = ["data/input/*.csv", "scenarios/*.yaml"]
