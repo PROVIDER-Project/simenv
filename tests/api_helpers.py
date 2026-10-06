@@ -3,6 +3,8 @@
 import time
 from pathlib import Path
 
+import pandas as pd
+
 from provider_simenv.execution import prepare_run
 
 SCENARIOS = Path(__file__).parents[1] / "src/provider_simenv/scenarios"
@@ -10,10 +12,15 @@ PDL = (SCENARIOS / "s1-soja.pdl.yaml").read_text()
 ROSTER = (SCENARIOS / "s1-soja.roster.yaml").read_text()
 
 
-def submit(store, label=None):
+def submit(store, label=None, periods=365):
     run = prepare_run(
         store.data_dir / "jobs", pdl=PDL, roster=ROSTER, label=label
     )
+    if periods != 365:
+        template = run.input_dir / "SimulatorScenarios_template.csv"
+        rows = pd.read_csv(template)
+        rows["period_num"] = periods
+        rows.to_csv(template, index=False)
     return run, store.add(run)
 
 

@@ -63,17 +63,20 @@ def test_running_list_has_only_running_jobs_and_live_progress(
         {
             "scenario_id": 0,
             "step": 1,
-            "scenario_total_steps": 2,
+            "scenario_total_steps": 365,
             "completed_steps": 1,
-            "total_steps": 4,
-            "percent_complete": 25,
+            "total_steps": 730,
+            "percent_complete": 1 / 730 * 100,
         },
     )
     response = client.get("/simulations/running")
     assert response.status_code == 200
     assert response.json()["total"] == 1
     assert [job["id"] for job in response.json()["items"]] == [active["id"]]
-    assert response.json()["items"][0]["progress"]["percent_complete"] == 25
+    assert (
+        response.json()["items"][0]["progress"]["percent_complete"]
+        == 1 / 730 * 100
+    )
     assert (
         client.get(f"/simulations/{queued['id']}").json()["status"]
         == "queued"
@@ -209,3 +212,80 @@ def test_storage_failure_is_not_reported_as_invalid_pdl(
         )
         assert response.status_code == 500
         assert list((tmp_path / "jobs").iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("id", ["bad"]),
+        ("condition", ["bad"]),
+        ("target", ["bad"]),
+    ],
+)
+def test_malformed_event_fields_never_enter_queue(
+    client, tmp_path, field, value
+):
+    doc = yaml.safe_load(PDL)
+    if field == "id":
+        doc["events"][0][field] = value
+    else:
+        doc["events"][0]["trigger"][field] = value
+    response = client.post(
+        "/simulations",
+        json={
+            "pdl": yaml.safe_dump(doc),
+            "roster": ROSTER,
+        },
+    )
+    assert response.status_code == 422, response.text
+    assert client.get("/simulations").json()["total"] == 0
+    assert not (tmp_path / "jobs").exists()
+
+
+@pytest.mark.parametrize(
+    "section, value",
+    [
+        ("edges", ["brazil_farms"]),
+        ("edges", [["brazil_farms"]]),
+        ("edges", [["brazil_farms", "santos_port", "paranagua_port"]]),
+        ("dependencies", ["bad"]),
+        ("exclude", ["bad"]),
+    ],
+)
+def test_malformed_roster_shapes_never_enter_queue(client, section, value):
+    doc = yaml.safe_load(ROSTER)
+    doc[section] = value
+    response = client.post(
+        "/simulations",
+        json={
+            "pdl": PDL,
+            "roster": yaml.safe_dump(doc),
+        },
+    )
+    assert response.status_code == 422, response.text
+    assert client.get("/simulations").json()["total"] == 0
+
+
+@pytest.mark.parametrize(
+    "mutation", ["missing_scenario", "oversized_percent"]
+)
+def test_corrupt_progress_cannot_break_monitoring(client, tmp_path, mutation):
+    job = submit(client).json()
+    client.app.state.store.claim_next()
+    snapshot = {
+        "scenario_id": 0,
+        "step": 1,
+        "scenario_total_steps": 365,
+        "completed_steps": 1,
+        "total_steps": 730,
+        "percent_complete": 1 / 730 * 100,
+    }
+    if mutation == "missing_scenario":
+        del snapshot["scenario_id"]
+    else:
+        snapshot["percent_complete"] = 10**400
+    write_progress(tmp_path / "jobs" / job["id"] / "progress.json", snapshot)
+    response = client.get(f"/simulations/{job['id']}")
+    assert response.status_code == 200
+    assert response.json()["progress"]["completed_steps"] == 0
+    assert client.get("/simulations/running").status_code == 200

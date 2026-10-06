@@ -213,6 +213,5 @@ report any environment limitations explicitly in the pull request.
 
 Develop on `49-simulation-api`, commit verified changes, push the branch to
 the GitHub origin, and create a pull request targeting `main` with
-`Closes #49`, a change summary, and verification evidence. GitHub CLI is not
-currently installed in this environment; authenticated push and PR access
-must be established before delivery.
+`Closes #49`, a change summary, and verification evidence. GitHub CLI is
+authenticated as `Sponn`, with push and pull-request access verified.

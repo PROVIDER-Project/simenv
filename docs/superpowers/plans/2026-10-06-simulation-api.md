@@ -129,6 +129,24 @@ All Python paths below are under `src/provider_simenv/` unless fully specified.
 
 ## Execution environment
 
+### Verification record
+
+Implementation tasks 1–4 are complete. The independent whole-branch review
+found three Important input/progress validation issues; all were reproduced
+with failing regression tests and corrected. Final suite: 108 passing tests.
+Ruff and ty pass for the new API/execution code and tests. Whole-repository
+checks retain existing diagnostics (Ruff: 24 versus baseline 25; ty: 71
+versus baseline 73).
+
+The Docker-format API image was built and run locally using Podman and
+podman-compose. The final container completed 730 steps, exposed live running
+jobs, ran as non-root, used matching API/registry/output IDs, and retained
+history across restart. Manual image healthcheck passed; the harness lacks
+systemd for Podman's scheduled healthcheck timers. A fresh wheel installation
+also completed a short simulation with packaged resources.
+
+### Tooling and author identity
+
 GitHub CLI is authenticated as `Sponn`. Git identity is unset; use per-command
 author settings `Lasse Hammer <18366001+Sponn@users.noreply.github.com>` rather
 than changing Git configuration. Python 3 is available; uv and Docker are not

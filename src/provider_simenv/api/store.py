@@ -79,11 +79,13 @@ class JobStore:
             with self._connection() as db:
                 db.execute(
                     "UPDATE jobs SET progress=? WHERE id=? AND status='running' "
-                    "AND json_extract(progress, '$.completed_steps') <= ?",
+                    "AND json_extract(progress, '$.completed_steps') <= ? "
+                    "AND json_extract(progress, '$.total_steps') = ?",
                     (
                         json.dumps(snapshot),
                         job_id,
                         snapshot["completed_steps"],
+                        snapshot["total_steps"],
                     ),
                 )
 

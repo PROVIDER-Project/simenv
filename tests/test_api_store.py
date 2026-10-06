@@ -41,7 +41,7 @@ def test_running_only_excludes_other_states(tmp_path):
 
 def test_progress_does_not_regress_or_disappear(tmp_path):
     store = JobStore(tmp_path)
-    run, job = submit(store)
+    run, job = submit(store, periods=2)
     store.claim_next()
     snapshot = {
         "scenario_id": 0,
@@ -65,7 +65,7 @@ def test_progress_does_not_regress_or_disappear(tmp_path):
 
 def test_recovery_fails_running_preserves_progress_and_queue(tmp_path):
     store = JobStore(tmp_path)
-    run, active = submit(store)
+    run, active = submit(store, periods=2)
     _, queued = submit(store)
     store.claim_next()
     write_progress(
@@ -108,3 +108,53 @@ def test_logs_use_bounded_byte_offsets_and_missing_jobs(tmp_path):
         json.loads((run.directory / "context.json").read_text())["id"]
         == job["id"]
     )
+
+
+def test_inconsistent_percentage_cannot_regress_persisted_progress(tmp_path):
+    store = JobStore(tmp_path)
+    run, job = submit(store)
+    store.claim_next()
+    snapshot = {
+        "scenario_id": 0,
+        "step": 100,
+        "scenario_total_steps": 365,
+        "completed_steps": 100,
+        "total_steps": 730,
+        "percent_complete": 100 / 730 * 100,
+    }
+    write_progress(run.progress_path, snapshot)
+    before = require_job(store, job["id"])["progress"]
+    write_progress(run.progress_path, dict(snapshot, percent_complete=0))
+    assert require_job(store, job["id"])["progress"] == before
+    store.finish(job["id"], status="failed", error="stopped")
+    assert require_job(store, job["id"])["progress"] == before
+
+
+def test_worker_cannot_change_job_totals(tmp_path):
+    store = JobStore(tmp_path)
+    run, job = submit(store)
+    store.claim_next()
+    write_progress(
+        run.progress_path,
+        {
+            "scenario_id": 0,
+            "step": 1,
+            "scenario_total_steps": 365,
+            "completed_steps": 1,
+            "total_steps": 730,
+            "percent_complete": 1 / 730 * 100,
+        },
+    )
+    before = require_job(store, job["id"])["progress"]
+    write_progress(
+        run.progress_path,
+        {
+            "scenario_id": 0,
+            "step": 1,
+            "scenario_total_steps": 730,
+            "completed_steps": 1,
+            "total_steps": 1460,
+            "percent_complete": 1 / 1460 * 100,
+        },
+    )
+    assert require_job(store, job["id"])["progress"] == before

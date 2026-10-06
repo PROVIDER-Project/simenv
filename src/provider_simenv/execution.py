@@ -47,27 +47,112 @@ def _mapping(value, name):
     return value
 
 
+def _entries(value, name):
+    if not isinstance(value, list):
+        raise InvalidSimulation(f"{name} must be a list")
+    return [_mapping(entry, f"{name} entry") for entry in value]
+
+
+def _strings(entry, fields, name):
+    for field in fields:
+        if field in entry and not isinstance(entry[field], str):
+            raise InvalidSimulation(f"{name}.{field} must be a string")
+
+
+def _identified(entries, name):
+    identities = set()
+    for entry in entries:
+        identity = entry.get("id")
+        if not isinstance(identity, str) or not identity.strip():
+            raise InvalidSimulation(
+                f"{name} entries need nonempty string IDs"
+            )
+        if identity in identities:
+            raise InvalidSimulation(f"Duplicate {name} ID: {identity}")
+        identities.add(identity)
+
+
+def _pairs(value, name):
+    if not isinstance(value, list):
+        raise InvalidSimulation(f"{name} must be a list")
+    for pair in value:
+        if (
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or not all(isinstance(item, str) and item for item in pair)
+        ):
+            raise InvalidSimulation(
+                f"{name} entries must be pairs of entity IDs"
+            )
+
+
+def _dependencies(value, name):
+    for entry in _entries(value, name):
+        _strings(entry, ("from", "to", "type", "criticality"), name)
+        if not entry.get("from") or not entry.get("to"):
+            raise InvalidSimulation(
+                f"{name} entries need from and to entity IDs"
+            )
+
+
 def _documents(text: str, name: str) -> dict:
     try:
         doc = _mapping(yaml.safe_load(text), name)
         if name == "PDL":
-            _mapping(doc.get("scenario", {}), "scenario")
+            scenario = _mapping(doc.get("scenario", {}), "scenario")
+            _strings(scenario, ("id", "name"), "scenario")
             for section in (
                 "entities",
                 "events",
                 "cascades",
                 "supply_chains",
             ):
-                entries = doc.get(section, [])
-                if not isinstance(entries, list):
-                    raise InvalidSimulation(f"{section} must be a list")
-                for entry in entries:
-                    _mapping(entry, f"{section} entry")
+                entries = _entries(doc.get(section, []), section)
+                _identified(entries, section)
+            for entity in doc.get("entities", []):
+                _strings(
+                    entity,
+                    ("type", "sector", "location", "archetype"),
+                    "entity",
+                )
             for event in doc.get("events", []):
-                _mapping(event.get("trigger", {}), "event trigger")
+                trigger = _mapping(event.get("trigger", {}), "event trigger")
+                _strings(trigger, ("target", "condition"), "event trigger")
                 _mapping(event.get("impact", {}), "event impact")
+            for cascade in doc.get("cascades", []):
+                for entry in _entries(
+                    cascade.get("timeline", []), "timeline"
+                ):
+                    _strings(entry, ("event",), "timeline")
+                    if not entry.get("event"):
+                        raise InvalidSimulation(
+                            "Timeline entries need an event ID"
+                        )
+            for chain in doc.get("supply_chains", []):
+                _pairs(chain.get("stages", []), "stages")
+                _dependencies(chain.get("dependencies", []), "dependencies")
             if not doc.get("entities"):
                 raise InvalidSimulation("PDL must declare entities")
+        else:
+            for field in ("archetypes", "exclude"):
+                values = _mapping(doc.get(field, {}), f"roster {field}")
+                if not all(
+                    isinstance(key, str) and isinstance(value, str)
+                    for key, value in values.items()
+                ):
+                    raise InvalidSimulation(
+                        f"roster {field} must map IDs to strings"
+                    )
+            entities = _entries(doc.get("entities", []), "roster entities")
+            _identified(entities, "roster entities")
+            for entity in entities:
+                _strings(
+                    entity,
+                    ("archetype", "reason", "type", "sector", "location"),
+                    "roster entity",
+                )
+            _pairs(doc.get("edges", []), "roster edges")
+            _dependencies(doc.get("dependencies", []), "roster dependencies")
         return doc
     except yaml.YAMLError as exc:
         raise InvalidSimulation(f"Invalid {name} YAML: {exc}") from exc
@@ -184,6 +269,8 @@ def read_progress(path: Path) -> dict | None:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return None
+        if "scenario_id" not in data:
+            return None
         for key in (
             "step",
             "scenario_total_steps",
@@ -193,23 +280,41 @@ def read_progress(path: Path) -> dict | None:
             if type(data.get(key)) is not int or data[key] < 0:
                 return None
         percent = data.get("percent_complete")
-        if not isinstance(percent, (int, float)) or not math.isfinite(
-            percent
-        ):
+        if type(percent) not in (int, float) or not 0 <= percent <= 100:
             return None
-        if not 0 <= percent <= 100:
+        if not math.isfinite(percent):
             return None
         if data["completed_steps"] > data["total_steps"]:
             return None
         if data["step"] > data["scenario_total_steps"]:
             return None
-        if (
-            data.get("scenario_id") is not None
-            and type(data["scenario_id"]) is not int
+        scenario = data["scenario_id"]
+        if scenario is not None and (
+            type(scenario) is not int or scenario not in (0, 1)
         ):
             return None
+        if (
+            data["scenario_total_steps"] <= 0
+            or data["total_steps"] != 2 * data["scenario_total_steps"]
+        ):
+            return None
+        expected_steps = (
+            0
+            if scenario is None
+            else scenario * data["scenario_total_steps"] + data["step"]
+        )
+        if data["completed_steps"] != expected_steps or (
+            scenario is None and data["step"]
+        ):
+            return None
+        expected_percent = data["completed_steps"] / data["total_steps"] * 100
+        if not math.isclose(
+            percent, expected_percent, rel_tol=0, abs_tol=1e-9
+        ):
+            return None
+        data["percent_complete"] = expected_percent
         return data
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, OverflowError):
         return None
 
 
