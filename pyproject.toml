@@ -16,10 +16,19 @@ dev = [
     "tox>=4.47.0",
     "pytest>=8.0",
     "provider-simenv[db]",
+    "provider-simenv[api]",
+    "httpx>=0.27",
+]
+
+api = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    # sqlalchemy-utils (used by Melodie) is not compatible with 2.1 yet.
+    "sqlalchemy>=2.0,<2.1",
 ]
 
 db = [
-    "sqlalchemy>=2.0.0",
+    "sqlalchemy>=2.0.0,<2.1",
     "psycopg2-binary>=2.9.0",
 ]
 
