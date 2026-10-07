@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { BundleMeta } from '../data/types'
+import SimulationRunner from './SimulationRunner'
 import {
   buildRosterSidecar,
   buildPdl,
@@ -131,6 +132,11 @@ export default function ScenarioConfigurator({ meta }: ScenarioConfiguratorProps
           {collapsed ? 'Open' : 'Hide'}
         </button>
       </div>
+
+      <SimulationRunner
+        hidden={collapsed}
+        submission={{ pdl, roster, cascade: config.cascadeId, label: config.scenarioName.trim() || defaultScenarioConfig.scenarioName }}
+      />
 
       {!collapsed && (
         <div id="sim-configurator-panel">
