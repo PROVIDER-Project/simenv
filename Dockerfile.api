@@ -1,13 +1,18 @@
 FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:0.12.23 /uv /usr/local/bin/uv
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     SIMENV_API_DATA_DIR=/data
 
 WORKDIR /app
-COPY pyproject.toml README.md /app/
+COPY pyproject.toml uv.lock README.md /app/
 COPY src /app/src
-RUN pip install --no-cache-dir '.[api]' \
+RUN uv export --frozen --extra api --no-dev --no-emit-project --output-file /tmp/requirements.txt \
+    && pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt \
+    && pip install --no-cache-dir --no-deps . \
+    && rm /tmp/requirements.txt /usr/local/bin/uv \
     && useradd --create-home --uid 10001 simenv \
     && mkdir /data \
     && chown simenv:simenv /data

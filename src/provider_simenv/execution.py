@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import shutil
@@ -23,6 +24,7 @@ from .topology import build_flow_adjacency, build_roster, execution_order
 PACKAGE_DIR = Path(__file__).resolve().parent
 INPUT_DIR = PACKAGE_DIR / "data/input"
 OUTPUT_ROOT = PACKAGE_DIR / "data/output"
+logger = logging.getLogger(__name__)
 
 
 class InvalidSimulation(ValueError):
@@ -165,13 +167,7 @@ def _validate(pdl_path: Path, cascade: str | None) -> None:
         if not roster:
             raise InvalidSimulation("PDL has no modelled entities")
         execution_order(build_flow_adjacency(pdl_path))
-    except (
-        ValueError,
-        TypeError,
-        KeyError,
-        AttributeError,
-        IndexError,
-    ) as exc:
+    except ValueError as exc:
         raise InvalidSimulation(f"Invalid simulation input: {exc}") from exc
 
 
@@ -328,6 +324,7 @@ def _execute(
     label: str | None,
     progress_path: Path | None = None,
 ) -> None:
+    logger.info("Run id: %s", identity)
     csv_path = input_dir / "SimulatorScenarios.csv"
     template = input_dir / "SimulatorScenarios_template.csv"
     if template.exists():
@@ -336,6 +333,14 @@ def _execute(
     registry = None
     if pdl:
         registry = PDLLoader(pdl).to_event_registry(cascade)
+        logger.info("Cascade: %s", registry["cascade_id"])
+        events = registry["events"]
+        logger.info(
+            "Registry: %d events, %d with shocks, %d conditional",
+            len(events),
+            sum(bool(event["impacts"]) for event in events),
+            sum(bool(event["condition"]) for event in events),
+        )
         baseline = rows[rows["id"] == 0].copy()
         if len(baseline) != 1:
             raise ValueError("Template must contain exactly one baseline row")

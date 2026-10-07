@@ -1,4 +1,6 @@
 import json
+import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +34,17 @@ def test_prepared_id_matches_registry_and_output(prepared):
     assert manifest["runs"][0]["status"] == "completed"
     results = loaded.output_root / prepared.id
     assert (results / "Result_Simulator_Environment.csv").exists()
+
+
+@pytest.mark.parametrize("cascade", [None, "energy_food_cascade"])
+def test_execution_logs_run_and_resolved_cascade(prepared, caplog, cascade):
+    with caplog.at_level(logging.INFO, logger="provider_simenv.execution"):
+        execution.execute_prepared_run(replace(prepared, cascade=cascade))
+    assert f"Run id: {prepared.id}" in caplog.text
+    assert f"Cascade: {cascade or 'soy_crisis_cascade'}" in caplog.text
+    assert (
+        "Registry: 18 events, 16 with shocks, 15 conditional" in caplog.text
+    )
 
 
 def test_collision_regenerates_without_overwrite(tmp_path, monkeypatch):

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import subprocess
 import sys
 import threading
+import time
 
 from .store import JobStore
 
@@ -17,6 +19,18 @@ class SimulationQueue:
     def __init__(self, store: JobStore, *, launcher=subprocess.Popen):
         self.store = store
         self.launcher = launcher
+        try:
+            self.job_timeout = float(
+                os.environ.get("SIMENV_API_JOB_TIMEOUT", "300")
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "SIMENV_API_JOB_TIMEOUT must be a positive finite number of seconds"
+            ) from exc
+        if not math.isfinite(self.job_timeout) or self.job_timeout <= 0:
+            raise ValueError(
+                "SIMENV_API_JOB_TIMEOUT must be a positive finite number of seconds"
+            )
         self._stop = threading.Event()
         self._thread = None
 
@@ -69,8 +83,41 @@ class SimulationQueue:
                     stderr=subprocess.STDOUT,
                     env=dict(os.environ, PYTHONUNBUFFERED="1"),
                 )
+                last_update = time.monotonic()
+                progress = job["progress"]
+                last_progress = (
+                    progress["completed_steps"],
+                    -1
+                    if progress["scenario_id"] is None
+                    else progress["scenario_id"],
+                )
                 while process.poll() is None and not self._stop.wait(0.1):
-                    self.store.get(job["id"])
+                    current = self.store.get(job["id"])
+                    if current is not None:
+                        progress = current["progress"]
+                        marker = (
+                            progress["completed_steps"],
+                            -1
+                            if progress["scenario_id"] is None
+                            else progress["scenario_id"],
+                        )
+                        if marker > last_progress:
+                            last_progress = marker
+                            last_update = time.monotonic()
+                    if (
+                        process.poll() is None
+                        and time.monotonic() - last_update >= self.job_timeout
+                    ):
+                        self._terminate(process)
+                        self.store.finish(
+                            job["id"],
+                            status="failed",
+                            error=(
+                                "Simulation timed out after "
+                                f"{self.job_timeout:g} seconds without progress"
+                            ),
+                        )
+                        return
                 if self._stop.is_set():
                     self._terminate(process)
                     self.store.finish(

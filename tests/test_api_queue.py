@@ -2,10 +2,108 @@ import subprocess
 import sys
 import threading
 
+import pytest
 from api_helpers import require_job, submit, wait_for
 
 from provider_simenv.api.queue import SimulationQueue
 from provider_simenv.api.store import JobStore
+
+
+def test_inactivity_timeout_reaps_worker_and_continues_queue(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SIMENV_API_JOB_TIMEOUT", "0.5")
+    store = JobStore(tmp_path)
+    _, first = submit(store)
+    _, second = submit(store)
+    processes = []
+
+    def launcher(args, **kwargs):
+        script = "import time; time.sleep(60)" if not processes else "pass"
+        process = subprocess.Popen([sys.executable, "-c", script], **kwargs)
+        processes.append(process)
+        return process
+
+    queue = SimulationQueue(store, launcher=launcher)
+    queue.start()
+    try:
+        wait_for(
+            lambda: require_job(store, second["id"])["status"] == "completed",
+            timeout=3,
+        )
+        failed = require_job(store, first["id"])
+        assert failed["status"] == "failed"
+        assert "timed out" in failed["error"]
+        assert "progress" in failed["error"]
+        assert processes[0].poll() is not None
+        assert queue.healthy
+    finally:
+        queue.stop()
+
+
+@pytest.mark.parametrize(
+    "mode", ["advancing", "unchanged", "invalid", "regressing"]
+)
+def test_only_advancing_progress_resets_timeout(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("SIMENV_API_JOB_TIMEOUT", "0.6")
+    store = JobStore(tmp_path)
+    _, job = submit(store, periods=10)
+    # Publish atomically, as the real worker does. With advancement this
+    # takes longer than the timeout; identical rewrites must still time out.
+    script = (
+        "import json,pathlib,time; "
+        "path=pathlib.Path('progress.json'); "
+        "temporary=path.with_suffix('.tmp'); "
+        'exec("for step in range(1, 9):\\n'
+        f" mode = {mode!r}\\n"
+        " completed = step if mode == 'advancing' else 1\\n"
+        " if mode == 'regressing': completed = 2 if step == 1 else 1\\n"
+        " snapshot = dict(scenario_id=0, step=completed, "
+        "scenario_total_steps=10, completed_steps=completed, "
+        "total_steps=20, percent_complete=completed * 5)\\n"
+        " if mode == 'invalid' and step > 1: snapshot['percent_complete'] = 99\\n"
+        " temporary.write_text(json.dumps(snapshot))\\n"
+        " temporary.replace(path)\\n"
+        ' time.sleep(0.2)")'
+    )
+    processes = []
+
+    def launcher(args, **kwargs):
+        process = subprocess.Popen([sys.executable, "-c", script], **kwargs)
+        processes.append(process)
+        return process
+
+    queue = SimulationQueue(store, launcher=launcher)
+    queue.start()
+    try:
+        wait_for(
+            lambda: (
+                require_job(store, job["id"])["status"]
+                in ("completed", "failed")
+            ),
+            timeout=4,
+        )
+        finished = require_job(store, job["id"])
+        assert finished["status"] == (
+            "completed" if mode == "advancing" else "failed"
+        )
+        if mode != "advancing":
+            assert "timed out" in finished["error"]
+            assert finished["progress"]["completed_steps"] == (
+                2 if mode == "regressing" else 1
+            )
+        assert processes[0].poll() is not None
+    finally:
+        queue.stop()
+
+
+@pytest.mark.parametrize(
+    "value", ["0", "-1", "nan", "inf", "-inf", "invalid", ""]
+)
+def test_invalid_inactivity_timeout_rejected(tmp_path, monkeypatch, value):
+    monkeypatch.setenv("SIMENV_API_JOB_TIMEOUT", value)
+    with pytest.raises(ValueError, match="SIMENV_API_JOB_TIMEOUT"):
+        SimulationQueue(JobStore(tmp_path))
 
 
 def test_serial_workers_capture_logs_and_exit_status(tmp_path):

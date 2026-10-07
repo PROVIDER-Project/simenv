@@ -20,7 +20,10 @@ curl http://localhost:8000/health
 ```
 
 This Compose file contains only the API service. The image runs as a
-non-root user. Inputs, metadata, logs, and results are stored in the named
+non-root user and installs Python runtime dependencies from `uv.lock`
+with frozen versions and package hash verification. Update the lock
+deliberately when upgrading dependencies, then rebuild the image.
+Inputs, metadata, logs, and results are stored in the named
 `simenv_api_data` volume mounted at `/data`. To use another host port:
 
 ```bash
@@ -75,6 +78,29 @@ variable using your shell's syntax. The default local data directory is
 
 Use one Uvicorn worker and one service instance per data directory. Each
 instance runs at most one simulation at a time; additional jobs are queued.
+
+### Inactivity timeout
+
+`SIMENV_API_JOB_TIMEOUT` sets the maximum seconds **without advancing
+simulation progress**, not a maximum total run duration. The default is
+300 seconds; overrides must be positive finite numbers. The timer starts
+when the worker launches and resets when a valid progress update advances
+a simulation step or scenario. Logs, polling, invalid snapshots, and
+rewriting unchanged progress do not reset it. Startup and each individual
+step must therefore finish within the configured interval.
+
+For example, allow up to ten minutes between updates with Compose:
+
+```bash
+SIMENV_API_JOB_TIMEOUT=600 docker compose -f compose.api.yml up --build -d
+```
+
+For a direct container run, pass `-e SIMENV_API_JOB_TIMEOUT=600`; locally,
+set the environment variable before starting Uvicorn. Invalid values fail
+service startup. On timeout the worker is terminated and reaped, the job
+is marked `failed` with a "timed out ... without progress" error and its
+last progress retained, and the next queued job can run. Termination may
+take up to ten additional seconds if the worker needs to be killed.
 
 Interactive API documentation is available at
 <http://localhost:8000/docs>, with OpenAPI at `/openapi.json`.

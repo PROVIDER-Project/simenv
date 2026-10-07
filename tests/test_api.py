@@ -3,8 +3,23 @@ import yaml
 from api_helpers import PDL, ROSTER
 from fastapi.testclient import TestClient
 
+from provider_simenv import execution
 from provider_simenv.api.app import create_app
 from provider_simenv.execution import write_progress
+
+
+@pytest.mark.parametrize(
+    "error_type", [KeyError, TypeError, AttributeError, IndexError]
+)
+def test_loader_bugs_are_not_reported_as_invalid_input(
+    client, monkeypatch, error_type
+):
+    def fail(path):
+        raise error_type("internal topology bug")
+
+    monkeypatch.setattr(execution, "build_roster", fail)
+    with pytest.raises(error_type, match="internal topology bug"):
+        client.post("/simulations", json={"pdl": PDL, "roster": ROSTER})
 
 
 class ManualQueue:
