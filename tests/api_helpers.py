@@ -1,0 +1,46 @@
+"""Shared API test inputs and condition-based lifecycle waiting."""
+
+import time
+from pathlib import Path
+
+import pandas as pd
+
+from provider_simenv.execution import prepare_run
+
+SCENARIOS = Path(__file__).parents[1] / "src/provider_simenv/scenarios"
+PDL = (SCENARIOS / "s1-soja.pdl.yaml").read_text()
+ROSTER = (SCENARIOS / "s1-soja.roster.yaml").read_text()
+
+
+def submit(store, label=None, periods=365):
+    run = prepare_run(
+        store.data_dir / "jobs", pdl=PDL, roster=ROSTER, label=label
+    )
+    if periods != 365:
+        template = run.input_dir / "SimulatorScenarios_template.csv"
+        rows = pd.read_csv(template)
+        rows["period_num"] = periods
+        rows.to_csv(template, index=False)
+    return run, store.add(run)
+
+
+def require_job(store, identity) -> dict:
+    job = store.get(identity)
+    assert job is not None
+    return job
+
+
+def claim_job(store) -> dict:
+    job = store.claim_next()
+    assert job is not None
+    return job
+
+
+def wait_for(predicate, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(0.01)
+    raise AssertionError("Condition was not reached before timeout")
