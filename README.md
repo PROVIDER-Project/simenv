@@ -24,7 +24,7 @@ simenv/
     └── provider_simenv/
         ├── main.py               ← entry point
         ├── model.py              ← simulation orchestrator
-        ├── scenario.py           ← engine parameters (counts, costs, sigmas)
+        ├── scenario.py           ← engine parameters (costs, margins, sigmas)
         ├── topology.py           ← PDL + roster → agent lists and flow graph
         ├── environment.py        ← global state + price aggregation
         ├── pdl_loader.py         ← PDL YAML → events / entities
@@ -45,8 +45,9 @@ simenv/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
             │   └── SimulatorScenarios_template.csv   ← edit this; every run copies it
             └── output/                               ← generated at runtime
-                ├── LATEST_RUN                        ← path to the latest run directory
-                └── <run-id>/Result_Simulator_*.csv
+                ├── runs.json                         ← run index and status
+                └── <run-id>/
+                    └── Result_Simulator_*.csv
 ```
 
 ---
@@ -128,25 +129,27 @@ With `--pdl`, the live CSV is then rewritten to two rows: baseline (`id=0`) and 
 scenario (`id=1`). Shock magnitudes and timing come from PDL events at runtime, not from
 CSV columns.
 
+Each invocation writes its output into `data/output/<run-id>/`. The adjacent
+`data/output/runs.json` records each run's status and input metadata.
+
 **What runs automatically:**
 
 1. Simulation loop — each CSV row, `period_num` steps (default 365)
 2. Per-tick PostgreSQL writes via `tick_writer.py` (if Postgres is reachable; silent skip otherwise)
 
-Each execution writes its CSVs into a fresh timestamped subdirectory under
-`src/provider_simenv/data/output/` and updates `LATEST_RUN` to point at that directory. This
-keeps concurrent or back-to-back runs isolated while still letting the exporter resolve the newest
-run by default.
-
 ### Update the globe frontend after a run
 
 ```bash
+# Export the newest completed run
 python -m provider_simenv.export_bundle --scenario 1
+
+# Export one recorded run by id
+python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
 ```
 
-The exporter writes `web/public/bundle.json`. By default it resolves the latest run via
-`src/provider_simenv/data/output/LATEST_RUN`; pass `--input` with a specific run directory to
-export an older or non-latest run. See `web/README.md` for the frontend workflow.
+Without `--run` or `--input`, the exporter reads the newest completed run.
+`--input DIR` still reads a directory directly. The exporter writes
+`web/public/bundle.json`. See `web/README.md` for the frontend workflow.
 
 ---
 
@@ -155,9 +158,8 @@ export an older or non-latest run. See `web/README.md` for the frontend workflow
 `data/input/SimulatorScenarios.csv` is the working table Melodie reads. Change the
 **template**, not the live file — every run overwrites the live copy from the template.
 
-Each row is one run. Columns are engine parameters (agent counts, routing, size sigmas,
-storage, length). Producer counts use PDL entity ids (`n_brazil_farms`, `n_argentina_farms`,
-`n_us_farms`).
+Each row is one run. Columns are engine parameters (routing, size sigmas, storage, length).
+Agent counts are not CSV columns — the roster derives one agent per PDL entity.
 
 Shocks are not CSV columns. Pass `--pdl`; `EventTracker` applies drought, capacity, and
 input-price events from the YAML. The shipped files are `scenarios/s1-soja.pdl.yaml` and
@@ -167,9 +169,7 @@ builder).
 
 | Parameter | Effect |
 |---|---|
-| `n_brazil_farms` / `n_argentina_farms` / `n_us_farms` | Producer agent counts |
 | `share_santos_port` | Explicit weight for the Santos route; unspecified route weights are resolved per origin |
-| `shock_ramp_steps` | Ramp length when a PDL shock is active |
 | `size_sigma_brazil_farms` | Log-normal farm-size spread (`0` = identical farms) |
 | `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default 2857 t/day) |
 | `period_num` | Number of simulation steps (default 365) |
@@ -262,7 +262,9 @@ Result_Simulator_UsWholesaler
 Result_Simulator_Processors
 Result_Simulator_FeedManufacturers
 Result_Simulator_FeedTraders
-Result_Simulator_EuFarmers
+Result_Simulator_PoultryFarms
+Result_Simulator_PigFarms
+Result_Simulator_DairyFarms
 ```
 
 Tables are dropped and recreated on the first tick of each full simulation run (first scenario only).
@@ -287,7 +289,8 @@ from the repository root. This builds the database container, if it's not alread
 
 | File | Description |
 |---|---|
-| `data/output/<run-id>/Result_Simulator_*.csv` | Raw per-agent per-step output written by Melodie |
+| `data/output/runs.json` | Run index containing status and provenance metadata |
+| `data/output/<run-id>/Result_Simulator_*.csv` | Raw per-agent per-step output for one run |
 | `web/public/bundle.json` | Exported run for the globe (`python -m provider_simenv.export_bundle`) |
 
 ---
@@ -295,7 +298,7 @@ from the repository root. This builds the database container, if it's not alread
 ## Known Issues / Notes
 
 - **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from `main.py`'s location, not the cwd.
-- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soja_price, feed_price, ...}` after every simulation step.
+- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soy_price, feed_price, ...}` after every simulation step.
 
 ---
 

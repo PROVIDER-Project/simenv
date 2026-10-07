@@ -1,7 +1,10 @@
 """Guard derived s1-soja topology against accidental drift (step 8b)."""
 
+import shutil
 import sys
 from pathlib import Path
+
+import pytest
 
 from provider_simenv.topology import (
     build_flow_adjacency,
@@ -41,7 +44,6 @@ def _dump_roster(pdl_path):
             "name": e.archetype.name,
             "agent_class": e.archetype.agent_class.__name__,
             "role": e.archetype.role,
-            "count_attr": e.archetype.count_attr,
             "params": _freeze_params(e.archetype.params),
             "entity_ids": tuple(e.entity_ids),
         }
@@ -61,3 +63,24 @@ def test_s1_soja_topology_matches_snapshot():
     assert _dump_roster(PDL_PATH) == ROSTER
     assert {k: tuple(v) for k, v in adj.items()} == FLOW_ADJACENCY
     assert _canonical_execution(adj) == EXECUTION_ORDER
+
+
+def test_second_entity_of_a_shared_archetype_is_rejected(tmp_path):
+    second_mill = (
+        "  - id: asia_oil_mills\n"
+        "    type: manufacturer\n"
+        '    name: "Asia oil mills"\n'
+        "    sector: processing\n"
+        "    location: Asia\n"
+        "    vulnerability: 0.5\n"
+        "\n"
+    )
+    text = PDL_PATH.read_text(encoding="utf-8")
+    anchor = "  - id: feed_mills\n"
+    assert anchor in text
+    pdl = tmp_path / PDL_PATH.name
+    pdl.write_text(text.replace(anchor, second_mill + anchor, 1), encoding="utf-8")
+    shutil.copy(PDL_PATH.with_name("s1-soja.roster.yaml"), tmp_path)
+
+    with pytest.raises(ValueError, match="processors"):
+        build_roster(pdl)
