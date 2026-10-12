@@ -201,6 +201,36 @@
   color: var(--sim-color-text-faint);
 }
 
+.sim-configurator-run[hidden] {
+  display: none;
+}
+
+.sim-configurator-run-status p,
+.sim-configurator-run-error {
+  margin: 0;
+  font: 500 11px/1.5 var(--sim-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.sim-configurator-run-status {
+  display: grid;
+  gap: 6px;
+}
+
+.sim-configurator-run-status progress {
+  width: 100%;
+  accent-color: var(--sim-color-accent);
+}
+
+.sim-configurator-run-error {
+  color: #ffb4a8;
+}
+
+.sim-configurator-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 @media (max-width: 900px) {
   .sim-configurator {
     top: auto;

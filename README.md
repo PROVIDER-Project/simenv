@@ -12,6 +12,15 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+### Run a configured scenario from the dashboard
+
+The globe frontend's **PDL configurator** supports **Run simulation**: adjust
+sliders/switches, then submit the generated PDL and roster to the simulation API
+and follow live run status/progress. This requires the API introduced in
+[PR #50](https://github.com/PROVIDER-Project/simenv/pull/50), which can run from
+its branch before merging. See [frontend execution and routing instructions](web/README.md#execute-from-the-dashboard-issue-26)
+for setup, monitoring recovery, and viewing completed results.
+
 ---
 
 ## Project Structure
