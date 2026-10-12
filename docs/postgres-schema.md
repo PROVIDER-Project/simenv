@@ -1,6 +1,6 @@
 # PROVIDER simenv — PostgreSQL schema
 
-**Status:** contract, agreed 2026-09-22, normalized 2026-09-29. Implemented by #43.
+**Status:** contract, agreed 2026-09-22, normalized 2026-09-29.
 **Audience:** anyone joining this database to another schema, including the customer-side
 Schnittstelle, plus the simenv maintainers.
 **Companion:** `docs/pdl-derived-architecture.md` explains why the shape is PDL-independent.

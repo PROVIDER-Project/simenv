@@ -54,7 +54,7 @@ class SupplyChainModel(Model):
 
     def _roster_pdl_path(self) -> str:
         """
-        PDL the roster is derived from: the class _pdl_path set by main.py for a
+        PDL the roster is derived from: the class _pdl_path set by execution.py for a
         swapped PDL, else the shipped scenario so the model runs standalone.
         """
         default = Path(__file__).parent / "scenarios" / "s1-soja.pdl.yaml"
@@ -63,14 +63,15 @@ class SupplyChainModel(Model):
 
     def setup(self):
         """
-        Populate every AgentList in the derived roster, assign roles, and apply
-        each archetype's declared params — bindings, literal attrs, and
-        scenario-sourced attrs — so agents carry no role-specific init.
+        Populate every AgentList in the derived roster with one agent per roster
+        entry, assign roles, and apply each archetype's declared params —
+        bindings, literal attrs, and scenario-sourced attrs — so agents carry no
+        role-specific init.
         """
         for entry in self._roster:
             arc = entry.archetype
             agent_list = getattr(self, arc.name)
-            agent_list.setup_agents(getattr(self.scenario, arc.count_attr))
+            agent_list.setup_agents(1)
             # entity-driven capacity binding: an agent reads its own entity's supply shock.
             capacity_key = (entry.entity_ids[0], "supply") if len(entry.entity_ids) == 1 else None
             origin = entry.entity_ids[0] if len(entry.entity_ids) == 1 else ""
@@ -329,6 +330,9 @@ class SupplyChainModel(Model):
         self._crosscheck_bindings()
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)
+            callback = getattr(self, "_progress_callback", None)
+            if callback is not None:
+                callback(self.scenario.id, t + 1)
         self._log_scenario_summary(self.scenario.id, self.scenario.period_num)
         self.data_collector.save()
 
@@ -340,7 +344,7 @@ class SupplyChainModel(Model):
             Does not open or close a run. A step is recorded to Postgres only when
             `_tick_writer` and `_run_id` are set on the class; the caller builds the
             writer, calls `open_run()` before the first step and `close_run()` after
-            the last, as `main.py` does. A writer set without an opened run fails at
+            the last, as `execution.py` does. A writer set without an opened run fails at
             the first step with an error saying no run was opened. Without a writer,
             nothing is recorded.
             """

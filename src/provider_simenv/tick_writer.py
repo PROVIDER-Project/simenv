@@ -16,7 +16,7 @@ Run lifecycle:
     4. close_run() -> patch the sim_run row to its final status and release
        the connection.
 
-The run row and every agent row carry the run id minted in main.py, the same
+The run row and every agent row carry the run id minted in execution.py, the same
 string that names the run's output directory and keys runs.json. The writer
 never mints an identity of its own, and nothing it does removes rows an
 earlier run wrote.
@@ -29,7 +29,7 @@ Failure handling:
     A writer that cannot reach Postgres raises rather than disabling itself,
     and a failed write raises rather than skipping the rest of the run: a run
     that cannot record its results must not report success. Running without a
-    database is an explicit choice - under --no-postgres main.py builds no
+    database is an explicit choice - under --no-postgres execution.py builds no
     writer at all, and the model's write call finds nothing and skips.
 """
 

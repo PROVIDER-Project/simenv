@@ -1,4 +1,4 @@
-# provider-simenv — web frontend (Issue #23)
+# provider-simenv — web frontend
 
 World map / globe view for the PROVIDER simulation environment. Renders the geolocatable
 projection of the soy supply chain — producers, ports, EU processing, livestock — and plays
@@ -16,8 +16,11 @@ enough to see the view.
 |---|---|---|
 | **Node.js + npm** | yes | Builds and serves the frontend. |
 | **`public/bundle.json`** | yes | The run data the view renders. A committed export is already in the repo. |
-| **Python simulation** (`src/provider_simenv`) | only to regenerate data | Produces the run data that `export_bundle.py` turns into a new `bundle.json`. |
-| **PostgreSQL** | only to regenerate data | The simulation writes each run to it, and `export_bundle.py` reads the bundle from it by default. The frontend itself never connects to it. |
+| **Python simulation** (`src/provider_simenv`) | to execute from the dashboard or regenerate data | Runs scenarios and writes each run to PostgreSQL and CSV, the data `export_bundle.py` turns into a new `bundle.json`. |
+| **Simulation API** | for the Run simulation button | Accepts generated PDL/roster and reports job progress. Needs PostgreSQL. |
+| **PostgreSQL** | to execute from the dashboard or regenerate data | The simulation writes each run to it, and `export_bundle.py` reads the bundle from it by default. The frontend itself never connects to it. |
+
+The globe now also includes an integrated **PDL configurator**. It adjusts a first-pass set of disruption parameters in the live visualization and emits a downloadable `*.pdl.yaml` document plus its matching `*.roster.yaml` sidecar for later execution through `provider_simenv.main --pdl ...`.
 
 ---
 
@@ -72,12 +75,149 @@ npm run lint        # eslint src
 
 `npm run build` runs `tsc -b` first, so a type error fails the build.
 
+### Scenario configurator
+
+Inside the running app, open **PDL configurator** from the top-right panel to:
+
+- switch between the soy-crisis and energy-food cascades
+- tune a first set of event magnitudes, durations, and activation days with sliders
+- toggle mitigation and contingency events with switches
+- copy or download a runnable PDL document and the matching roster sidecar built from the current settings
+- press **Run simulation** to execute those same generated documents through the simulation API
+
+The generated files keep the shipped scenario topology and narrow the document to the currently selected cascade. Save both files beside each other so simenv can resolve the sidecar automatically, then run:
+
+```bash
+python -m provider_simenv.main --pdl /path/to/generated-scenario.pdl.yaml
+```
+
+### Execute from the dashboard
+
+Execution requires the [simulation API](../docs/api.md) and a reachable PostgreSQL
+database: API jobs record to it and fail without it.
+The frontend can still display playback and export PDL without the API.
+
+1. From the repository root, install and start the real service (Python 3.10+):
+
+   ```bash
+   pip install -e '.[api,db]'
+   SIMENV_API_DATA_DIR=./data/api \
+   PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/provider_simenv \
+     uvicorn provider_simenv.api.app:app --host 127.0.0.1 --port 8000 --workers 1
+   ```
+
+   Alternatively, run `docker compose -f compose.api.yml up --build -d`. See
+   [`docs/api.md`](../docs/api.md) for API deployment details.
+
+2. In this checkout's `web/`, run `npm ci` and `npm run dev`, then open
+   <http://localhost:5173>. Vite proxies `/api/*` to `http://127.0.0.1:8000/*`,
+   so the browser does not need cross-origin API access.
+3. Open **PDL configurator**, select a cascade, name the scenario, and adjust
+   sliders/switches. Click **Run simulation** in its **Execute this scenario**
+   section. No file download is required: the request contains the current
+   PDL preview, matching roster preview, selected cascade, and scenario name
+   as the run label. Both soy-crisis and energy-food cascades are supported.
+4. The panel displays the API-generated run ID and polls once per second
+   through `queued` → `running` → `completed` or `failed`. Overall progress
+   covers both the baseline and PDL scenario; 100% can precede completion
+   while the worker saves results. The button is disabled during submission
+   and while the tracked job is active.
+
+Editing controls after submission changes the next run, not the submitted run.
+Hiding/reopening the panel retains monitoring. Submission validation errors
+and worker failures are shown in the panel. If polling fails, **Retry monitoring**
+resumes inspection of the same run ID without submitting another simulation.
+Requests time out after 15 seconds. If submission loses its connection, check
+the API's `GET /simulations` job history before retrying: the server may have
+accepted the run even though its response did not reach the browser.
+
+Tracking lasts for the current page session. Reloading or leaving the page
+stops browser monitoring, but does not cancel an accepted job. Use the displayed
+run ID with `GET /simulations/{id}` and `GET /simulations/{id}/logs` to inspect it.
+
+#### API routing configuration
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `SIMENV_API_TARGET` | `http://127.0.0.1:8000` | Upstream for Vite dev/preview's `/api` proxy. Set in the shell or `web/.env.local`; restart Vite after changes. |
+| `VITE_SIMENV_API_BASE_URL` | `/api` | Browser-visible API prefix, set before development/build. No trailing slash required. |
+
+For another API port, start Vite with:
+
+```bash
+SIMENV_API_TARGET=http://127.0.0.1:8080 npm run dev
+```
+
+For production, serve `web/dist/` and reverse-proxy `/api/` to the API, stripping
+the `/api` prefix (for example `/api/simulations` → `/simulations`). Vite's proxy
+is not bundled into the static build. If your deployment exposes the API at
+another same-origin prefix, set `VITE_SIMENV_API_BASE_URL` during `npm run build`.
+A direct cross-origin URL requires the API/deployment to allow the frontend
+origin via CORS; the default API service does not enable CORS.
+
+#### Viewing the new results
+
+Completion means the API saved the run; the globe continues playing its loaded
+`bundle.json`. The API currently provides status/log endpoints, not a downloadable
+playback bundle. To display a completed API run, export it and reload the page.
+With a local API data directory, run from this repository root:
+
+```bash
+python -m provider_simenv.export_bundle \
+  --run <run-id> \
+  --pdl /absolute/path/to/api-data/jobs/<run-id>/input/scenario.pdl.yaml \
+  --scenario 1 --output web/public/bundle.json
+```
+
+A dashboard run is made with the generated PDL it was submitted with, not with the
+default `s1-soja.pdl.yaml`. The exporter checks the PDL's hash against the run and
+refuses a mismatch, so pass the job's own copy with `--pdl`. To read the run's CSV
+files instead of PostgreSQL:
+
+```bash
+python -m provider_simenv.export_bundle --source csv \
+  --input /absolute/path/to/api-data/jobs/<run-id>/output/<run-id> \
+  --pdl /absolute/path/to/api-data/jobs/<run-id>/input/scenario.pdl.yaml \
+  --scenario 1 --output web/public/bundle.json
+```
+
+For Docker, first copy the job directory out of the container:
+
+```bash
+docker compose -f compose.api.yml cp api:/data/jobs/<run-id> ./api-job
+```
+
+Then pass `./api-job/input/scenario.pdl.yaml` as `--pdl` (and, with `--source csv`,
+`./api-job/output/<run-id>` as `--input`). For production
+or `npm run preview`, rebuild and redeploy after changing `web/public/bundle.json`,
+or replace the deployed `bundle.json` directly; reloading alone does not update
+the copy already in `web/dist/`.
+
+#### Browser acceptance check
+
+With the real API (preferably idle, with no queued jobs) and Vite dev server
+running as above, from `web/`:
+
+```bash
+npx playwright install --with-deps chromium
+npm run test:simulation
+```
+
+This creates two real jobs (one per cascade), verifies that slider/switch edits
+reach the API as the exact displayed PDL/roster, checks the submission lock and
+monitoring across panel hide/show, and waits for completed runs with 730 steps.
+Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
+to increase the per-run completion wait (default 120000 ms) for a busy API or
+slower hardware. The test assumes the
+API's bundled 365-step-per-scenario template. No API mock is included in the
+application or test sources.
+
 ---
 
 ## Where the data comes from
 
-The view never talks to the simulation directly. It reads a single JSON bundle through the
-`DataSource` seam:
+Globe playback reads a single JSON bundle through the `DataSource` seam.
+The configurator separately submits simulations and monitors them via the API:
 
 ```
 simulation run (Melodie)
@@ -163,6 +303,7 @@ web/
     ├── data/                 types, DataSource seam, sources, gazetteer
     ├── design/tokens.ts      colours, globe/atmosphere and arc settings
     ├── globe/                GlobeView + arc geometry helpers
+    ├── configurator/         parameter controls, PDL/roster generation, API execution
     └── playback/             timeline scrubber + per-period intensity
 ```
 

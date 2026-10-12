@@ -83,7 +83,7 @@ def run_record(
 
     Built in one place so the two stores cannot drift: the PDL basename, its
     hash and the git sha are derived here and nowhere else. started_at
-    defaults to now; main.py passes one so both stores record the same instant.
+    defaults to now; execution.py passes one so both stores record the same instant.
     """
     return {
         "run_id": run_id,
@@ -106,7 +106,7 @@ def start_run(output_root: str, record: dict) -> None:
     Creates the output root if it is missing; the run directory itself is
     left to Config, which makes it on the way to writing the CSVs.
 
-    The record comes from run_record(), which main.py also hands to the tick
+    The record comes from run_record(), which execution.py also hands to the tick
     writer for sim_run, so the two stores describe the run identically.
     """
     manifest = _read_manifest(output_root, repair=True)

@@ -28,7 +28,9 @@ EXPECTED_NODE_IDS = {
     "hamburg_port",
     "processors",
     "feed_manufacturers",
-    "eu_farmers",
+    "poultry_farms",
+    "pig_farms",
+    "dairy_farms",
     "brazil_wholesaler",
     "argentina_wholesaler",
     "us_wholesaler",
@@ -49,7 +51,9 @@ EXPECTED_EDGES = {
     ("hamburg_port", "processors", False),
     ("processors", "feed_manufacturers", False),
     ("feed_manufacturers", "feed_traders", False),
-    ("feed_traders", "eu_farmers", False),
+    ("feed_traders", "poultry_farms", False),
+    ("feed_traders", "pig_farms", False),
+    ("feed_traders", "dairy_farms", False),
 }
 
 EXPECTED_PLACEMENTS = {
@@ -192,7 +196,7 @@ def test_shipped_pdl_bundle_matches_map_contract(tmp_path, monkeypatch):
     assert "wholesalers" not in nodes
     assert not any(node_id.startswith("sea_transport_") for node_id in nodes)
     assert edges == EXPECTED_EDGES
-    assert len({edge["id"] for edge in bundle["edges"]}) == 14
+    assert len({edge["id"] for edge in bundle["edges"]}) == 16
     assert all(
         edge["source"] in nodes and edge["target"] in nodes
         for edge in bundle["edges"]
@@ -207,13 +211,13 @@ def test_shipped_pdl_bundle_matches_map_contract(tmp_path, monkeypatch):
     assert {node_id for node_id, node in nodes.items() if node["hasRecordedData"]} == {
         tick["nodeId"] for tick in bundle["ticks"]
     }
-    assert len(bundle["ticks"]) == 10
+    assert len(bundle["ticks"]) == 12
     assert len(bundle["env"]) == bundle["meta"]["ticks"] == 1
 
     frontend = _inspect_in_frontend(bundle, tmp_path)
     assert frontend == {
         "markerCount": 16,
-        "edgeCount": 14,
+        "edgeCount": 16,
         "unplaced": [],
         "declared": {
             node_id: {

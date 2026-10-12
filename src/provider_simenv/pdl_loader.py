@@ -20,9 +20,6 @@ from pathlib import Path
 
 import yaml
 
-
-
-
 # -------
 # Helpers
 # -------
@@ -143,7 +140,11 @@ class PDLLoader:
                 "event_id": entry.get("event", ""),
             })
 
-        return {"events": events, "timeline": timeline}
+        return {
+            "events": events,
+            "timeline": timeline,
+            "cascade_id": cascade.get("id"),
+        }
 
 
     def __repr__(self) -> str:

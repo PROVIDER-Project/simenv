@@ -12,6 +12,14 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+### Run a configured scenario from the dashboard
+
+The globe frontend's **PDL configurator** supports **Run simulation**: adjust
+sliders/switches, then submit the generated PDL and roster to the simulation API
+and follow live run status/progress. This requires the
+[simulation API](docs/api.md) and a reachable PostgreSQL database. See [frontend execution and routing instructions](web/README.md#execute-from-the-dashboard)
+for setup, monitoring recovery, and viewing completed results.
+
 ---
 
 ## Project Structure
@@ -24,7 +32,7 @@ simenv/
     └── provider_simenv/
         ├── main.py               ← entry point
         ├── model.py              ← simulation orchestrator
-        ├── scenario.py           ← engine parameters (counts, costs, sigmas)
+        ├── scenario.py           ← engine parameters (costs, margins, sigmas)
         ├── topology.py           ← PDL + roster → agent lists and flow graph
         ├── environment.py        ← global state + price aggregation
         ├── pdl_loader.py         ← PDL YAML → events / entities
@@ -106,6 +114,12 @@ pip install '.[db]'
 
 ## Running the Simulation
 
+To submit simulations over HTTP and monitor live progress, see the
+[Simulation API guide](docs/api.md). Its single-service Docker Compose
+setup starts with `docker compose -f compose.api.yml up --build -d`.
+API jobs record to PostgreSQL: the API container needs
+`PROVIDER_SIMENV_POSTGRES_URL` set to a reachable database.
+
 After `pip install -e .`, from the **repository root**:
 
 ```bash
@@ -170,9 +184,8 @@ See `web/README.md` for the frontend workflow.
 `data/input/SimulatorScenarios.csv` is the working table Melodie reads. Change the
 **template**, not the live file — every run overwrites the live copy from the template.
 
-Each row is one run. Columns are engine parameters (agent counts, routing, size sigmas,
-storage, length). Producer counts use PDL entity ids (`n_brazil_farms`, `n_argentina_farms`,
-`n_us_farms`).
+Each row is one run. Columns are engine parameters (routing, size sigmas, storage, length).
+Agent counts are not CSV columns — the roster derives one agent per PDL entity.
 
 Shocks are not CSV columns. Pass `--pdl`; `EventTracker` applies drought, capacity, and
 input-price events from the YAML. The shipped files are `scenarios/s1-soja.pdl.yaml` and
@@ -182,9 +195,7 @@ builder).
 
 | Parameter | Effect |
 |---|---|
-| `n_brazil_farms` / `n_argentina_farms` / `n_us_farms` | Producer agent counts |
 | `share_santos_port` | Explicit weight for the Santos route; unspecified route weights are resolved per origin |
-| `shock_ramp_steps` | Ramp length when a PDL shock is active |
 | `size_sigma_brazil_farms` | Log-normal farm-size spread (`0` = identical farms) |
 | `wholesaler_storage_capacity` | Max tonnes a wholesaler can hold per step (default 2857 t/day) |
 | `period_num` | Number of simulation steps (default 365) |
@@ -311,8 +322,8 @@ from the repository root. This builds the database container, if it's not alread
 
 ## Known Issues / Notes
 
-- **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from `main.py`'s location, not the cwd.
-- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soy_price, feed_price, ...}` after every simulation step. It records to PostgreSQL only when the caller has opened the run, as `main.py` does (see its docstring).
+- **`python main.py` needs the package directory** (`src/provider_simenv/`). After `pip install -e .`, `python -m provider_simenv.main` from the repo root works — `Config` resolves `data/` from the package location, not the cwd.
+- **`run_stepwise()`** in `model.py` is the designated integration hook for external control (e.g. palaestrAI). It yields a state dict `{step, shock_scale, soy_price, feed_price, ...}` after every simulation step. It records to PostgreSQL only when the caller has opened the run, as `execution.py` does for every CLI and API run.
 
 ---
 
