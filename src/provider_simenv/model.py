@@ -317,6 +317,9 @@ class SupplyChainModel(Model):
         self._crosscheck_bindings()
         for t in self.iterator(self.scenario.period_num):
             self._do_step(t)
+            callback = getattr(self, "_progress_callback", None)
+            if callback is not None:
+                callback(self.scenario.id, t + 1)
         self._log_scenario_summary(self.scenario.id, self.scenario.period_num)
         self.data_collector.save()
 

@@ -1,0 +1,16 @@
+.git
+.superpowers
+.venv
+.tox
+.pytest_cache
+.ruff_cache
+.melodie
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+build
+dist
+data/api
+src/provider_simenv/data/output
+web/node_modules
+web/dist

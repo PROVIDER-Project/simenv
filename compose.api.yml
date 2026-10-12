@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: provider-simenv-api:latest
+    ports:
+      - "${SIMENV_API_PORT:-8000}:8000"
+    volumes:
+      - simenv_api_data:/data
+    environment:
+      SIMENV_API_JOB_TIMEOUT: "${SIMENV_API_JOB_TIMEOUT:-300}"
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+volumes:
+  simenv_api_data:

@@ -104,6 +104,10 @@ pip install '.[db]'
 
 ## Running the Simulation
 
+To submit simulations over HTTP and monitor live progress, see the
+[Simulation API guide](docs/api.md). Its single-service Docker Compose
+setup starts with `docker compose -f compose.api.yml up --build -d`.
+
 After `pip install -e .`, from the **repository root**:
 
 ```bash
