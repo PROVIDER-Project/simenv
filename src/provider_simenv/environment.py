@@ -20,6 +20,7 @@ from Melodie import Environment
 from .agents import (
     ROLE_PRODUCER,
     ROLE_WHOLESALER,
+    ROLE_FEED_TRADER,
     ROLE_LAND_TRANSPORT,
     ROLE_SEA_TRANSPORT,
 )
@@ -160,7 +161,13 @@ class SupplyChainEnvironment(Environment):
             self.soy_price = 0.0
 
         # Feed price (feed trader lvl)
-        active_traders = self.model.feed_traders.filter(lambda t: t.active)
+        active_traders = [
+            trader
+            for entry in self.model._roster
+            if entry.archetype.role == ROLE_FEED_TRADER
+            for trader in getattr(self.model, entry.archetype.name).agents
+            if trader.active
+        ]
         total_t_vol = sum(t.quantity_available for t in active_traders)
         if total_t_vol > 0:
             self.feed_price = (

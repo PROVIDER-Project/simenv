@@ -45,6 +45,8 @@ class SupplyChainModel(Model):
         self._roster = build_roster(self._roster_pdl_path())
         for entry in self._roster:
             arc = entry.archetype
+            if hasattr(self, arc.name):
+                raise ValueError(f"entity id {arc.name!r} collides with a model attribute. Rename the entity")
             setattr(self, arc.name, self.create_agent_list(arc.agent_class))
 
 

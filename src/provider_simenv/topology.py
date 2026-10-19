@@ -6,8 +6,8 @@ Resolution order for each entity:
     2. KIND_KEYS[(type, sector)]         fallback when no declaration exists
     3. otherwise                         unmodelled -> skipped (logged)
 
-Producers are built per entity from {param}_{eid} columns. Non-producers still
-use pooled recipes where the model shares an agent list.
+Producers are built per entity from {param}_{eid} columns. Every other kind gets
+one list per entity too, sharing its kind's params recipe.
 
 Sidecar entities participate in the roster and flow graph. Sea crossings are
 edges, materialised as derived sea-transport agents.
@@ -43,7 +43,7 @@ from .scenario import SupplyChainScenario
 
 @dataclass(frozen=True)
 class Archetype:
-    name: str              # model attribute name (parity with the current roster)
+    name: str              # model attribute name: the entity id, or the derived sea-transport name
     agent_class: type
     role: str
     # Declarative agent init, applied to instances by model.setup(); agents
@@ -162,12 +162,12 @@ ARCHETYPE_REGISTRY: dict[str, tuple[type, str]] = {
     "feed_trader":       (Trader,  ROLE_FEED_TRADER),
 }
 
-_DECLARED_ARCHETYPES: dict[str, tuple[str, Mapping[str, Any]]] = {
-    "consumer":          ("", _FARMER_EU),
-    "processor":         ("processors", _PROCESSOR),
-    "feed_manufacturer": ("feed_manufacturers", _FEED_MFR),
-    "wholesaler":        ("", _WHOLESALER),
-    "feed_trader":       ("feed_traders", _FEED_TRADER),
+_DECLARED_ARCHETYPES: dict[str, Mapping[str, Any]] = {
+    "consumer":          _FARMER_EU,
+    "processor":         _PROCESSOR,
+    "feed_manufacturer": _FEED_MFR,
+    "wholesaler":        _WHOLESALER,
+    "feed_trader":       _FEED_TRADER,
 }
 
 KNOWN_ARCHETYPES: frozenset[str] = frozenset(ARCHETYPE_REGISTRY)
@@ -358,14 +358,12 @@ def _declared_archetype(
             if eid else None
         )
     else:
-        spec = _DECLARED_ARCHETYPES.get(key)
-        if spec is None or not eid:
+        params = _DECLARED_ARCHETYPES.get(key)
+        if params is None or not eid:
             arc = None
         else:
-            default_name, params = spec
             cls, role = ARCHETYPE_REGISTRY[key]
-            name = default_name or eid
-            arc = Archetype(name, cls, role, params)
+            arc = Archetype(eid, cls, role, params)
     if arc is None:
         logger.warning(
             "entity %r resolved to archetype %r but has no runtime recipe",
@@ -378,9 +376,12 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     """
     Ordered roster from PDL and sidecar entities, followed by sea-transport agents.
 
-    Producer kinds split per-entity (each carries its own id-named list and shock);
-    declared non-producer kinds use their model recipes.
+    Every entity gets its own id-named list. Producers derive their params per
+    entity; the other declared kinds share their kind's params recipe.
     """
+    sidecar_path = _sidecar_path(pdl_path)
+    if not sidecar_path.exists():
+        logger.warning("no roster sidecar at %s; entities resolve by (type, sector) only", sidecar_path)
     doc = PDLLoader(pdl_path)._doc
     sidecar = load_roster_sidecar(pdl_path)
     entities = [*(doc.get("entities") or []), *sidecar.entities]
@@ -413,10 +414,6 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
             order.append(arc)
             ids_by_arc[arc] = []
         ids_by_arc[arc].append(eid)
-
-    for arc, ids in ids_by_arc.items():
-        if len(ids) > 1:
-            raise ValueError(f"roster list {arc.name!r} would merge entities {ids}; one entity per agent is not yet supported for this archetype")
 
     for edge in sea_edges:
         arc = _sea_transport_archetype(edge)
@@ -561,6 +558,18 @@ def build_flow_adjacency(pdl_path: str | Path) -> dict[str, tuple[str, ...]]:
         elif s in name_of:
             for crossing in crossings_from.get(d, ()):
                 add(crossing.name, name_of[s])
+
+    # These kinds take their upstream's whole output, so a source they share
+    # with any other list would be counted twice.
+    whole_output = {e.archetype.name for e in roster
+                    if e.archetype.role in (ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER, ROLE_FEED_TRADER)}
+    destinations: dict[str, list[str]] = {}
+    for dst, srcs in adj.items():
+        for src in srcs:
+            destinations.setdefault(src, []).append(dst)
+    for src, dsts in destinations.items():
+        if len(dsts) > 1 and whole_output.intersection(dsts):
+            raise ValueError(f"source {src!r} feeds {sorted(dsts)}; a source shared with a processor, feed manufacturer or feed trader is not supported")
 
     # Order each destination's sources by roster position so summed flows follow
     # roster declaration order.

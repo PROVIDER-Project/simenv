@@ -119,16 +119,16 @@ class Process(SupplyChainAgent):
     # --------------------------
 
     def _step_processor(self):
-        """Receive soy from both EU entry ports (RTM + HAM), crush to meal.
+        """Receive soy from the lists feeding this mill, crush to meal.
         oil_mill_capacity applied as indirect capacity constraint."""
         self._process(
-            upstream_list=self.model.upstream("processors"),
-            peer_list=self.model.processors,
+            upstream_list=self.model.upstream(self.list_name),
+            peer_list=getattr(self.model, self.list_name),
         )
 
     def _step_feed_manufacturer(self):
         """Receive soy meal from processors, compound to animal feed."""
         self._process(
-            upstream_list=self.model.upstream("feed_manufacturers"),
-            peer_list=self.model.feed_manufacturers,
+            upstream_list=self.model.upstream(self.list_name),
+            peer_list=getattr(self.model, self.list_name),
         )

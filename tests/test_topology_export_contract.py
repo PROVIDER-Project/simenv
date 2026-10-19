@@ -26,15 +26,15 @@ EXPECTED_NODE_IDS = {
     "paranagua_port",
     "rotterdam_port",
     "hamburg_port",
-    "processors",
-    "feed_manufacturers",
+    "eu_oil_mills",
+    "feed_mills",
     "poultry_farms",
     "pig_farms",
     "dairy_farms",
     "brazil_wholesaler",
     "argentina_wholesaler",
     "us_wholesaler",
-    "feed_traders",
+    "eu_feed_trader",
 }
 
 EXPECTED_EDGES = {
@@ -47,13 +47,13 @@ EXPECTED_EDGES = {
     ("argentina_wholesaler", "rotterdam_port", True),
     ("us_farms", "us_wholesaler", False),
     ("us_wholesaler", "rotterdam_port", True),
-    ("rotterdam_port", "processors", False),
-    ("hamburg_port", "processors", False),
-    ("processors", "feed_manufacturers", False),
-    ("feed_manufacturers", "feed_traders", False),
-    ("feed_traders", "poultry_farms", False),
-    ("feed_traders", "pig_farms", False),
-    ("feed_traders", "dairy_farms", False),
+    ("rotterdam_port", "eu_oil_mills", False),
+    ("hamburg_port", "eu_oil_mills", False),
+    ("eu_oil_mills", "feed_mills", False),
+    ("feed_mills", "eu_feed_trader", False),
+    ("eu_feed_trader", "poultry_farms", False),
+    ("eu_feed_trader", "pig_farms", False),
+    ("eu_feed_trader", "dairy_farms", False),
 }
 
 EXPECTED_PLACEMENTS = {
@@ -78,7 +78,7 @@ EXPECTED_PLACEMENTS = {
         "lng": -90.07,
         "illustrative": True,
     },
-    "feed_traders": {
+    "eu_feed_trader": {
         "entityId": "eu_feed_trader",
         "label": "EU feed distributor",
         "lat": 47.5,
@@ -154,7 +154,7 @@ const declaredIds = new Set([
   'brazil_wholesaler',
   'argentina_wholesaler',
   'us_wholesaler',
-  'feed_traders',
+  'eu_feed_trader',
 ]);
 const declared = Object.fromEntries(
   scene.markers
