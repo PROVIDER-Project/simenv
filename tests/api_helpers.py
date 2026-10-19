@@ -8,8 +8,8 @@ import pandas as pd
 from provider_simenv.execution import prepare_run
 
 SCENARIOS = Path(__file__).parents[1] / "src/provider_simenv/scenarios"
-PDL = (SCENARIOS / "s1-soja.pdl.yaml").read_text()
-ROSTER = (SCENARIOS / "s1-soja.roster.yaml").read_text()
+PDL = (SCENARIOS / "s1-soja.pdl.yaml").read_text(encoding="utf-8")
+ROSTER = (SCENARIOS / "s1-soja.roster.yaml").read_text(encoding="utf-8")
 
 
 def submit(store, label=None, periods=365):
