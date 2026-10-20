@@ -138,3 +138,13 @@ def test_entity_id_colliding_with_a_model_attribute_is_rejected(tmp_path, monkey
     model = SupplyChainModel(SimpleNamespace(), SupplyChainScenario(1))
     with pytest.raises(ValueError, match="'environment'"):
         model._setup()
+
+
+def test_entity_id_with_reserved_underscore_prefix_is_rejected(tmp_path):
+    pdl = tmp_path / "reserved.pdl.yaml"
+    pdl.write_text(
+        "entities:\n  - id: _flow_adjacency\n    type: region\n    sector: agriculture\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="'_flow_adjacency' starts with '_'"):
+        build_roster(pdl)

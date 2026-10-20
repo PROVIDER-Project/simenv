@@ -396,6 +396,10 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
         if key is None:
             continue
         eid = e.get("id")
+        if eid.startswith("_"):
+            raise ValueError(
+                f"entity id {eid!r} starts with '_', which is reserved for the model. Rename the entity"
+            )
         if key == "producer":
             cls, role = ARCHETYPE_REGISTRY["producer"]
             arc = Archetype(
