@@ -49,7 +49,7 @@ class SupplyChainAgent(Agent):
         self.active: bool = True
 
         # PDL entity id this agent represents. Set by model.setup() from the roster's entity_ids.
-        # "" for synthetic hubs (wholesaler/feed_traders)
+        # "" for derived sea-transport agents, which have no PDL entity
         self.origin: str = ""
 
         # PDL bindings: semantic slot -> (entity, impact_field).

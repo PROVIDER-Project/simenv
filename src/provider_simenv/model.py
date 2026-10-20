@@ -45,6 +45,8 @@ class SupplyChainModel(Model):
         self._roster = build_roster(self._roster_pdl_path())
         for entry in self._roster:
             arc = entry.archetype
+            if hasattr(self, arc.name):
+                raise ValueError(f"entity id {arc.name!r} collides with a model attribute. Rename the entity")
             setattr(self, arc.name, self.create_agent_list(arc.agent_class))
 
 
@@ -111,6 +113,15 @@ class SupplyChainModel(Model):
         for part in self.upstream_parts(name):
             combined = part if combined is None else combined + part
         return combined
+
+    def active_recipients(self, name: str) -> int:
+        """Active agents in the lists `name` delivers to, the ones that share
+        its output."""
+        return sum(
+            len(getattr(self, dst).filter(lambda a: a.active))
+            for dst, sources in self._flow_adjacency.items()
+            if name in sources
+        )
 
 
     def _collect_snapshot(self) -> dict:

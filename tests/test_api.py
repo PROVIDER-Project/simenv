@@ -57,7 +57,7 @@ def test_submission_returns_reserved_id_and_location(client, tmp_path):
     assert response.headers["location"] == f"/simulations/{job['id']}"
     assert (
         tmp_path / "jobs" / job["id"] / "input/scenario.pdl.yaml"
-    ).read_text() == PDL
+    ).read_text(encoding="utf-8") == PDL
     assert (tmp_path / "jobs" / job["id"] / "output" / job["id"]).is_dir()
     assert client.get(response.headers["location"]).json()["id"] == job["id"]
 
