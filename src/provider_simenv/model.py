@@ -114,6 +114,15 @@ class SupplyChainModel(Model):
             combined = part if combined is None else combined + part
         return combined
 
+    def active_recipients(self, name: str) -> int:
+        """Active agents in the lists `name` delivers to, the ones that share
+        its output."""
+        return sum(
+            len(getattr(self, dst).filter(lambda a: a.active))
+            for dst, sources in self._flow_adjacency.items()
+            if name in sources
+        )
+
 
     def _collect_snapshot(self) -> dict:
         """
