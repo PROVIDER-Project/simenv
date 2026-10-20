@@ -115,7 +115,7 @@ class RosterSidecar:
     dependencies: tuple[Mapping[str, Any], ...]
 
 
-def _sidecar_path(pdl_path: str | Path) -> Path:
+def sidecar_path(pdl_path: str | Path) -> Path:
     p = Path(pdl_path)
     stem = p.name[:-len(".pdl.yaml")] if p.name.endswith(".pdl.yaml") else p.stem
     return p.with_name(stem + ".roster.yaml")
@@ -124,7 +124,7 @@ def _sidecar_path(pdl_path: str | Path) -> Path:
 def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
     """Load the roster sidecar beside the PDL. Additive only: a sidecar entity id
     may not collide with a PDL entity, and every added entity must carry a reason."""
-    path = _sidecar_path(pdl_path)
+    path = sidecar_path(pdl_path)
     if not path.exists():
         return RosterSidecar({}, {}, (), (), ())
 

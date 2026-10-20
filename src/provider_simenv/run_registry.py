@@ -33,8 +33,9 @@ index rather than letting bookkeeping block a simulation or discard one that
 already succeeded. resolve_run raises instead, so a corrupt index never passes
 for "no runs" and hands back the wrong directory.
 
-git_sha records what HEAD pointed at, not proof that the working tree matched
-it; pdl_sha256 is the exact provenance of the input the run actually used.
+git_sha records what HEAD pointed at, not proof that the working tree matched it.
+pdl_sha256 and roster_sha256 are the exact provenance of the inputs the run
+actually used. roster_sha256 is None when the PDL had no roster sidecar.
 
 Concurrency:
     runs.json is not locked. Two simulations started at once race on it and
@@ -50,6 +51,8 @@ import os
 import subprocess
 import uuid
 from datetime import datetime, timezone
+
+from .topology import sidecar_path
 
 logger = logging.getLogger(__name__)
 
@@ -69,34 +72,50 @@ def run_dir(output_root: str, run_id: str) -> str:
     return os.path.join(output_root, run_id)
 
 
-def start_run(
-    output_root: str,
+def run_record(
     run_id: str,
     *,
     pdl: str | None,
     scenario_ids: list[int],
     period_num: int,
     label: str | None = None,
-) -> None:
+    started_at: datetime | None = None,
+) -> dict:
     """
-    Appends run_id's entry with status "running".
+    The record describing one run, written to runs.json and to sim_run.
 
-    Creates the output root if it is missing; the run directory itself is
-    left to Config, which makes it on the way to writing the CSVs.
+    Built in one place so the two stores cannot drift: the PDL basename, its
+    hash, the roster sidecar's hash and the git sha are derived here and
+    nowhere else. started_at
+    defaults to now; execution.py passes one so both stores record the same instant.
     """
-    manifest = _read_manifest(output_root, repair=True)
-    manifest["runs"].append({
+    return {
         "run_id": run_id,
-        "started_at": _now(),
+        "started_at": started_at.isoformat() if started_at else _now(),
         "finished_at": None,
         "status": "running",
         "pdl": os.path.basename(pdl) if pdl else None,
         "pdl_sha256": _file_sha256(pdl) if pdl else None,
+        "roster_sha256": _roster_sha256(pdl) if pdl else None,
         "scenario_ids": [int(i) for i in scenario_ids],
         "period_num": int(period_num),
-        "git_sha": _git_sha(),
+        "git_sha": git_sha(),
         "label": label,
-    })
+    }
+
+
+def start_run(output_root: str, record: dict) -> None:
+    """
+    Appends record to runs.json.
+
+    Creates the output root if it is missing; the run directory itself is
+    left to Config, which makes it on the way to writing the CSVs.
+
+    The record comes from run_record(), which execution.py also hands to the tick
+    writer for sim_run, so the two stores describe the run identically.
+    """
+    manifest = _read_manifest(output_root, repair=True)
+    manifest["runs"].append(record)
     _write_manifest(output_root, manifest)
 
 
@@ -241,7 +260,12 @@ def _file_sha256(path: str) -> str | None:
         return None
 
 
-def _git_sha() -> str | None:
+def _roster_sha256(pdl: str) -> str | None:
+    path = sidecar_path(pdl)
+    return _file_sha256(str(path)) if path.exists() else None
+
+
+def git_sha() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
     try:
         proc = subprocess.run(

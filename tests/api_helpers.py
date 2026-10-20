@@ -14,7 +14,11 @@ ROSTER = (SCENARIOS / "s1-soja.roster.yaml").read_text(encoding="utf-8")
 
 def submit(store, label=None, periods=365):
     run = prepare_run(
-        store.data_dir / "jobs", pdl=PDL, roster=ROSTER, label=label
+        store.data_dir / "jobs",
+        pdl=PDL,
+        roster=ROSTER,
+        label=label,
+        no_postgres=True,
     )
     if periods != 365:
         template = run.input_dir / "SimulatorScenarios_template.csv"

@@ -1,4 +1,4 @@
-# provider-simenv — web frontend (Issue #23)
+# provider-simenv — web frontend
 
 World map / globe view for the PROVIDER simulation environment. Renders the geolocatable
 projection of the soy supply chain — producers, ports, EU processing, livestock — and plays
@@ -16,9 +16,9 @@ enough to see the view.
 |---|---|---|
 | **Node.js + npm** | yes | Builds and serves the frontend. |
 | **`public/bundle.json`** | yes | The run data the view renders. A committed export is already in the repo. |
-| **Python simulation** (`src/provider_simenv`) | for execution or regenerating data | Runs scenarios and produces CSVs for `export_bundle.py`. |
-| **Simulation API** (PR #50) | for the Run simulation button | Accepts generated PDL/roster and reports job progress. |
-| **PostgreSQL** | no | Not used by the frontend. It is an output target of the simulation only. |
+| **Python simulation** (`src/provider_simenv`) | to execute from the dashboard or regenerate data | Runs scenarios and writes each run to PostgreSQL and CSV, the data `export_bundle.py` turns into a new `bundle.json`. |
+| **Simulation API** | for the Run simulation button | Accepts generated PDL/roster and reports job progress. Needs PostgreSQL. |
+| **PostgreSQL** | to execute from the dashboard or regenerate data | The simulation writes each run to it, and `export_bundle.py` reads the bundle from it by default. The frontend itself never connects to it. |
 
 The globe now also includes an integrated **PDL configurator**. It adjusts a first-pass set of disruption parameters in the live visualization and emits a downloadable `*.pdl.yaml` document plus its matching `*.roster.yaml` sidecar for later execution through `provider_simenv.main --pdl ...`.
 
@@ -91,22 +91,23 @@ The generated files keep the shipped scenario topology and narrow the document t
 python -m provider_simenv.main --pdl /path/to/generated-scenario.pdl.yaml
 ```
 
-### Execute from the dashboard (Issue #26)
+### Execute from the dashboard
 
-Execution requires the API from [PR #50](https://github.com/PROVIDER-Project/simenv/pull/50).
-Until it is merged, run the API from its `49-simulation-api` branch in a separate checkout.
+Execution requires the [simulation API](../docs/api.md) and a reachable PostgreSQL
+database: API jobs record to it and fail without it.
 The frontend can still display playback and export PDL without the API.
 
-1. In the **API checkout**, install and start the real service (Python 3.10+):
+1. From the repository root, install and start the real service (Python 3.10+):
 
    ```bash
-   pip install -e '.[api]'
+   pip install -e '.[api,db]'
    SIMENV_API_DATA_DIR=./data/api \
+   PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/provider_simenv \
      uvicorn provider_simenv.api.app:app --host 127.0.0.1 --port 8000 --workers 1
    ```
 
-   Alternatively, run `docker compose -f compose.api.yml up --build -d` in that
-   checkout. See PR #50's `docs/api.md` for API deployment details.
+   Alternatively, run `docker compose -f compose.api.yml up --build -d`. See
+   [`docs/api.md`](../docs/api.md) for API deployment details.
 
 2. In this checkout's `web/`, run `npm ci` and `npm run dev`, then open
    <http://localhost:5173>. Vite proxies `/api/*` to `http://127.0.0.1:8000/*`,
@@ -152,28 +153,42 @@ the `/api` prefix (for example `/api/simulations` → `/simulations`). Vite's pr
 is not bundled into the static build. If your deployment exposes the API at
 another same-origin prefix, set `VITE_SIMENV_API_BASE_URL` during `npm run build`.
 A direct cross-origin URL requires the API/deployment to allow the frontend
-origin via CORS; PR #50's default service does not enable CORS.
+origin via CORS; the default API service does not enable CORS.
 
 #### Viewing the new results
 
 Completion means the API saved the run; the globe continues playing its loaded
 `bundle.json`. The API currently provides status/log endpoints, not a downloadable
-playback bundle. To display a completed API run, export its CSVs and reload the page.
+playback bundle. To display a completed API run, export it and reload the page.
 With a local API data directory, run from this repository root:
 
 ```bash
 python -m provider_simenv.export_bundle \
-  --input /absolute/path/to/api-data/jobs/<run-id>/output/<run-id> \
+  --run <run-id> \
+  --pdl /absolute/path/to/api-data/jobs/<run-id>/input/scenario.pdl.yaml \
   --scenario 1 --output web/public/bundle.json
 ```
 
-For Docker, first copy outputs using the API checkout's Compose file:
+A dashboard run is made with the generated PDL it was submitted with, not with the
+default `s1-soja.pdl.yaml`. The exporter checks the PDL's hash against the run and
+refuses a mismatch, so pass the job's own copy with `--pdl`. To read the run's CSV
+files instead of PostgreSQL:
 
 ```bash
-docker compose -f compose.api.yml cp api:/data/jobs/<run-id>/output ./api-output
+python -m provider_simenv.export_bundle --source csv \
+  --input /absolute/path/to/api-data/jobs/<run-id>/output/<run-id> \
+  --pdl /absolute/path/to/api-data/jobs/<run-id>/input/scenario.pdl.yaml \
+  --scenario 1 --output web/public/bundle.json
 ```
 
-Then pass `./api-output/<run-id>` to the exporter using `--input`. For production
+For Docker, first copy the job directory out of the container:
+
+```bash
+docker compose -f compose.api.yml cp api:/data/jobs/<run-id> ./api-job
+```
+
+Then pass `./api-job/input/scenario.pdl.yaml` as `--pdl` (and, with `--source csv`,
+`./api-job/output/<run-id>` as `--input`). For production
 or `npm run preview`, rebuild and redeploy after changing `web/public/bundle.json`,
 or replace the deployed `bundle.json` directly; reloading alone does not update
 the copy already in `web/dist/`.
@@ -206,11 +221,14 @@ The configurator separately submits simulations and monitors them via the API:
 
 ```
 simulation run (Melodie)
-  └─ src/provider_simenv/data/output/<run-id>/Result_Simulator_*.csv
+  ├─ PostgreSQL sim_* views                                (read by default)
+  └─ src/provider_simenv/data/output/<run-id>/Result_Simulator_*.csv   (--source csv)
        └─ python -m provider_simenv.export_bundle
             └─ web/public/bundle.json
                  └─ staticJsonSource  →  DataSource  →  views
 ```
+
+Both sources hold the same values and give the same `bundle.json`.
 
 - `src/data/source.ts` — the `DataSource` interface. Every view depends on this and never on
   a concrete source.
@@ -227,33 +245,42 @@ wrong placement. Positions are approximate, not GIS accurate.
 ### Regenerating `bundle.json`
 
 Only needed after a new simulation run. From the **repository root**, with the Python
-environment installed (`pip install -e '.[dev]'`):
+environment installed (`pip install -e '.[dev]'`) and PostgreSQL running (see "PostgreSQL
+Setup" in the root `README.md`):
 
 ```bash
-# 1. Run the simulation (writes Result_Simulator_*.csv to data/output/<run-id>/).
+# 1. Run the simulation (writes the run to PostgreSQL and Result_Simulator_*.csv
+#    to data/output/<run-id>/).
 #    Run from the package directory — Melodie resolves data/ paths from the cwd.
 cd src/provider_simenv
 python main.py --pdl scenarios/s1-soja.pdl.yaml
 cd ../..
 
-# 2. Export the CSVs to the web bundle (newest completed run)
+# 2. Export the run to the web bundle (newest completed run, from PostgreSQL)
 python -m provider_simenv.export_bundle --scenario 1
 
 # ...or export one recorded run by id
 python -m provider_simenv.export_bundle --scenario 1 --run 20260913T113537Z-f2b03f8b
+
+# ...or read the run's CSV files instead of PostgreSQL
+python -m provider_simenv.export_bundle --scenario 1 --source csv
 ```
 
-This writes `web/public/bundle.json`. Each simulation run writes into its own
-`data/output/<run-id>/` directory, indexed in `data/output/runs.json`. Without `--run` or
-`--input` the exporter reads the newest completed run. Options:
+This writes `web/public/bundle.json`. Each run is recorded in PostgreSQL (`sim_run`) and in
+its own `data/output/<run-id>/` directory, indexed in `data/output/runs.json`. Without `--run`
+the exporter reads the newest completed run. Options:
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--scenario` | `1` | `id_scenario` to export. `0` = baseline, `1` = PDL shock. |
-| `--run` | newest completed run | Run id to export, as listed in `data/output/runs.json`. |
-| `--input` | — | Directory holding the `Result_Simulator_*.csv` files. Read directly, bypassing the run registry. |
+| `--source` | `postgres` | Where to read the run: `postgres` (the `sim_*` views) or `csv` (the run's CSV files). |
+| `--run` | newest completed run | Run id to export, as listed in `sim_run` (or in `data/output/runs.json` with `--source csv`). |
+| `--input` | — | Directory holding the `Result_Simulator_*.csv` files. Read directly, bypassing the run registry. Needs `--source csv`. |
 | `--output` | `web/public/bundle.json` | Target path. |
-| `--pdl` | `s1-soja.pdl.yaml` | PDL name recorded in the bundle metadata. |
+| `--pdl` | `s1-soja.pdl.yaml` | PDL the run was made with; supplies the topology and the bundle metadata. With `--source postgres` its hash must match the run's, or the export is refused. |
+
+A run started without `--pdl`, or with `--no-postgres`, can only be exported with
+`--source csv`.
 
 On Windows, set `PYTHONIOENCODING=utf-8` before running either step — the scenario summary
 prints box-drawing characters that raise `UnicodeEncodeError` on a cp1252 console.

@@ -27,6 +27,14 @@ def main() -> None:
         help="Cascade ID; defaults to the first cascade",
     )
     parser.add_argument("--label", help="Optional label stored with the run")
+    parser.add_argument(
+        "--no-postgres",
+        action="store_true",
+        help=(
+            "Run without writing to PostgreSQL. Without this flag an unreachable "
+            "database fails the run rather than being skipped silently."
+        ),
+    )
     execute_cli(**vars(parser.parse_args()))
 
 

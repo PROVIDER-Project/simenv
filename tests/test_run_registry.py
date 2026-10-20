@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from provider_simenv import run_registry
 
 @pytest.fixture(autouse=True)
 def stable_git_sha(monkeypatch):
-    monkeypatch.setattr(run_registry, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(run_registry, "git_sha", lambda: "abc123")
 
 
 def record_run(
@@ -21,10 +22,12 @@ def record_run(
     (output_root / run_id).mkdir()
     run_registry.start_run(
         str(output_root),
-        run_id,
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
+        run_registry.run_record(
+            run_id,
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+        ),
     )
     if status is not None:
         run_registry.finish_run(str(output_root), run_id, status=status)
@@ -62,11 +65,13 @@ def test_start_then_finish_round_trips(tmp_path):
 
     run_registry.start_run(
         str(tmp_path),
-        run_id,
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
-        label="smoke",
+        run_registry.run_record(
+            run_id,
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+            label="smoke",
+        ),
     )
     run_registry.finish_run(str(tmp_path), run_id, status="completed")
 
@@ -162,10 +167,12 @@ def test_start_run_repairs_corrupt_manifest(tmp_path, contents):
 
     run_registry.start_run(
         str(tmp_path),
-        "20260913T100000Z-aaaaaaaa",
-        pdl=None,
-        scenario_ids=[0, 1],
-        period_num=365,
+        run_registry.run_record(
+            "20260913T100000Z-aaaaaaaa",
+            pdl=None,
+            scenario_ids=[0, 1],
+            period_num=365,
+        ),
     )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -212,3 +219,22 @@ def test_resolve_raises_on_corrupt_manifest(tmp_path, contents, message):
 
     assert manifest_path.exists()
     assert list(tmp_path.glob("runs.json.corrupt-*")) == []
+
+
+def test_record_hashes_roster_sidecar_only_when_present(tmp_path):
+    pdl = tmp_path / "x.pdl.yaml"
+    pdl.write_text("entities: []\n", encoding="utf-8")
+
+    def record():
+        return run_registry.run_record(
+            "20261020T090000Z-aaaaaaaa",
+            pdl=str(pdl),
+            scenario_ids=[0],
+            period_num=1,
+        )
+
+    assert record()["roster_sha256"] is None
+
+    roster = tmp_path / "x.roster.yaml"
+    roster.write_bytes(b"edges: []\n")
+    assert record()["roster_sha256"] == hashlib.sha256(b"edges: []\n").hexdigest()

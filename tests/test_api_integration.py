@@ -1,9 +1,11 @@
+import functools
 import json
 
 import pandas as pd
 from api_helpers import PDL, ROSTER, wait_for
 from fastapi.testclient import TestClient
 
+import provider_simenv.api.app as app_module
 from provider_simenv import execution
 from provider_simenv.api.app import create_app
 
@@ -19,6 +21,11 @@ def test_real_api_simulation_has_one_id_progress_and_csv(
     rows["period_num"] = 2
     rows.to_csv(template_dir / "SimulatorScenarios_template.csv", index=False)
     monkeypatch.setattr(execution, "INPUT_DIR", template_dir)
+    monkeypatch.setattr(
+        app_module,
+        "prepare_run",
+        functools.partial(execution.prepare_run, no_postgres=True),
+    )
     data_dir = tmp_path / "api"
     with TestClient(create_app(data_dir)) as client:
         response = client.post(

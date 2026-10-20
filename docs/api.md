@@ -41,12 +41,30 @@ its recorded jobs. On restart, completed and failed jobs remain inspectable,
 previously queued jobs resume, and interrupted running jobs are marked
 failed with their last progress retained. They are not automatically retried.
 
+## PostgreSQL
+
+Every job writes its results to PostgreSQL under its API ID (the `sim_run`
+row), step by step. A job whose database is unreachable fails rather than
+finishing without its data. The database is external: the Compose file
+contains only the API, so point it at a database with
+`PROVIDER_SIMENV_POSTGRES_URL`:
+
+```bash
+PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@host.docker.internal:5432/provider_simenv \
+  docker compose -f compose.api.yml up --build -d
+```
+
+Inside the container, `localhost` is the container itself; a database on the
+host machine is reached as `host.docker.internal`. Docker Desktop provides that
+name; on Linux, add it with `--add-host=host.docker.internal:host-gateway`.
+
 ## Run the Docker image directly
 
 ```bash
 docker build -f Dockerfile.api -t provider-simenv-api .
 docker volume create simenv_api_data
 docker run --rm --name simenv-api -p 8000:8000 \
+  -e PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@host.docker.internal:5432/provider_simenv \
   -v simenv_api_data:/data provider-simenv-api
 ```
 
@@ -67,14 +85,16 @@ Python 3.10 or newer is required. From the repository root:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[api]'
+pip install -e '.[api,db]'
 SIMENV_API_DATA_DIR=./data/api \
   uvicorn provider_simenv.api.app:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
 On Windows, activate with `.venv\Scripts\activate` and set the environment
 variable using your shell's syntax. The default local data directory is
-`./data/api`, relative to the server's working directory.
+`./data/api`, relative to the server's working directory. Without
+`PROVIDER_SIMENV_POSTGRES_URL`, jobs connect to the local database described
+under "PostgreSQL Setup" in the repository README.
 
 Use one Uvicorn worker and one service instance per data directory. Each
 instance runs at most one simulation at a time; additional jobs are queued.
@@ -264,15 +284,33 @@ stderr are captured.
 ```
 
 Each job has independent inputs and outputs, and never changes the bundled
-working CSV. The output registry uses the same ID returned by the API.
-For local runs, read CSVs directly under the configured data directory.
-For Compose, copy one run's output from the container:
+working CSV. The output registry uses the same ID returned by the API, and
+each job is also recorded in PostgreSQL under that ID.
+
+To export a job to the web bundle, pass its ID and its own PDL copy. A job runs
+the PDL and roster it was submitted with, and the exporter refuses either file
+if its hash does not match the run's. The job's roster copy sits beside its PDL
+copy, so pointing `--pdl` at the job's input folder picks up both:
 
 ```bash
-docker compose -f compose.api.yml cp api:/data/jobs/<id>/output ./api-output
-python -m provider_simenv.export_bundle --input ./api-output/<id> --scenario 1
+python -m provider_simenv.export_bundle --run <id> \
+  --pdl <data-root>/jobs/<id>/input/scenario.pdl.yaml --scenario 1
 ```
 
-The API image includes CSV output support; it requires no PostgreSQL
-service. The existing CLI/Postgres setup is documented separately in the
-repository README.
+To read the job's CSV files instead of PostgreSQL:
+
+```bash
+python -m provider_simenv.export_bundle --source csv \
+  --input <data-root>/jobs/<id>/output/<id> \
+  --pdl <data-root>/jobs/<id>/input/scenario.pdl.yaml --scenario 1
+```
+
+For Compose, first copy the job directory from the container and use
+`./api-job` in place of `<data-root>/jobs/<id>`:
+
+```bash
+docker compose -f compose.api.yml cp api:/data/jobs/<id> ./api-job
+```
+
+The API image includes PostgreSQL client support; the database itself is set
+up as described in the repository README.

@@ -21,15 +21,19 @@ Step order each timestep (derived, not hardcoded):
 import logging
 from Melodie import Model
 from pathlib import Path
+from typing import ClassVar
 from .event_tracker import EventTracker
 from .topology import build_roster
 from .environment import SupplyChainEnvironment
 from .data_collector import SupplyChainDataCollector
+from .tick_writer import TickWriter
 
 logger = logging.getLogger(__name__)
 
 
 class SupplyChainModel(Model):
+    _tick_writer: ClassVar[TickWriter]
+    _run_id: ClassVar[str]
 
     def create(self):
         """
@@ -52,7 +56,7 @@ class SupplyChainModel(Model):
 
     def _roster_pdl_path(self) -> str:
         """
-        PDL the roster is derived from: the class _pdl_path set by main.py for a
+        PDL the roster is derived from: the class _pdl_path set by execution.py for a
         swapped PDL, else the shipped scenario so the model runs standalone.
         """
         default = Path(__file__).parent / "scenarios" / "s1-soja.pdl.yaml"
@@ -277,6 +281,15 @@ class SupplyChainModel(Model):
         # Record snapshot
         self.data_collector.collect(t)
 
+        tick_writer = getattr(self.__class__, "_tick_writer", None)
+        if tick_writer is not None:
+            tick_writer.write_tick(
+                self,
+                id_scenario=self.scenario.id,
+                run_id=self.__class__._run_id,
+                t=t,
+            )
+
 
     def _init_event_tracker(self) -> None:
         """
@@ -338,19 +351,19 @@ class SupplyChainModel(Model):
             """
             Generator variant for external step-by-step control (e.g. RL agents).
             Yields a state snapshot dict after every step; the caller drives the loop.
+
+            Does not open or close a run. A step is recorded to Postgres only when
+            `_tick_writer` and `_run_id` are set on the class; the caller builds the
+            writer, calls `open_run()` before the first step and `close_run()` after
+            the last, as `execution.py` does. A writer set without an opened run fails at
+            the first step with an error saying no run was opened. Without a writer,
+            nothing is recorded.
             """
-            from .db_config import PostgresDBConfig
-            from .tick_writer import TickWriter
-
-            id_scenario = getattr(self.scenario, "id", 0)
-            tick_writer = TickWriter.from_config(PostgresDBConfig(), reset=(id_scenario == 0))
-
             self._init_event_tracker()
             self._crosscheck_bindings()
 
             for t in range(self.scenario.period_num):
                 self._do_step(t)
-                tick_writer.write_tick(self, id_scenario=id_scenario, id_run=0, t=t)
                 yield {
                     "step": t,
                     "shock_scale": self.environment.shock_scale,
