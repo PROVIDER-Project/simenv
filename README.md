@@ -169,8 +169,9 @@ python -m provider_simenv.export_bundle --scenario 1 --source csv
 
 The exporter reads PostgreSQL by default. Without `--run` it takes the newest completed run
 in `sim_run`. The `--pdl` file (default `s1-soja.pdl.yaml`) must be the file the run was made
-with; the exporter checks its hash and refuses a mismatch. Runs started without `--pdl`
-record no PDL and can only be exported with `--source csv`.
+with, and so must the roster sidecar beside it. The exporter checks both hashes and refuses
+a mismatch, including a sidecar that was added or removed since the run. Runs started without
+`--pdl` record no PDL and can only be exported with `--source csv`.
 
 `--source csv` reads the run's CSV files instead and resolves runs through
 `data/output/runs.json`; both sources give the same bundle. `--input DIR` reads a CSV

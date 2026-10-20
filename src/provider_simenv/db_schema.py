@@ -18,8 +18,10 @@ sim_<role>_view per role pivots metrics into columns. Every name embedded in
 view SQL comes from a constant in this codebase and is checked to be a plain
 identifier.
 
-Every table statement is CREATE TABLE IF NOT EXISTS and every view statement
-is CREATE OR REPLACE VIEW; nothing in this codebase drops a table or a view.
+Every table statement is CREATE TABLE IF NOT EXISTS, followed where a column
+was added later by ALTER TABLE ... ADD COLUMN IF NOT EXISTS, and every view
+statement is CREATE OR REPLACE VIEW. Nothing in this codebase drops a table,
+a column or a view.
 docs/postgres-schema.md documents the columns, their units, and which of them
 an external consumer may rely on.
 """
@@ -121,12 +123,14 @@ DDL = (
                      CHECK (status IN ('running', 'completed', 'failed')),
         pdl          text,
         pdl_sha256   text,
+        roster_sha256 text,
         scenario_ids integer[]   NOT NULL,
         period_num   integer     NOT NULL,
         git_sha      text,
         label        text
     )
     """,
+    "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS roster_sha256 text",
     """
     CREATE TABLE IF NOT EXISTS sim_agent (
         agent_key integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

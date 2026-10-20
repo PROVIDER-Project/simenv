@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -218,3 +219,22 @@ def test_resolve_raises_on_corrupt_manifest(tmp_path, contents, message):
 
     assert manifest_path.exists()
     assert list(tmp_path.glob("runs.json.corrupt-*")) == []
+
+
+def test_record_hashes_roster_sidecar_only_when_present(tmp_path):
+    pdl = tmp_path / "x.pdl.yaml"
+    pdl.write_text("entities: []\n", encoding="utf-8")
+
+    def record():
+        return run_registry.run_record(
+            "20261020T090000Z-aaaaaaaa",
+            pdl=str(pdl),
+            scenario_ids=[0],
+            period_num=1,
+        )
+
+    assert record()["roster_sha256"] is None
+
+    roster = tmp_path / "x.roster.yaml"
+    roster.write_bytes(b"edges: []\n")
+    assert record()["roster_sha256"] == hashlib.sha256(b"edges: []\n").hexdigest()

@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS sim_run (
                  CHECK (status IN ('running', 'completed', 'failed')),
     pdl          text,
     pdl_sha256   text,
+    roster_sha256 text,
     scenario_ids integer[]   NOT NULL,
     period_num   integer     NOT NULL,
     git_sha      text,
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS sim_run (
 | `status` | `text` | `running`, `completed` or `failed`. A row stuck at `running` is a crashed run. |
 | `pdl` | `text` | PDL filename, basename only. `NULL` for a run without `--pdl`. |
 | `pdl_sha256` | `text` | SHA-256 of the PDL file as read. The exact provenance of the input. The exporter refuses to pair a run with a PDL file whose hash differs, so a run with no recorded PDL cannot be exported from this database. |
+| `roster_sha256` | `text` | SHA-256 of the roster sidecar beside the PDL, as read. `NULL` when the PDL had no sidecar. The exporter rebuilds the topology from that sidecar too, so it refuses a run whose sidecar changed, appeared or disappeared since the run. Existing tables get the column through `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. |
 | `scenario_ids` | `integer[]` | The scenario ids this run executed, e.g. `{0,1}`. |
 | `period_num` | `integer` | Periods per scenario. All scenarios in one run share it. |
 | `git_sha` | `text` | What `HEAD` pointed at. Not proof the working tree matched it. |

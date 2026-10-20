@@ -288,8 +288,9 @@ working CSV. The output registry uses the same ID returned by the API, and
 each job is also recorded in PostgreSQL under that ID.
 
 To export a job to the web bundle, pass its ID and its own PDL copy. A job runs
-the PDL it was submitted with, and the exporter refuses a PDL whose hash does
-not match the run's:
+the PDL and roster it was submitted with, and the exporter refuses either file
+if its hash does not match the run's. The job's roster copy sits beside its PDL
+copy, so pointing `--pdl` at the job's input folder picks up both:
 
 ```bash
 python -m provider_simenv.export_bundle --run <id> \

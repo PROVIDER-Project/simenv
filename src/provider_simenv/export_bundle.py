@@ -41,7 +41,9 @@ from .db_config import PostgresDBConfig
 from .db_schema import ENVIRONMENT_ROLE, role_view_name
 from .pdl_loader import PDLLoader
 from .run_registry import resolve_run, run_dir
-from .topology import build_flow_adjacency, build_roster, load_roster_sidecar
+from .topology import (
+    build_flow_adjacency, build_roster, load_roster_sidecar, sidecar_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,34 @@ def _resolve_pdl_path(pdl: str) -> Path:
         if scenario_path.is_file():
             return scenario_path
     raise FileNotFoundError(f"PDL file not found: {pdl}")
+
+
+def _check_run_inputs(run, pdl_path: Path) -> None:
+    """
+    Raises unless pdl_path and the roster sidecar beside it are the files the
+    run was made with. A run recorded without a sidecar matches only a PDL
+    that still has none.
+    """
+    if _sha256(pdl_path) != run.pdl_sha256:
+        raise RuntimeError(
+            f"--pdl {pdl_path.name} is not the PDL run {run.run_id} "
+            f"was made with ({run.pdl or 'none recorded'})"
+        )
+    roster = sidecar_path(pdl_path)
+    digest = _sha256(roster) if roster.exists() else None
+    if digest == run.roster_sha256:
+        return
+    if run.roster_sha256 is None:
+        problem = f"was made without a roster sidecar, but {roster.name} exists"
+    elif digest is None:
+        problem = f"was made with a roster sidecar, but {roster.name} is missing"
+    else:
+        problem = f"was made with a different {roster.name}"
+    raise RuntimeError(f"run {run.run_id} {problem}")
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _entity_metadata(pdl_path: Path) -> dict[str, dict]:
@@ -354,9 +384,10 @@ def build_bundle(
 def _postgres_bundle(run_id: str | None, scenario: int, pdl: str) -> dict:
     """
     The bundle for a run read from PostgreSQL: the named run, or the newest
-    completed one in sim_run. The --pdl file must be the one the run was made
-    with (sim_run.pdl_sha256), so one PDL's topology is never bound to another
-    run's numbers.
+    completed one in sim_run. The --pdl file and the roster sidecar beside it
+    must be the ones the run was made with (sim_run.pdl_sha256,
+    sim_run.roster_sha256), so one topology is never bound to another run's
+    numbers.
     """
     from sqlalchemy import create_engine, text
     from sqlalchemy.engine import make_url
@@ -376,7 +407,8 @@ def _postgres_bundle(run_id: str | None, scenario: int, pdl: str) -> dict:
         with engine.connect() as conn:
             if run_id is None:
                 run = conn.execute(text(
-                    "SELECT run_id, status, pdl, pdl_sha256 FROM sim_run"
+                    "SELECT run_id, status, pdl, pdl_sha256, roster_sha256"
+                    " FROM sim_run"
                     " WHERE status = 'completed'"
                     " ORDER BY run_id DESC LIMIT 1"
                 )).one_or_none()
@@ -384,7 +416,8 @@ def _postgres_bundle(run_id: str | None, scenario: int, pdl: str) -> dict:
                     raise RuntimeError("no completed run in sim_run")
             else:
                 run = conn.execute(text(
-                    "SELECT run_id, status, pdl, pdl_sha256 FROM sim_run"
+                    "SELECT run_id, status, pdl, pdl_sha256, roster_sha256"
+                    " FROM sim_run"
                     " WHERE run_id = :run_id"
                 ), {"run_id": run_id}).one_or_none()
                 if run is None:
@@ -393,12 +426,7 @@ def _postgres_bundle(run_id: str | None, scenario: int, pdl: str) -> dict:
                 logger.warning("run %s has status %s", run.run_id, run.status)
 
             pdl_path = _resolve_pdl_path(pdl)
-            digest = hashlib.sha256(pdl_path.read_bytes()).hexdigest()
-            if digest != run.pdl_sha256:
-                raise RuntimeError(
-                    f"--pdl {pdl_path.name} is not the PDL run {run.run_id} "
-                    f"was made with ({run.pdl or 'none recorded'})"
-                )
+            _check_run_inputs(run, pdl_path)
 
             logger.info("Resolved run %s from sim_run", run.run_id)
             return build_bundle(
