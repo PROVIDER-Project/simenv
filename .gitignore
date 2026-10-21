@@ -54,3 +54,6 @@ web/dist/
 # API state and Melodie temporary files
 data/api/
 .melodie/
+.superpowers/
+.worktrees/
+web/.test-build/

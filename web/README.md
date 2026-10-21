@@ -1,5 +1,17 @@
 # provider-simenv — web frontend
 
+## Database playback (Issue #58)
+
+Run `docker compose -f compose.playback.yml up --build -d` from the repository
+root, then open http://localhost:8080 for recorded-run/scenario selection and
+on-demand database frames. See [Database playback](../docs/playback.md) for API
+configuration, buffering, raw-data fidelity and performance tests.
+
+`VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
+`VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
+explicitly uses its static exported demo. The legacy demo/export workflow below
+applies to that mode; PostgreSQL is required for database playback.
+
 World map / globe view for the PROVIDER simulation environment. Renders the geolocatable
 projection of the soy supply chain — producers, ports, EU processing, livestock — and plays
 back an exported simulation run on a 3D globe.

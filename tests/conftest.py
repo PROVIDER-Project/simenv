@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+pytest_plugins = ["playback_helpers"]
+
 # event_tracker and pdl_loader use bare imports
 # -> package directory itself must be importable
 SRC = Path(__file__).resolve().parent.parent / "src"
