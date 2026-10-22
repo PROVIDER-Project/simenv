@@ -379,9 +379,9 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
     Every entity gets its own id-named list. Producers derive their params per
     entity; the other declared kinds share their kind's params recipe.
     """
-    sidecar_path = _sidecar_path(pdl_path)
-    if not sidecar_path.exists():
-        logger.warning("no roster sidecar at %s; entities resolve by (type, sector) only", sidecar_path)
+    roster_path = sidecar_path(pdl_path)
+    if not roster_path.exists():
+        logger.warning("no roster sidecar at %s; entities resolve by (type, sector) only", roster_path)
     doc = PDLLoader(pdl_path)._doc
     sidecar = load_roster_sidecar(pdl_path)
     entities = [*(doc.get("entities") or []), *sidecar.entities]
@@ -627,5 +627,4 @@ def execution_order(adjacency: dict[str, tuple[str, ...]]) -> list[str]:
         order.extend(remaining)
 
     return order
-
 
