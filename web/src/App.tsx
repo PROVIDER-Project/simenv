@@ -4,6 +4,7 @@ import type { Bundle } from './data/types'
 import { resolveScene } from './data/gazetteer'
 import { designVars } from './design/tokens'
 import GlobeView from './globe/GlobeView'
+import ScenarioConfigurator from './configurator/ScenarioConfigurator'
 import { buildDynamics } from './playback/dynamics'
 import Timeline from './playback/Timeline'
 import './app.css'
@@ -117,6 +118,8 @@ function MapView({ bundle, sourceName, error }: MapViewProps) {
         <h1>World supply network</h1>
         <p className="sim-frame-subtitle">Soy flows across the Atlantic system</p>
       </header>
+
+      <ScenarioConfigurator meta={bundle.meta} />
 
       {stepCount > 1 && (
         <Timeline

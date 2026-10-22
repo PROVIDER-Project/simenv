@@ -1,4 +1,4 @@
-"""Per-agent numeric traces captured before extraction at commit 288e133."""
+"""Numeric traces captured from main before extraction (with sidecar lookup fixed)."""
 
 import json
 from pathlib import Path
@@ -80,4 +80,7 @@ if __name__ == "__main__":
     for name in CASES:
         with pytest.MonkeyPatch.context() as patch:
             cases[name] = capture_trace(name, patch)
-    REFERENCE.write_text(json.dumps({"commit": "288e133", "cases": cases}, indent=2) + "\n")
+    REFERENCE.write_text(json.dumps({
+        "commit": "2419439", "baseline_fix": "sidecar_path name-lookup merge typo",
+        "cases": cases,
+    }, indent=2) + "\n")

@@ -15,8 +15,11 @@ SCENARIOS = Path(__file__).parents[1] / "src/provider_simenv/scenarios"
 def prepared(tmp_path):
     run = execution.prepare_run(
         tmp_path / "jobs",
-        pdl=(SCENARIOS / "s1-soja.pdl.yaml").read_text(),
-        roster=(SCENARIOS / "s1-soja.roster.yaml").read_text(),
+        pdl=(SCENARIOS / "s1-soja.pdl.yaml").read_text(encoding="utf-8"),
+        roster=(SCENARIOS / "s1-soja.roster.yaml").read_text(
+            encoding="utf-8"
+        ),
+        no_postgres=True,
     )
     template = run.input_dir / "SimulatorScenarios_template.csv"
     rows = pd.read_csv(template)
@@ -47,6 +50,20 @@ def test_execution_logs_run_and_resolved_cascade(prepared, caplog, cascade):
     )
 
 
+def test_unreachable_postgres_fails_the_run(prepared, monkeypatch):
+    class UnreachableWriter:
+        @staticmethod
+        def from_config(cfg):
+            raise RuntimeError("database unreachable")
+
+    monkeypatch.setattr(execution, "TickWriter", UnreachableWriter)
+    with pytest.raises(RuntimeError, match="database unreachable"):
+        execution.execute_prepared_run(replace(prepared, no_postgres=False))
+    manifest = json.loads((prepared.output_root / "runs.json").read_text())
+    assert manifest["runs"][0]["run_id"] == prepared.id
+    assert manifest["runs"][0]["status"] == "failed"
+
+
 def test_collision_regenerates_without_overwrite(tmp_path, monkeypatch):
     jobs = tmp_path / "jobs"
     existing = jobs / "collision"
@@ -56,8 +73,10 @@ def test_collision_regenerates_without_overwrite(tmp_path, monkeypatch):
     monkeypatch.setattr(execution, "new_run_id", lambda: next(ids))
     run = execution.prepare_run(
         jobs,
-        pdl=(SCENARIOS / "s1-soja.pdl.yaml").read_text(),
-        roster=(SCENARIOS / "s1-soja.roster.yaml").read_text(),
+        pdl=(SCENARIOS / "s1-soja.pdl.yaml").read_text(encoding="utf-8"),
+        roster=(SCENARIOS / "s1-soja.roster.yaml").read_text(
+            encoding="utf-8"
+        ),
     )
     assert run.id == "fresh"
     assert (existing / "sentinel").read_text() == "keep"
@@ -116,7 +135,11 @@ def test_cli_defaults_preserved(tmp_path, monkeypatch):
 
     monkeypatch.setattr(execution, "Simulator", NoWorkSimulator)
     execution.execute_cli(
-        pdl=None, cascade=None, label=None, postgres_url=None
+        pdl=None,
+        cascade=None,
+        label=None,
+        postgres_url=None,
+        no_postgres=True,
     )
     assert pd.read_csv(private / "SimulatorScenarios.csv")["id"].tolist() == [
         0,

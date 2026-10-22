@@ -1,5 +1,6 @@
 {
-  "commit": "288e133",
+  "commit": "2419439",
+  "baseline_fix": "sidecar_path name-lookup merge typo",
   "cases": {
     "baseline": {
       "initial": {
@@ -106,7 +107,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -118,7 +119,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -223,7 +224,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -394,7 +395,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -406,7 +407,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -511,7 +512,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -682,7 +683,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -694,7 +695,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -799,7 +800,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -970,7 +971,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -982,7 +983,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -1087,7 +1088,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -1258,7 +1259,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -1270,7 +1271,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -1375,7 +1376,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -1546,7 +1547,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -1558,7 +1559,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -1663,7 +1664,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -1834,7 +1835,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -1846,7 +1847,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -1951,7 +1952,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -2122,7 +2123,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -2134,7 +2135,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -2239,7 +2240,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -2412,7 +2413,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -2424,7 +2425,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -2529,7 +2530,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -2700,7 +2701,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -2712,7 +2713,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -2817,7 +2818,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -2988,7 +2989,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -3000,7 +3001,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -3105,7 +3106,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -3276,7 +3277,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -3288,7 +3289,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -3393,7 +3394,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -3564,7 +3565,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -3576,7 +3577,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -3681,7 +3682,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -3852,7 +3853,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -3864,7 +3865,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -3969,7 +3970,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -4140,7 +4141,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -4152,7 +4153,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -4257,7 +4258,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -4428,7 +4429,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -4440,7 +4441,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -4545,7 +4546,7 @@
             "storage_utilization": 0.04025201260063003
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -4718,7 +4719,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -4730,7 +4731,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -4835,7 +4836,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -4993,7 +4994,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -5005,7 +5006,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -5110,7 +5111,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -5268,7 +5269,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -5280,7 +5281,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -5385,7 +5386,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -5543,7 +5544,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -5555,7 +5556,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -5660,7 +5661,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -5818,7 +5819,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -5830,7 +5831,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -5935,7 +5936,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -6093,7 +6094,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -6105,7 +6106,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -6210,7 +6211,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -6368,7 +6369,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -6380,7 +6381,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -6485,7 +6486,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -6643,7 +6644,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -6655,7 +6656,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -6760,7 +6761,7 @@
             "storage_utilization": 0.04025201260063003
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -6920,7 +6921,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -6932,7 +6933,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -7037,7 +7038,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -7208,7 +7209,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -7220,7 +7221,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -7325,7 +7326,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -7496,7 +7497,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -7508,7 +7509,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -7613,7 +7614,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -7784,7 +7785,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -7796,7 +7797,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -7901,7 +7902,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -8072,7 +8073,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -8084,7 +8085,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -8189,7 +8190,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -8360,7 +8361,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -8372,7 +8373,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -8477,7 +8478,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -8648,7 +8649,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -8660,7 +8661,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -8765,7 +8766,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -8936,7 +8937,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -8948,7 +8949,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -9053,7 +9054,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -9226,7 +9227,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -9238,7 +9239,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -9343,7 +9344,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -9514,7 +9515,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -9526,7 +9527,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -9631,7 +9632,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -9802,7 +9803,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -9814,7 +9815,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -9919,7 +9920,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -10090,7 +10091,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -10102,7 +10103,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -10207,7 +10208,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -10378,7 +10379,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -10390,7 +10391,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -10495,7 +10496,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -10666,7 +10667,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -10678,7 +10679,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -10783,7 +10784,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -10954,7 +10955,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -10966,7 +10967,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -11071,7 +11072,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -11242,7 +11243,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -11254,7 +11255,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -11359,7 +11360,7 @@
             "storage_utilization": 0.04025201260063003
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": true,
@@ -11532,7 +11533,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -11544,7 +11545,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -11649,7 +11650,7 @@
             "storage_utilization": 0.0
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -11820,7 +11821,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -11832,7 +11833,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -11855,8 +11856,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -11872,8 +11873,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -11889,8 +11890,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -11937,7 +11938,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -12108,7 +12109,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -12120,7 +12121,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -12143,8 +12144,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12160,8 +12161,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12177,8 +12178,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12225,7 +12226,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -12396,7 +12397,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -12408,7 +12409,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -12431,8 +12432,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12448,8 +12449,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12465,8 +12466,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12513,7 +12514,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -12684,7 +12685,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -12696,7 +12697,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -12719,8 +12720,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12736,8 +12737,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12753,8 +12754,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -12801,7 +12802,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -12972,7 +12973,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -12984,7 +12985,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -13007,8 +13008,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13024,8 +13025,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13041,8 +13042,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13089,7 +13090,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -13260,7 +13261,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -13272,7 +13273,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -13295,8 +13296,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13312,8 +13313,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13329,8 +13330,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13377,7 +13378,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,
@@ -13548,7 +13549,7 @@
             "transit_steps": 0
           }
         ],
-        "processors": [
+        "eu_oil_mills": [
           {
             "role": "processor",
             "active": true,
@@ -13560,7 +13561,7 @@
             "conversion_ratio": 0.8
           }
         ],
-        "feed_manufacturers": [
+        "feed_mills": [
           {
             "role": "feed_manufacturer",
             "active": true,
@@ -13583,8 +13584,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13600,8 +13601,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13617,8 +13618,8 @@
             "bankruptcy_threshold_days": 21,
             "base_yield": 0.0,
             "margin": 0.0,
-            "feed_received": 0.0,
-            "livestock_output": 0.0,
+            "feed_received": 0,
+            "livestock_output": 0,
             "size_sigma": 0.0,
             "size_factor": 1.0
           }
@@ -13665,7 +13666,7 @@
             "storage_utilization": 0.03500175008750438
           }
         ],
-        "feed_traders": [
+        "eu_feed_trader": [
           {
             "role": "feed_trader",
             "active": false,

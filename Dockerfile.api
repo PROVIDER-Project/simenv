@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md /app/
 COPY src /app/src
-RUN uv export --frozen --extra api --no-dev --no-emit-project --output-file /tmp/requirements.txt \
+RUN uv export --frozen --extra api --extra db --no-dev --no-emit-project --output-file /tmp/requirements.txt \
     && pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt \
     && pip install --no-cache-dir --no-deps . \
     && rm /tmp/requirements.txt /usr/local/bin/uv \

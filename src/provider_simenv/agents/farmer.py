@@ -20,16 +20,11 @@ class Farmer(SupplyChainAgent):
                 "agent_id": self.id}
 
     def _step_input(self):
-        upstream, _ = self._sources(self.model.upstream(self.list_name))
-        count = sum(
-            len(getattr(self.model, entry.archetype.name).filter(
-                lambda consumer: consumer.active,
-            ))
-            for entry in self.model._roster
-            if entry.archetype.role == ROLE_CONSUMER
-        )
-        return {**super()._step_input(), "upstream": upstream,
-                "consumer_count": count}
+        sources = list(self.model.upstream(self.list_name) or ())
+        upstream, _ = self._sources(sources)
+        for record, source in zip(upstream, sources):
+            record["recipient_count"] = self.model.active_recipients(source.list_name)
+        return {**super()._step_input(), "upstream": upstream}
 
     def step(self, drought_severity: float = 0.0):
         super().step()

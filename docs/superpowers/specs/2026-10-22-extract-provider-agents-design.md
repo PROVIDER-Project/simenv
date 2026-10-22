@@ -119,6 +119,8 @@ tests must not assume the fallback enforces full JSON Schema semantics.
 Nested schemas require capacity for transport sources and base yield when
 the input state identifies a wholesaler. When the wholesaler role is retained
 from setup rather than repeated, execution checks that requirement explicitly.
+Consumer sources likewise require their individual `recipient_count` in the
+role-aware schema, with the same contextual check for setup-retained roles.
 
 ## Agent-specific behavior
 
@@ -126,8 +128,10 @@ from setup rather than repeated, execution checks that requirement explicitly.
 
 Preserve both producer and consumer roles, size-factor sampling, scaled
 fixed costs and yield, cost-based initial prices, capacity/fertilizer
-effects, feed sharing across all active consumers, and bankruptcy timing.
-The adapter gathers active consumer counts and upstream feed quantities;
+effects, per-trader feed sharing, and bankruptcy timing. Main's per-entity
+roster and feed-allocation changes (#48) are part of the behavioral baseline:
+divide each trader's output across that trader's own active recipients.
+The adapter gathers per-source active recipient counts and feed quantities;
 the agent computes the result. Preserve the currently accepted optional
 `drought_severity` wrapper step argument, which has no behavioral effect.
 

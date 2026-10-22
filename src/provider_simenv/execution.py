@@ -8,17 +8,21 @@ import math
 import os
 import shutil
 import tempfile
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import yaml
 from Melodie import Config, Simulator
 
+from .db_config import PostgresDBConfig
 from .model import SupplyChainModel
 from .pdl_loader import PDLLoader
-from .run_registry import finish_run, new_run_id, start_run
+from .run_registry import finish_run, new_run_id, run_record, start_run
 from .scenario import SupplyChainScenario
+from .tick_writer import TickWriter
 from .topology import build_flow_adjacency, build_roster, execution_order
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -41,6 +45,7 @@ class PreparedRun:
     progress_path: Path
     cascade: str | None
     label: str | None
+    no_postgres: bool = False
 
 
 def _mapping(value, name):
@@ -190,6 +195,7 @@ def prepare_run(
     roster: str | None = None,
     cascade: str | None = None,
     label: str | None = None,
+    no_postgres: bool = False,
 ) -> PreparedRun:
     """Validate first, then reserve a simulation-owned ID and private inputs."""
     _documents(pdl, "PDL")
@@ -225,6 +231,7 @@ def prepare_run(
             directory / "progress.json",
             cascade,
             label,
+            no_postgres,
         )
         (directory / "context.json").write_text(
             json.dumps(
@@ -257,7 +264,13 @@ def load_prepared_run(context_path: Path) -> PreparedRun:
 def write_progress(path: Path, snapshot: dict) -> None:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(snapshot), encoding="utf-8")
-    temporary.replace(path)
+    for attempt in range(5):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            time.sleep(0.01 * (attempt + 1))
+    logger.warning("could not publish progress to %s", path)
 
 
 def read_progress(path: Path) -> dict | None:
@@ -323,6 +336,7 @@ def _execute(
     cascade: str | None,
     label: str | None,
     progress_path: Path | None = None,
+    no_postgres: bool = False,
 ) -> None:
     logger.info("Run id: %s", identity)
     csv_path = input_dir / "SimulatorScenarios.csv"
@@ -367,7 +381,13 @@ def _execute(
         scenario_cls=SupplyChainScenario,
         model_cls=SupplyChainModel,
     )
-    attributes = ("_event_registry", "_pdl_path", "_progress_callback")
+    attributes = (
+        "_event_registry",
+        "_pdl_path",
+        "_progress_callback",
+        "_tick_writer",
+        "_run_id",
+    )
     previous = {key: SupplyChainModel.__dict__.get(key) for key in attributes}
     present = {key for key in attributes if key in SupplyChainModel.__dict__}
     completed = 0
@@ -400,21 +420,36 @@ def _execute(
             publish(None, 0)
         for key, value in injections.items():
             setattr(SupplyChainModel, key, value)
-        start_run(
-            str(output_root),
+        record = run_record(
             identity,
             pdl=pdl,
             scenario_ids=scenario_ids,
             period_num=period_num,
             label=label,
+            started_at=datetime.now(timezone.utc),
         )
+        start_run(str(output_root), record)
+        tick_writer = None
         try:
+            if not no_postgres:
+                tick_writer = TickWriter.from_config(PostgresDBConfig())
+                tick_writer.open_run(record)
+                SupplyChainModel._tick_writer = tick_writer
+                SupplyChainModel._run_id = identity
             simulator.run()
+            if tick_writer is not None:
+                tick_writer.close_run(identity, status="completed")
+            finish_run(str(output_root), identity, status="completed")
         except Exception:
             finish_run(str(output_root), identity, status="failed")
+            if tick_writer is not None:
+                try:
+                    tick_writer.close_run(identity, status="failed")
+                except Exception as exc:
+                    logger.warning(
+                        "could not record the failed run in sim_run: %s", exc
+                    )
             raise
-        else:
-            finish_run(str(output_root), identity, status="completed")
     finally:
         for key in attributes:
             if key in present:
@@ -432,6 +467,7 @@ def execute_prepared_run(run: PreparedRun) -> None:
         cascade=run.cascade,
         label=run.label,
         progress_path=run.progress_path,
+        no_postgres=run.no_postgres,
     )
 
 
@@ -441,6 +477,7 @@ def execute_cli(
     cascade: str | None,
     label: str | None,
     postgres_url: str | None,
+    no_postgres: bool = False,
 ) -> None:
     if postgres_url:
         os.environ["PROVIDER_SIMENV_POSTGRES_URL"] = postgres_url
@@ -452,4 +489,5 @@ def execute_cli(
         pdl=pdl,
         cascade=cascade,
         label=label,
+        no_postgres=no_postgres,
     )
