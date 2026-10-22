@@ -36,10 +36,10 @@ simenv/
         │   ├── s1-soja.pdl.yaml
         │   └── s1-soja.roster.yaml
         ├── agents/
-        │   ├── farmer.py         ← producers + EU livestock farms
-        │   ├── trader.py         ← wholesalers + feed traders
-        │   ├── transport.py      ← land + sea transport operators
-        │   └── process.py        ← processors + feed manufacturers
+        │   ├── farmer.py         ← producer + consumer framework adapter
+        │   ├── trader.py         ← wholesaler + feed-trader adapter
+        │   ├── transport.py      ← land + sea transport adapter
+        │   └── process.py        ← processor + feed-manufacturer adapter
         └── data/
             ├── input/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
@@ -63,6 +63,7 @@ Melodie>=0.6.0
 pandas
 numpy
 pyyaml
+provider-agents (Git dependency, main branch)
 ```
 
 **Optional — only needed for PostgreSQL output:**
@@ -101,6 +102,37 @@ pip install '.[db]'
 ```
 
 ---
+
+## Agent implementations
+
+Decision logic and versioned `AgentSpec` setup/step schemas live in
+[provider-agents](https://github.com/PROVIDER-Project/provider-agents).
+The classes in `provider_simenv.agents` are Melodie adapters: they gather
+upstream state, peer membership, graph metadata and resolved PDL effects,
+then apply the standalone agents' returned state changes. Transport
+admission returns keyed upstream updates, which the adapter applies to
+the original source agents in the same simulation step. Agent state
+remains visible to Melodie's collectors through wrapper attributes.
+
+The runtime dependency targets the agents repository's **main** branch.
+The lockfile records the resolved main revision. Cross-repository changes
+must merge in provider-agents first; refresh the lockfile against main
+after that merge with `uv lock --upgrade-package provider-agents`.
+
+To develop against unmerged agent changes, install a local checkout into
+the simulation environment **after** installing/syncing simenv:
+
+```bash
+git clone https://github.com/PROVIDER-Project/provider-agents.git ../provider-agents
+# Check out the agent implementation branch in that checkout.
+uv pip install --python .venv/bin/python --no-deps -e ../provider-agents
+python -m pytest tests/test_agent_equivalence.py tests/test_agent_adapters.py
+```
+
+`pip install --no-deps -e ../provider-agents` is equivalent in an activated
+environment. This override is local: do not change the committed dependency
+to a development branch, commit, or local path. A later `uv sync` can replace
+the override with main; reinstall the local checkout when needed.
 
 ## Running the Simulation
 

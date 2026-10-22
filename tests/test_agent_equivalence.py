@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -10,7 +11,6 @@ from provider_simenv import topology
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.pdl_loader import PDLLoader
 from provider_simenv.scenario import SupplyChainScenario
-
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = Path(__file__).parent / "fixtures" / "agent_reference.json"
@@ -41,7 +41,7 @@ def capture_trace(case, monkeypatch):
     if case == "sizes":
         scenario.size_sigma_brazil_farms = 0.4
         scenario.farm_size_sigma_eu = 0.4
-    model = SupplyChainModel(SimpleNamespace(), scenario)
+    model = SupplyChainModel(cast(Any, SimpleNamespace()), scenario)
     model._setup()
     model._init_event_tracker()
     if case == "starvation":
