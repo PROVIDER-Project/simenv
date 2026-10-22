@@ -60,6 +60,12 @@ bankruptcy rules, route normalization, cheapest-first sorting, or
 decision-making branches. They may resolve framework identities and
 classify framework objects into explicit input metadata.
 
+Standalone implementations expose the optional host helper
+`requires_observations(state)`. Wrappers query it before gathering framework
+observations so inactive and unknown-role paths do not require topology
+wiring. The helper owns this role/activity decision; the validated public
+step method still produces the original no-op or error.
+
 ## Lifecycle and state synchronization
 
 Use the standalone agent as the owner of internal behavioral state.
@@ -91,7 +97,9 @@ capacity bindings after `post_setup`, as it currently does.
 Each class declares a versioned `AgentSpec` with a stable archetype id,
 description, and all four schemas. Declare properties and required keys
 for each documented message, nested source records, and output patches.
-Use role/mode enums and explicitly describe optional values and defaults.
+Document supported roles and explicitly describe optional values and defaults.
+Role schemas accept strings so original unknown-role errors/no-ops occur
+during dispatch rather than being replaced by schema errors.
 Validate messages via the existing public contract methods, not by
 bypassing them in adapters.
 
@@ -108,6 +116,9 @@ reject otherwise supported simulations. Inactive no-op results and each
 role's partial update shape must be valid. Test schema validation with
 jsonschema installed, and exercise the contract's fallback mode. Contract
 tests must not assume the fallback enforces full JSON Schema semantics.
+Nested schemas require capacity for transport sources and base yield when
+the input state identifies a wholesaler. When the wholesaler role is retained
+from setup rather than repeated, execution checks that requirement explicitly.
 
 ## Agent-specific behavior
 
