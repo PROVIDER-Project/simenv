@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-22-extract-provider-agents-design.md`
 
+**Post-implementation update:** The reference snapshot and comparison test
+named below were temporary migration-verification artifacts. All six scenario
+traces matched the original implementations. At the user's request,
+`tests/fixtures/agent_reference.json` and `tests/test_agent_equivalence.py`
+were then removed from the final tree. Their mentions in the task history
+below describe the completed verification, not ongoing test requirements.
+Focused behavior, contract and adapter tests remain in both repositories.
+
 ## Global Constraints
 
 - Keep only framework wrappers and adapters in simenv.

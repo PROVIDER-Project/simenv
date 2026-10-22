@@ -203,17 +203,19 @@ traces of collected behavioral fields for every agent, including initial
 state and intermediate steps. Cover the shipped scenario with and without
 disruptions, alternate topology, nonzero size variation, constrained
 cheapest-first admission and route splits, consumer starvation through
-bankruptcy, and empty/inactive inputs. Fixtures record numeric/state data,
-not a second maintained copy of the old algorithm.
+bankruptcy, and empty/inactive inputs. These traces and the comparison harness
+are one-off migration verification artifacts. After equivalence has been
+verified, remove them from the final repository at the user's request.
 
 Standalone tests verify all four public contracts and required AgentSpecs,
 initialization, representative role outputs, partial/no-op updates, state
 continuity, transport source patches, and documented errors. Verify these
 agents run without importing simenv or Melodie.
 
-Adapter integration tests compare post-migration per-agent traces to the
+The one-off comparison verifies post-migration per-agent traces against the
 pre-migration reference, including upstream mutations and seeded initial
-values. Existing routing/topology tests remain relevant regression checks.
+values. Keep the focused standalone, adapter, routing, feed-allocation and
+topology tests as ongoing regression coverage.
 Run both repositories' test suites and relevant configured static checks;
 report pre-existing failures separately if discovered.
 

@@ -136,7 +136,7 @@ the simulation environment **after** installing/syncing simenv:
 git clone https://github.com/PROVIDER-Project/provider-agents.git ../provider-agents
 # Check out the agent implementation branch in that checkout.
 uv pip install --python .venv/bin/python --no-deps -e ../provider-agents
-python -m pytest tests/test_agent_equivalence.py tests/test_agent_adapters.py
+python -m pytest tests/test_agent_adapters.py tests/test_transport_routing.py tests/test_feed_allocation.py
 ```
 
 `pip install --no-deps -e ../provider-agents` is equivalent in an activated
