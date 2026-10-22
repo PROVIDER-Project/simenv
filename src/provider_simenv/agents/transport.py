@@ -16,13 +16,11 @@ __all__ = ["ROLE_LAND_TRANSPORT", "ROLE_SEA_TRANSPORT", "Transport"]
 class Transport(SupplyChainAgent):
     agent_type = TransportProviderAgent
 
-    def _state(self):
-        state = super()._state()
-        if hasattr(self, "scenario"):
-            state["margin_transport"] = self.scenario.margin_transport
-        return state
+    def _setup_input(self):
+        return {**super()._setup_input(),
+                "margin_transport": self.scenario.margin_transport}
 
-    def step(self):
+    def _step_context(self):
         upstream, sources = self._sources(self.model.upstream(self.list_name))
         peers = getattr(self.model, self.list_name).filter(lambda a: a.active)
         routes: list[dict[str, Any]] = [
@@ -36,9 +34,10 @@ class Transport(SupplyChainAgent):
             for route in routes for entity in route["entity_ids"]
             if hasattr(self.scenario, f"share_{entity}")
         }
-        data = {**self._step_input(), "upstream": upstream,
+        data: dict[str, Any] = {**self._step_input(), "upstream": upstream,
                 "peer_count": len(peers), "list_name": self.list_name,
                 "routes": routes, "route_weights": weights,
                 "adjacency": {name: list(values) for name, values
                               in self.model._flow_adjacency.items()}}
-        self._apply_result(self._implementation.step(data), sources)
+        data["state"]["margin_transport"] = self.scenario.margin_transport
+        return data, sources

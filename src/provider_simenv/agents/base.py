@@ -40,7 +40,14 @@ class SupplyChainAgent(Agent):
         return {"state": self._state(), "effects": self._effects()}
 
     def step(self):
-        self._apply_result(self._implementation.step(self._step_input()))
+        data = {"state": self._state()}
+        sources = {}
+        if self._implementation.requires_observations(data["state"]):
+            data, sources = self._step_context()
+        self._apply_result(self._implementation.step(data), sources)
+
+    def _step_context(self):
+        return self._step_input(), {}
 
     def _apply_result(self, result, sources=None):
         for name, value in result.items():

@@ -6,7 +6,7 @@ from typing import Any, cast
 import pytest
 from jsonschema import ValidationError
 
-from provider_simenv.agents import Farmer, Transport
+from provider_simenv.agents import Farmer, Process, Trader, Transport
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.scenario import SupplyChainScenario
 
@@ -67,3 +67,26 @@ def test_unknown_source_patch_is_not_dropped():
         agent._apply_result({"upstream_updates": [
             {"key": "missing", "quantity_available": 1.0},
         ]}, {})
+
+
+@pytest.mark.parametrize("cls", [Farmer, Trader, Process, Transport])
+def test_inactive_adapter_does_not_require_framework_observations(cls):
+    agent = cls(1)
+    agent.setup()
+    agent.active = False
+    agent.step()
+    assert agent.active is False
+
+
+@pytest.mark.parametrize("cls,raises", [
+    (Farmer, True), (Trader, False), (Process, False), (Transport, True),
+])
+def test_unknown_role_dispatch_precedes_framework_observations(cls, raises):
+    agent = cls(1)
+    agent.setup()
+    agent.role = "unknown"
+    if raises:
+        with pytest.raises(ValueError, match="unknown role"):
+            agent.step()
+    else:
+        agent.step()
