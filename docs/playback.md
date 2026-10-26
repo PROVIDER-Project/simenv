@@ -1,5 +1,9 @@
 # Database playback
 
+![Database-backed simulation playback at step 150](playback-preview.png)
+
+[View or download the full-size screenshot](playback-preview.png).
+
 ## Start the complete stack
 
 ```bash
