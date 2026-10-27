@@ -18,7 +18,7 @@ import yaml
 from Melodie import Config, Simulator
 
 from .db_config import PostgresDBConfig
-from .model import SupplyChainModel
+from .model import DEFAULT_PDL, SupplyChainModel
 from .pdl_loader import PDLLoader
 from .run_registry import finish_run, new_run_id, run_record, start_run
 from .scenario import SupplyChainScenario
@@ -420,9 +420,11 @@ def _execute(
             publish(None, 0)
         for key, value in injections.items():
             setattr(SupplyChainModel, key, value)
+        topology_pdl = pdl or str(DEFAULT_PDL)
         record = run_record(
             identity,
-            pdl=pdl,
+            pdl=topology_pdl,
+            cascade=registry["cascade_id"] if registry is not None else None,
             scenario_ids=scenario_ids,
             period_num=period_num,
             label=label,
@@ -434,7 +436,7 @@ def _execute(
             if not no_postgres:
                 tick_writer = TickWriter.from_config(PostgresDBConfig())
                 from .scene import build_scene
-                scene = build_scene(Path(pdl)) if pdl else None
+                scene = build_scene(Path(topology_pdl))
                 tick_writer.open_run(record, scene=scene)
                 SupplyChainModel._tick_writer = tick_writer
                 SupplyChainModel._run_id = identity

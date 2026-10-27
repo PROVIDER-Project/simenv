@@ -124,6 +124,7 @@ DDL = (
         pdl          text,
         pdl_sha256   text,
         roster_sha256 text,
+        cascade      text,
         scenario_ids integer[]   NOT NULL,
         period_num   integer     NOT NULL,
         git_sha      text,
@@ -132,6 +133,7 @@ DDL = (
     """,
     "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS roster_sha256 text",
     "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS scene jsonb",
+    "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS cascade text",
     """
     CREATE TABLE IF NOT EXISTS sim_agent (
         agent_key integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

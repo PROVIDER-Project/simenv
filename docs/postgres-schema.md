@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS sim_run (
     pdl          text,
     pdl_sha256   text,
     roster_sha256 text,
+    cascade      text,
     scenario_ids integer[]   NOT NULL,
     period_num   integer     NOT NULL,
     git_sha      text,
@@ -63,9 +64,10 @@ CREATE TABLE IF NOT EXISTS sim_run (
 | `started_at` | `timestamptz` | UTC, written before the simulation starts. |
 | `finished_at` | `timestamptz` | UTC, written when the run ends. `NULL` while running, and on a run that died without recording an end. |
 | `status` | `text` | `running`, `completed` or `failed`. A row stuck at `running` is a crashed run. |
-| `pdl` | `text` | PDL filename, basename only. `NULL` for a run without `--pdl`. |
-| `pdl_sha256` | `text` | SHA-256 of the PDL file as read. The exact provenance of the input. The exporter refuses to pair a run with a PDL file whose hash differs, so a run with no recorded PDL cannot be exported from this database. |
+| `pdl` | `text` | PDL filename, basename only. For a run without `--pdl`, the default PDL the model builds its topology from. `NULL` only on runs recorded before the default was stored. |
+| `pdl_sha256` | `text` | SHA-256 of the PDL file as read. The exact provenance of the input. The exporter refuses to pair a run with a PDL file whose hash differs, so an older run with no recorded PDL cannot be exported from this database. |
 | `roster_sha256` | `text` | SHA-256 of the roster sidecar beside the PDL, as read. `NULL` when the PDL had no sidecar. The exporter rebuilds the topology from that sidecar too, so it refuses a run whose sidecar changed, appeared or disappeared since the run. Existing tables get the column through `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. |
+| `cascade` | `text` | Id of the cascade the run played, as resolved by the loader: the first cascade in the PDL when `--cascade` was not given. `NULL` when no PDL events ran, which is a run without `--pdl`, and on runs recorded before the column existed. Existing tables get the column through `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. |
 | `scenario_ids` | `integer[]` | The scenario ids this run executed, e.g. `{0,1}`. |
 | `period_num` | `integer` | Periods per scenario. All scenarios in one run share it. |
 | `git_sha` | `text` | What `HEAD` pointed at. Not proof the working tree matched it. |
