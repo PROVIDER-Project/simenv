@@ -124,10 +124,21 @@ admission returns keyed upstream updates, which the adapter applies to
 the original source agents in the same simulation step. Agent state
 remains visible to Melodie's collectors through wrapper attributes.
 
-The runtime dependency targets the agents repository's **main** branch.
-The lockfile records the resolved main revision. Cross-repository changes
-must merge in provider-agents first; refresh the lockfile against main
-after that merge with `uv lock --upgrade-package provider-agents`.
+The runtime dependency always targets the agents repository's **main** branch.
+For uv installations, run `uv sync --extra dev` (or select the extras you need).
+The project's `upgrade-package` setting makes every sync fetch current main,
+rather than reuse the historical revision recorded in `uv.lock`. Do not use
+`--frozen` or `--locked` when installing the moving agent dependency.
+For an existing pip environment, refresh the agents explicitly:
+
+```bash
+pip install --upgrade 'provider-agents @ git+https://github.com/PROVIDER-Project/provider-agents.git@main'
+```
+
+Git and read access to the private agents repository are required. Authenticate
+Git locally using `gh auth login` followed by `gh auth setup-git`, or your usual
+Git credential helper. Cross-repository changes must merge in provider-agents
+first before a main-only installation can use them.
 
 To develop against unmerged agent changes, install a local checkout into
 the simulation environment **after** installing/syncing simenv:
@@ -148,7 +159,16 @@ the override with main; reinstall the local checkout when needed.
 
 To submit simulations over HTTP and monitor live progress, see the
 [Simulation API guide](docs/api.md). Its single-service Docker Compose
-setup starts with `docker compose -f compose.api.yml up --build -d`.
+setup starts with:
+
+```bash
+export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
+docker compose -f compose.api.yml up --build -d
+```
+
+Both Compose builds pass this token as a build secret and disable the build
+cache so each build installs current agent main. Direct `docker build` commands
+must likewise use `--no-cache --secret id=github_token,env=GITHUB_TOKEN`.
 API jobs record to PostgreSQL: the API container needs
 `PROVIDER_SIMENV_POSTGRES_URL` set to a reachable database.
 
@@ -241,7 +261,8 @@ The simulation can also be run in a docker container.
 First, build the container. In the repo root run
 
 ```bash
-docker build -t provider-simenv .
+export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
+docker build --no-cache --secret id=github_token,env=GITHUB_TOKEN -t provider-simenv .
 ```
 
 Then you can run the simulation in the container with
@@ -336,7 +357,8 @@ Using our helper script, everything is configured automatically.
 Just run
 
 ```bash
-./compose-up.sh <path to pdl file>
+export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
+./compose-up.sh <path to pdl file> --build
 ```
 from the repository root. This builds the database container, if it's not already up and runs a simulation of the specified pdl file. You can run different configurations by simply repeating this call with the respective paths.
 

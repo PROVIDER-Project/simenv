@@ -20,6 +20,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      no_cache: true
+      secrets:
+        - github_token
     image: provider-simenv:latest
     depends_on:
       postgres:
@@ -35,3 +38,7 @@ services:
 
 volumes:
   simenv_postgres_data:
+
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN

@@ -37,6 +37,10 @@ db = [
 [tool.ruff]
 line-length = 78
 
+[tool.uv]
+# Resolve the moving branch again on every sync instead of reusing its lock entry.
+upgrade-package = ["provider-agents"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

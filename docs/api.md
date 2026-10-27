@@ -15,14 +15,23 @@ the simulation run registry, and the CSV output directory.
 From the repository root:
 
 ```bash
+export GITHUB_TOKEN="$(gh auth token)"
 docker compose -f compose.api.yml up --build -d
 curl http://localhost:8000/health
 ```
 
 This Compose file contains only the API service. The image runs as a
-non-root user and installs Python runtime dependencies from `uv.lock`
-with frozen versions and package hash verification. Update the lock
-deliberately when upgrading dependencies, then rebuild the image.
+non-root user and installs third-party Python dependencies from `uv.lock`
+with frozen versions and package hash verification. `provider-agents` is
+excluded from that export and installed separately from the latest **main**,
+never from the lock's recorded commit. Compose disables build caching so each
+build fetches main again. Update the lock deliberately for other dependencies.
+
+`GITHUB_TOKEN` must have read access to the private `PROVIDER-Project/provider-agents`
+repository. The example uses an authenticated GitHub CLI; an independently
+provided token also works. Compose supplies it as a build secret, consumed by
+a Git credential helper during installation, without adding it to the image
+or the runtime environment. Git is installed in both simulation images.
 Inputs, metadata, logs, and results are stored in the named
 `simenv_api_data` volume mounted at `/data`. To use another host port:
 
@@ -61,7 +70,9 @@ name; on Linux, add it with `--add-host=host.docker.internal:host-gateway`.
 ## Run the Docker image directly
 
 ```bash
-docker build -f Dockerfile.api -t provider-simenv-api .
+export GITHUB_TOKEN="$(gh auth token)"
+docker build --no-cache --secret id=github_token,env=GITHUB_TOKEN \
+  -f Dockerfile.api -t provider-simenv-api .
 docker volume create simenv_api_data
 docker run --rm --name simenv-api -p 8000:8000 \
   -e PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@host.docker.internal:5432/provider_simenv \
@@ -72,7 +83,9 @@ Docker is the deployment target. For local testing, build the same image
 with Podman's Docker format so the image health check is retained:
 
 ```bash
-podman build --format docker -f Dockerfile.api -t provider-simenv-api:latest .
+podman build --format docker --no-cache \
+  --secret id=github_token,env=GITHUB_TOKEN \
+  -f Dockerfile.api -t provider-simenv-api:latest .
 podman-compose -f compose.api.yml up -d --no-build
 ```
 
