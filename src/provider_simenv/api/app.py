@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..execution import InvalidSimulation, prepare_run
@@ -71,6 +72,17 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application):
+        if os.environ.get("PROVIDER_SIMENV_POSTGRES_URL"):
+            from sqlalchemy import create_engine
+
+            from ..db_config import PostgresDBConfig
+            from ..db_schema import initialize_schema
+
+            engine = create_engine(PostgresDBConfig().sqlalchemy_url())
+            try:
+                initialize_schema(engine)
+            finally:
+                engine.dispose()
         root = data_dir or Path(
             os.environ.get("SIMENV_API_DATA_DIR", "./data/api")
         )
@@ -95,6 +107,14 @@ def create_app(
             "Submit PDL documents and monitor queued or running simulations. "
             "The service executes one isolated simulation at a time."
         ),
+    )
+
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[origin.strip() for origin in os.getenv(
+            "SIMENV_API_ALLOWED_ORIGINS", ""
+        ).split(",") if origin.strip()],
+        allow_methods=["GET", "POST"], allow_headers=["Content-Type"],
     )
 
     @application.post("/simulations", status_code=202, response_model=Job)

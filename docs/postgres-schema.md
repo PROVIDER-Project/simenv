@@ -385,6 +385,15 @@ run. A value can never belong to an agent, a metric or a run this database has n
 
 ## 10 · What is not in this database
 
+### Playback scene snapshot (issue #58)
+
+`sim_run.scene` is an additive nullable `jsonb` column. New PDL-backed database
+runs store `{schema_version: 1, pdl, honesty_note, nodes, edges}` from their exact
+inputs before execution. It contains topology/display metadata, never ticks.
+Playback reads unchanged per-agent measurements in bounded windows through
+`sim_tick_readable`. Static export keeps its separate aggregation behavior.
+See [Database playback](playback.md) for the HTTP contract and legacy fallback.
+
 The per-entity `Result_Simulator_*` tables are no longer written to Postgres. They still exist
 as CSV files under `data/output/<run-id>/`, which the parity test compares against, and their
 names still come from the simenv code. Their shape depends on the input PDL, which is exactly

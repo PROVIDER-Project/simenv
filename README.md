@@ -12,6 +12,14 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+### Recorded-run playback
+
+Run `docker compose -f compose.playback.yml up --build -d`, then open
+http://localhost:8080 to submit simulations and select completed runs for
+on-demand database playback. This stack includes separate browser-accessible
+simulation and playback APIs plus internal PostgreSQL. See
+[Database playback](docs/playback.md) for setup, data fidelity and verification.
+
 ### Run a configured scenario from the dashboard
 
 The globe frontend's **PDL configurator** supports **Run simulation**: adjust

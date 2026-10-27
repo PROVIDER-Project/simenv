@@ -89,7 +89,7 @@ class TickWriter:
         self._tick_insert = insert(sim_tick)
 
     @classmethod
-    def from_config(cls, cfg) -> "TickWriter":
+    def from_config(cls, cfg) -> TickWriter:
         """
         Builds a TickWriter from PostgresDBConfig.
         Raises if Postgres is unreachable: a run that cannot write its
@@ -114,7 +114,7 @@ class TickWriter:
         return cls(engine)
 
 
-    def open_run(self, record: dict) -> None:
+    def open_run(self, record: dict, *, scene: dict | None = None) -> None:
         """
         Create the tables if they are missing and insert this run's sim_run
         row, then create the views and register the metric catalogue.
@@ -142,6 +142,13 @@ class TickWriter:
             record,
         )
         conn.commit()
+
+        if scene is not None:
+            import json
+            conn.execute(text(
+                "UPDATE sim_run SET scene = CAST(:scene AS jsonb)"
+                " WHERE run_id = :run_id"
+            ), {"scene": json.dumps(scene), "run_id": record["run_id"]})
 
         for statement in VIEW_DDL:
             conn.execute(text(statement))

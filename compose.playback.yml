@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: provider_simenv
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - playback_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d provider_simenv"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  simulation-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "${SIMENV_API_PORT:-8000}:8000"
+    environment:
+      PROVIDER_SIMENV_POSTGRES_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/provider_simenv
+      SIMENV_API_ALLOWED_ORIGINS: "http://${SIMENV_BROWSER_HOST:-localhost}:${SIMENV_WEB_PORT:-8080}"
+      SIMENV_API_JOB_TIMEOUT: "${SIMENV_API_JOB_TIMEOUT:-300}"
+    volumes:
+      - playback_jobs:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  playback-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.playback
+    ports:
+      - "${SIMENV_PLAYBACK_PORT:-8001}:8000"
+    environment:
+      PROVIDER_SIMENV_POSTGRES_URL: postgresql+psycopg2://postgres:postgres@postgres:5432/provider_simenv
+      SIMENV_PLAYBACK_ALLOWED_ORIGINS: "http://${SIMENV_BROWSER_HOST:-localhost}:${SIMENV_WEB_PORT:-8080}"
+    depends_on:
+      simulation-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_PLAYBACK_API_BASE_URL: "http://${SIMENV_BROWSER_HOST:-localhost}:${SIMENV_PLAYBACK_PORT:-8001}"
+        VITE_SIMENV_API_BASE_URL: "http://${SIMENV_BROWSER_HOST:-localhost}:${SIMENV_API_PORT:-8000}"
+    ports:
+      - "${SIMENV_WEB_PORT:-8080}:80"
+    depends_on:
+      playback-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  playback_postgres:
+  playback_jobs:

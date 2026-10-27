@@ -10,7 +10,10 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint src",
     "preview": "vite preview",
-    "test:simulation": "node --test tests/simulation.test.mjs"
+    "test:simulation": "node --test tests/simulation.test.mjs",
+    "test:playback": "node --test tests/playback.test.mjs",
+    "test:playback-browser": "node --test tests/playback-browser.test.mjs",
+    "test:playback-performance": "node --test tests/playback-performance.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -24,6 +27,7 @@
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.185.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "esbuild": "^0.21.5",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",

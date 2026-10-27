@@ -4,13 +4,15 @@ import { inspectSimulation, submitSimulation, type SimulationJob, type Simulatio
 interface SimulationRunnerProps {
   submission: SimulationSubmission
   hidden: boolean
+  onCompleted?: (runId: string) => void
 }
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export default function SimulationRunner({ submission, hidden }: SimulationRunnerProps) {
+export default function SimulationRunner({ submission, hidden, onCompleted }: SimulationRunnerProps) {
+  const notified = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [job, setJob] = useState<SimulationJob | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
@@ -19,6 +21,13 @@ export default function SimulationRunner({ submission, hidden }: SimulationRunne
   const submissionController = useRef<AbortController | null>(null)
   const active = job?.status === 'queued' || job?.status === 'running'
   const id = job?.id
+
+  useEffect(() => {
+    if (job?.status === 'completed' && notified.current !== job.id) {
+      notified.current = job.id
+      onCompleted?.(job.id)
+    }
+  }, [job, onCompleted])
 
   useEffect(() => () => submissionController.current?.abort(), [])
 
@@ -90,7 +99,7 @@ export default function SimulationRunner({ submission, hidden }: SimulationRunne
           {job.progress.scenario_id !== null && (
             <p>{job.progress.scenario_id === 0 ? 'Baseline' : 'PDL scenario'} · step {job.progress.step}/{job.progress.scenario_total_steps}</p>
           )}
-          {job.status === 'completed' && <p>Results saved by the API. The globe still shows the loaded playback bundle.</p>}
+          {job.status === 'completed' && <p>Results saved by the API. Select the completed run in recorded playback.</p>}
         </div>
       )}
       {job?.error && <p className="sim-configurator-run-error" role="alert">{job.error}</p>}

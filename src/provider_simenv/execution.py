@@ -433,7 +433,9 @@ def _execute(
         try:
             if not no_postgres:
                 tick_writer = TickWriter.from_config(PostgresDBConfig())
-                tick_writer.open_run(record)
+                from .scene import build_scene
+                scene = build_scene(Path(pdl)) if pdl else None
+                tick_writer.open_run(record, scene=scene)
                 SupplyChainModel._tick_writer = tick_writer
                 SupplyChainModel._run_id = identity
             simulator.run()
@@ -445,7 +447,7 @@ def _execute(
             if tick_writer is not None:
                 try:
                     tick_writer.close_run(identity, status="failed")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 -- preserve the original run failure
                     logger.warning(
                         "could not record the failed run in sim_run: %s", exc
                     )
