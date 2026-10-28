@@ -16,6 +16,7 @@ The model imports build_roster / build_flow_adjacency / execution_order to drive
 create(), setup(), and the per-step loop.
 """
 from __future__ import annotations
+
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -24,17 +25,24 @@ from typing import Any
 
 import yaml
 
-logger = logging.getLogger(__name__)
-
 from .agents import (
-    Farmer, Trader, Transport, Process,
-    ROLE_PRODUCER, ROLE_CONSUMER,
-    ROLE_WHOLESALER, ROLE_FEED_TRADER,
-    ROLE_LAND_TRANSPORT, ROLE_SEA_TRANSPORT,
-    ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER,
+    ROLE_CONSUMER,
+    ROLE_FEED_MANUFACTURER,
+    ROLE_FEED_TRADER,
+    ROLE_LAND_TRANSPORT,
+    ROLE_PROCESSOR,
+    ROLE_PRODUCER,
+    ROLE_SEA_TRANSPORT,
+    ROLE_WHOLESALER,
+    Farmer,
+    Process,
+    Trader,
+    Transport,
 )
 from .pdl_loader import PDLLoader
 from .scenario import SupplyChainScenario
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +323,7 @@ def _producer_input_bindings(
         target = dep.get("to")
         if not target:
             continue
-        slot = target[:-len("_supply")] if target.endswith("_supply") else target
+        slot = target.removesuffix("_supply")
         bindings[slot] = (target, "price")
     if not bindings:
         logger.warning("producer %r has no input dependencies", eid)
@@ -627,4 +635,3 @@ def execution_order(adjacency: dict[str, tuple[str, ...]]) -> list[str]:
         order.extend(remaining)
 
     return order
-

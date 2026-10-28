@@ -14,3 +14,5 @@ data/api
 src/provider_simenv/data/output
 web/node_modules
 web/dist
+.worktrees
+web/.test-build

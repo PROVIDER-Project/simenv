@@ -12,6 +12,14 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+### Recorded-run playback
+
+Run `docker compose -f compose.playback.yml up --build -d`, then open
+http://localhost:8080 to submit simulations and select completed runs for
+on-demand database playback. This stack includes separate browser-accessible
+simulation and playback APIs plus internal PostgreSQL. See
+[Database playback](docs/playback.md) for setup, data fidelity and verification.
+
 ### Run a configured scenario from the dashboard
 
 The globe frontend's **PDL configurator** supports **Run simulation**: adjust
@@ -135,9 +143,8 @@ For an existing pip environment, refresh the agents explicitly:
 pip install --upgrade 'provider-agents @ git+https://github.com/PROVIDER-Project/provider-agents.git@main'
 ```
 
-Git and read access to the private agents repository are required. Authenticate
-Git locally using `gh auth login` followed by `gh auth setup-git`, or your usual
-Git credential helper. Cross-repository changes must merge in provider-agents
+Git is required; the agents repository is public and needs no GitHub token
+or authentication. Cross-repository changes must merge in provider-agents
 first before a main-only installation can use them.
 
 To develop against unmerged agent changes, install a local checkout into
@@ -162,13 +169,12 @@ To submit simulations over HTTP and monitor live progress, see the
 setup starts with:
 
 ```bash
-export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
 docker compose -f compose.api.yml up --build -d
 ```
 
-Both Compose builds pass this token as a build secret and disable the build
-cache so each build installs current agent main. Direct `docker build` commands
-must likewise use `--no-cache --secret id=github_token,env=GITHUB_TOKEN`.
+All Python-service Compose builds disable the build cache so each build installs
+current agent main. Direct `docker build` commands must likewise use `--no-cache`.
+No GitHub token or build secret is required.
 API jobs record to PostgreSQL: the API container needs
 `PROVIDER_SIMENV_POSTGRES_URL` set to a reachable database.
 
@@ -261,8 +267,7 @@ The simulation can also be run in a docker container.
 First, build the container. In the repo root run
 
 ```bash
-export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
-docker build --no-cache --secret id=github_token,env=GITHUB_TOKEN -t provider-simenv .
+docker build --no-cache -t provider-simenv .
 ```
 
 Then you can run the simulation in the container with
@@ -357,7 +362,6 @@ Using our helper script, everything is configured automatically.
 Just run
 
 ```bash
-export GITHUB_TOKEN="$(gh auth token)" # Token with read access to provider-agents
 ./compose-up.sh <path to pdl file> --build
 ```
 from the repository root. This builds the database container, if it's not already up and runs a simulation of the specified pdl file. You can run different configurations by simply repeating this call with the respective paths.

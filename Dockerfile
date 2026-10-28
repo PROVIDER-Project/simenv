@@ -12,11 +12,7 @@ WORKDIR /app
 
 # Copy and install the package defined in pyproject.toml.
 COPY . /app
-COPY docker/git-credential-provider /usr/local/bin/git-credential-provider
-RUN --mount=type=secret,id=github_token,required=true \
-    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper \
-    GIT_CONFIG_VALUE_0='!sh /usr/local/bin/git-credential-provider' \
-    pip install --no-cache-dir '.[db]'
+RUN pip install --no-cache-dir '.[db]'
 
 # Run from the package source directory so bundled data/input and data/output paths resolve.
 WORKDIR /app/src/provider_simenv

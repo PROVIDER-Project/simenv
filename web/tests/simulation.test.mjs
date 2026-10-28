@@ -53,11 +53,21 @@ test('configurator executes its edited documents and tracks both cascades', { ti
       await page.getByRole('button', { name: 'Open', exact: true }).click()
       await page.getByText('Results saved by the API.', { exact: false }).waitFor({ timeout: completionTimeout })
       assert.equal(await run.isEnabled(), true)
-      const status = page.getByRole('status')
+      const status = page.getByRole('region', { name: 'Simulation execution' }).getByRole('status')
       assert.match(await status.innerText(), new RegExp(label))
       assert.match(await status.innerText(), /completed/)
       assert.match(await status.innerText(), /730\/730 total steps/)
       assert.equal(await page.getByRole('progressbar').getAttribute('value'), '100')
+      const recorded = page.getByRole('combobox', { name: 'Recorded run', exact: true })
+      await recorded.locator(`option[value="${job.id}"]`).waitFor({ state: 'attached' })
+      await recorded.selectOption(job.id)
+      await page.getByRole('button', { name: 'Pause', exact: true }).click()
+      const frames = page.waitForResponse(response =>
+        response.url().includes(`/runs/${job.id}/scenarios/1/frames?start=200&limit=100`),
+      )
+      await page.getByRole('slider', { name: 'Simulation step' }).fill('250')
+      assert.equal((await frames).status(), 200)
+      await page.waitForFunction(() => document.querySelector('[aria-label="Simulation step"]')?.value === '250')
     }
   } finally {
     await browser.close()

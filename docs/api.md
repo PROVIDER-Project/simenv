@@ -15,7 +15,6 @@ the simulation run registry, and the CSV output directory.
 From the repository root:
 
 ```bash
-export GITHUB_TOKEN="$(gh auth token)"
 docker compose -f compose.api.yml up --build -d
 curl http://localhost:8000/health
 ```
@@ -27,11 +26,8 @@ excluded from that export and installed separately from the latest **main**,
 never from the lock's recorded commit. Compose disables build caching so each
 build fetches main again. Update the lock deliberately for other dependencies.
 
-`GITHUB_TOKEN` must have read access to the private `PROVIDER-Project/provider-agents`
-repository. The example uses an authenticated GitHub CLI; an independently
-provided token also works. Compose supplies it as a build secret, consumed by
-a Git credential helper during installation, without adding it to the image
-or the runtime environment. Git is installed in both simulation images.
+The agents repository is public: builds need no GitHub token or build secret.
+Git and CA certificates are installed in the Python images for the HTTPS clone.
 Inputs, metadata, logs, and results are stored in the named
 `simenv_api_data` volume mounted at `/data`. To use another host port:
 
@@ -70,8 +66,7 @@ name; on Linux, add it with `--add-host=host.docker.internal:host-gateway`.
 ## Run the Docker image directly
 
 ```bash
-export GITHUB_TOKEN="$(gh auth token)"
-docker build --no-cache --secret id=github_token,env=GITHUB_TOKEN \
+docker build --no-cache \
   -f Dockerfile.api -t provider-simenv-api .
 docker volume create simenv_api_data
 docker run --rm --name simenv-api -p 8000:8000 \
@@ -84,7 +79,6 @@ with Podman's Docker format so the image health check is retained:
 
 ```bash
 podman build --format docker --no-cache \
-  --secret id=github_token,env=GITHUB_TOKEN \
   -f Dockerfile.api -t provider-simenv-api:latest .
 podman-compose -f compose.api.yml up -d --no-build
 ```

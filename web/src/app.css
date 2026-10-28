@@ -204,3 +204,30 @@ body {
     scroll-behavior: auto !important;
   }
 }
+/* Recorded playback controls remain available with an empty database. */
+.sim-run-selector {
+  position: absolute; z-index: 10; top: 155px; left: 24px;
+  display: flex; flex-wrap: wrap; gap: 8px; max-width: min(620px, calc(100vw - 490px));
+  padding: 12px; background: #091624e8; color: #eee; border-radius: 8px;
+}
+.sim-run-selector label { display: grid; gap: 4px; min-width: 0; }
+.sim-run-selector select { max-width: 330px; }
+.sim-playback-message { position: absolute; z-index: 11; top: 310px; left: 24px; max-width: min(620px, calc(100vw - 490px)); color: #eee; background: #091624e8; padding: 12px; }
+
+@media (max-width: 1100px) {
+  /* A scrollable control flow prevents messages from covering submission controls. */
+  .sim-app { overflow-y: auto; padding-bottom: 20px; }
+  .sim-app .sim-globe-stage { position: fixed; }
+  .sim-app .sim-frame-heading { position: relative; inset: auto; margin: 18px 14px; }
+  .sim-app .sim-run-selector,
+  .sim-app .sim-playback-message,
+  .sim-app .sim-configurator,
+  .sim-app .sim-frame-meta,
+  .sim-app .sim-timeline {
+    position: relative; inset: auto; transform: none;
+    width: calc(100% - 28px); max-width: none; margin: 12px 14px;
+  }
+  .sim-app .sim-configurator { max-height: none; overflow: visible; }
+  .sim-app .sim-run-selector select { max-width: 100%; width: 100%; }
+  .sim-app .sim-run-selector label { width: 100%; }
+}

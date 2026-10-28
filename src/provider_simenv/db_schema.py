@@ -131,6 +131,7 @@ DDL = (
     )
     """,
     "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS roster_sha256 text",
+    "ALTER TABLE sim_run ADD COLUMN IF NOT EXISTS scene jsonb",
     """
     CREATE TABLE IF NOT EXISTS sim_agent (
         agent_key integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -224,3 +225,12 @@ VIEW_DDL = (
     ),
     _role_view(ENVIRONMENT_ROLE, ENVIRONMENT_PROPS, _ENVIRONMENT_KEYS),
 )
+
+
+def initialize_schema(engine) -> None:
+    """Install additive storage and read views without recording a run."""
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        for statement in (*DDL, *VIEW_DDL):
+            conn.execute(text(statement))
