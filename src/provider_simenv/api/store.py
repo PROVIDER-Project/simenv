@@ -39,6 +39,18 @@ class JobStore:
             db.execute(
                 "CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status)"
             )
+            # Queued jobs from older workers still count an implicit baseline.
+            # They resume with the current single-scenario worker on restart.
+            db.execute("""
+                UPDATE jobs
+                SET progress=json_set(
+                    progress, '$.total_steps',
+                    json_extract(progress, '$.scenario_total_steps')
+                )
+                WHERE status='queued'
+                  AND json_extract(progress, '$.total_steps')
+                      != json_extract(progress, '$.scenario_total_steps')
+            """)
 
     @contextmanager
     def _connection(self):
@@ -58,7 +70,7 @@ class JobStore:
             "step": 0,
             "scenario_total_steps": period_num,
             "completed_steps": 0,
-            "total_steps": period_num * 2,
+            "total_steps": period_num,
             "percent_complete": 0,
         }
         with self._connection() as db:

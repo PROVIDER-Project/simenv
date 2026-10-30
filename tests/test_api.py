@@ -76,12 +76,12 @@ def test_running_list_has_only_running_jobs_and_live_progress(
     write_progress(
         tmp_path / "jobs" / active["id"] / "progress.json",
         {
-            "scenario_id": 0,
+            "scenario_id": 1,
             "step": 1,
             "scenario_total_steps": 365,
             "completed_steps": 1,
-            "total_steps": 730,
-            "percent_complete": 1 / 730 * 100,
+            "total_steps": 365,
+            "percent_complete": 1 / 365 * 100,
         },
     )
     response = client.get("/simulations/running")
@@ -90,7 +90,7 @@ def test_running_list_has_only_running_jobs_and_live_progress(
     assert [job["id"] for job in response.json()["items"]] == [active["id"]]
     assert (
         response.json()["items"][0]["progress"]["percent_complete"]
-        == 1 / 730 * 100
+        == 1 / 365 * 100
     )
     assert (
         client.get(f"/simulations/{queued['id']}").json()["status"]

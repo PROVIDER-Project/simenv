@@ -235,17 +235,19 @@ Queued jobs start at zero progress. While running, progress reports:
   "scenario_id": 1,
   "step": 100,
   "scenario_total_steps": 365,
-  "completed_steps": 465,
-  "total_steps": 730,
-  "percent_complete": 63.6986301369863
+  "completed_steps": 100,
+  "total_steps": 365,
+  "percent_complete": 27.397260273972602
 }
 ```
 
 `step` counts completed steps in the current scenario, not a zero-based
-step index. `scenario_id` is null before execution, 0 for the baseline,
-and 1 for the PDL scenario. Overall progress covers both scenarios and
-does not reset when the second starts. The bundled template supplies
-engine parameters and duration (365 periods per scenario by default);
+step index. `scenario_id` is null before execution and 1 for the submitted
+PDL scenario. Each API submission executes exactly one simulation with the
+submitted disruptions; no baseline simulation is added implicitly.
+`completed_steps` equals `step`, and `total_steps` equals
+`scenario_total_steps`. The bundled template supplies
+engine parameters and duration (365 periods by default);
 submitted PDL supplies topology, events, and cascade timing.
 
 A job becomes completed only after output saving succeeds and its worker
