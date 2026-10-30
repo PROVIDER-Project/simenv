@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from dataclasses import replace
@@ -45,6 +46,8 @@ def test_execution_logs_run_and_resolved_cascade(prepared, caplog, cascade):
         execution.execute_prepared_run(replace(prepared, cascade=cascade))
     assert f"Run id: {prepared.id}" in caplog.text
     assert f"Cascade: {cascade or 'soy_crisis_cascade'}" in caplog.text
+    manifest = json.loads((prepared.output_root / "runs.json").read_text())
+    assert manifest["runs"][0]["cascade"] == (cascade or "soy_crisis_cascade")
     assert (
         "Registry: 18 events, 16 with shocks, 15 conditional" in caplog.text
     )
@@ -175,7 +178,9 @@ def test_cli_defaults_preserved(tmp_path, monkeypatch, with_pdl):
         == expected_ids
     )
     manifest = json.loads((tmp_path / "output/runs.json").read_text())
-    assert manifest["runs"][0]["scenario_ids"] == expected_ids
-    assert manifest["runs"][0]["pdl"] == (
-        "s1-soja.pdl.yaml" if with_pdl else None
-    )
+    run = manifest["runs"][0]
+    assert run["scenario_ids"] == expected_ids
+    assert run["pdl"] == "s1-soja.pdl.yaml"
+    default = (SCENARIOS / "s1-soja.pdl.yaml").read_bytes()
+    assert run["pdl_sha256"] == hashlib.sha256(default).hexdigest()
+    assert run["cascade"] == ("soy_crisis_cascade" if with_pdl else None)

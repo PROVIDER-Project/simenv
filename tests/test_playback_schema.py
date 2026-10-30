@@ -26,6 +26,7 @@ def test_schema_is_repeatable_and_scene_round_trips(pg_engine):
     record = {"run_id": identity, "started_at": datetime.now(timezone.utc),
               "finished_at": None, "status": "running", "pdl": "example.yaml",
               "pdl_sha256": None, "roster_sha256": None, "scenario_ids": [0],
+              "cascade": None,
               "period_num": 2, "git_sha": None, "label": "test"}
     writer = TickWriter(pg_engine)
     writer.open_run(record, scene={"schema_version": 1, "nodes": [], "edges": []})
