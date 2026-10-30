@@ -25,7 +25,10 @@ These instructions apply to all work in this repository.
 7. Open a pull request against `main` with `gh pr create`. Describe the changes,
    link the issue (`Closes #<number>` when appropriate), and record the exact
    verification commands and results, including skipped checks and blockers.
-   Include the documentation review outcome.
+   Include the documentation review outcome. For any PR involving UI changes,
+   include screenshots in the PR description or a PR comment that document the
+   changed interface for review. Use before-and-after screenshots when updating
+   an existing interface, and label the relevant screens and states.
 8. Add a **PR comment summarizing the completed changes**, test results, and
    documentation updates or why none were needed, using `gh pr comment`.
    Return the PR URL to the user. Follow-up changes belong on the same issue
