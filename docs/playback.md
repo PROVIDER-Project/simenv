@@ -10,6 +10,13 @@
 docker compose -f compose.playback.yml up --build -d
 ```
 
+The Python-service builds install `provider-agents` from the latest public
+**main** branch, separately from hash-verified third-party requirements. No
+GitHub token or build secret is needed. Compose disables caching for those
+builds so each rebuild fetches current agent main. For direct image builds,
+use `docker build --no-cache -f Dockerfile.api ...` or
+`docker build --no-cache -f Dockerfile.playback ...`.
+
 Open **http://localhost:8080**. An empty database is supported: use the scenario
 configurator's **Run simulation** button to record the first run. On completion
 the catalogue refreshes. Select a run/scenario, then play, pause, or seek. The

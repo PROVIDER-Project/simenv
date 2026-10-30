@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "Melodie>=0.6.0",
     "pyyaml",
+    "provider-agents @ git+https://github.com/PROVIDER-Project/provider-agents.git@main",
 ]
 
 [project.optional-dependencies]
@@ -18,6 +19,7 @@ dev = [
     "provider-simenv[db]",
     "provider-simenv[api]",
     "httpx>=0.27",
+    "jsonschema>=4",
 ]
 
 api = [
@@ -34,6 +36,10 @@ db = [
 
 [tool.ruff]
 line-length = 78
+
+[tool.uv]
+# Resolve the moving branch again on every sync instead of reusing its lock entry.
+upgrade-package = ["provider-agents"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
