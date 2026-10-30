@@ -12,6 +12,9 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+For contribution workflow and verification requirements, see the
+[repository agent guidelines](AGENTS.md).
+
 ### Recorded-run playback
 
 Run `docker compose -f compose.playback.yml up --build -d`, then open
