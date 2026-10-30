@@ -10,7 +10,7 @@ from provider_simenv import execution
 from provider_simenv.api.app import create_app
 
 
-def test_real_api_simulation_has_one_id_progress_and_csv(
+def test_real_api_simulation_executes_only_submitted_scenario(
     tmp_path, monkeypatch
 ):
     template_dir = tmp_path / "template"
@@ -33,6 +33,7 @@ def test_real_api_simulation_has_one_id_progress_and_csv(
         )
         assert response.status_code == 202, response.text
         identity = response.json()["id"]
+        assert response.json()["progress"]["total_steps"] == 2
 
         def terminal():
             job = client.get(f"/simulations/{identity}").json()
@@ -45,18 +46,20 @@ def test_real_api_simulation_has_one_id_progress_and_csv(
             "scenario_id": 1,
             "step": 2,
             "scenario_total_steps": 2,
-            "completed_steps": 4,
-            "total_steps": 4,
+            "completed_steps": 2,
+            "total_steps": 2,
             "percent_complete": 100,
         }
         output = data_dir / "jobs" / identity / "output"
         manifest = json.loads((output / "runs.json").read_text())
         assert manifest["runs"][0]["run_id"] == identity
         assert manifest["runs"][0]["status"] == "completed"
+        assert manifest["runs"][0]["scenario_ids"] == [1]
         environment = pd.read_csv(
             output / identity / "Result_Simulator_Environment.csv"
         )
-        assert len(environment) == 4
+        assert len(environment) == 2
+        assert environment["id_scenario"].unique().tolist() == [1]
         assert logs
         assert client.get("/simulations/running").json() == {
             "items": [],

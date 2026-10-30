@@ -131,7 +131,7 @@ The frontend can still display playback and export PDL without the API.
    as the run label. Both soy-crisis and energy-food cascades are supported.
 4. The panel displays the API-generated run ID and polls once per second
    through `queued` → `running` → `completed` or `failed`. Overall progress
-   covers both the baseline and PDL scenario; 100% can precede completion
+   covers the single submitted PDL scenario; 100% can precede completion
    while the worker saves results. The button is disabled during submission
    and while the tracked job is active.
 
