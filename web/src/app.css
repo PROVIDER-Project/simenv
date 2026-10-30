@@ -207,12 +207,32 @@ body {
 /* Recorded playback controls remain available with an empty database. */
 .sim-run-selector {
   position: absolute; z-index: 10; top: 155px; left: 24px;
-  display: flex; flex-wrap: wrap; gap: 8px; max-width: min(620px, calc(100vw - 490px));
-  padding: 12px; background: #091624e8; color: #eee; border-radius: 8px;
+  width: 300px; max-height: calc(100dvh - 340px); overflow-y: auto;
+  padding: 16px; border: 1px solid var(--sim-color-border);
+  border-radius: var(--sim-radius-lg);
+  background: linear-gradient(180deg, rgba(9, 19, 34, 0.92), rgba(6, 13, 24, 0.88));
+  box-shadow: var(--sim-shadow-ambient); backdrop-filter: blur(16px);
 }
+.sim-run-selector-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sim-run-selector-header h2 { margin: 0; font: 520 19px/1.1 var(--sim-font-display); }
+.sim-run-selector-controls { display: grid; gap: 12px; margin-top: 16px; }
+.sim-run-selector-controls[hidden] { display: none; }
 .sim-run-selector label { display: grid; gap: 4px; min-width: 0; }
-.sim-run-selector select { max-width: 330px; }
-.sim-playback-message { position: absolute; z-index: 11; top: 310px; left: 24px; max-width: min(620px, calc(100vw - 490px)); color: #eee; background: #091624e8; padding: 12px; }
+.sim-run-selector label, .sim-run-selector p, .sim-run-selector [role='status'] { font-size: 12px; }
+.sim-run-selector p { margin: 0; overflow-wrap: anywhere; }
+.sim-run-selector select {
+  width: 100%; min-width: 0; padding: 8px;
+  border: 1px solid var(--sim-color-border); border-radius: var(--sim-radius-md);
+  background: rgba(4, 10, 20, 0.75); color: var(--sim-color-text);
+}
+.sim-run-selector button {
+  padding: 9px 12px; border: 1px solid rgba(126, 213, 255, 0.3);
+  border-radius: var(--sim-radius-md); background: rgba(67, 183, 255, 0.12);
+  color: var(--sim-color-text); font: 600 11px/1 var(--sim-font-mono); cursor: pointer;
+}
+.sim-run-selector button:disabled { opacity: 0.55; cursor: not-allowed; }
+/* Keep playback status beside the selector, including on short desktop windows. */
+.sim-playback-message { position: absolute; z-index: 11; top: 155px; left: 340px; max-width: 300px; color: #eee; background: #091624e8; padding: 12px; }
 
 @media (max-width: 1100px) {
   /* A scrollable control flow prevents messages from covering submission controls. */
@@ -228,6 +248,7 @@ body {
     width: calc(100% - 28px); max-width: none; margin: 12px 14px;
   }
   .sim-app .sim-configurator { max-height: none; overflow: visible; }
+  .sim-app .sim-run-selector { max-height: none; }
   .sim-app .sim-run-selector select { max-width: 100%; width: 100%; }
   .sim-app .sim-run-selector label { width: 100%; }
 }
