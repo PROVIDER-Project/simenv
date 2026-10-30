@@ -1,6 +1,6 @@
 # Database playback
 
-![Database-backed simulation playback at step 150](playback-preview.png)
+![Recorded playback with the expanded left panel at step 150 (static demo)](playback-preview.png)
 
 [View or download the full-size screenshot](playback-preview.png).
 
@@ -14,6 +14,16 @@ Open **http://localhost:8080**. An empty database is supported: use the scenario
 configurator's **Run simulation** button to record the first run. On completion
 the catalogue refreshes. Select a run/scenario, then play, pause, or seek. The
 newest playable run is selected initially. Refresh and More runs browse records.
+
+Run and scenario selection are stacked in the **Recorded playback** panel on
+the left, leaving the central globe clear. The panel starts expanded. Use
+**Hide** to minimize it to its header and **Show** to reopen it; the selected
+run, scenario, and current playback are retained. On smaller screens the panel
+is part of the scrollable page.
+
+Interface examples (using the bundled static demo):
+[collapsed panel](playback-selector-collapsed.png) and
+[mobile layout](playback-selector-mobile.png).
 
 | Service | Default address | Purpose |
 | --- | --- | --- |
