@@ -92,11 +92,11 @@ def test_private_inputs_do_not_change_bundled_csv(prepared):
     execution.execute_prepared_run(prepared)
     assert bundled.read_bytes() == original
     private = pd.read_csv(prepared.input_dir / "SimulatorScenarios.csv")
-    assert private["id"].tolist() == [0, 1]
-    assert private["period_num"].tolist() == [2, 2]
+    assert private["id"].tolist() == [1]
+    assert private["period_num"].tolist() == [2]
 
 
-def test_progress_across_scenarios(prepared, monkeypatch):
+def test_progress_for_single_pdl_scenario(prepared, monkeypatch):
     snapshots = []
     write = execution.write_progress
 
@@ -106,11 +106,11 @@ def test_progress_across_scenarios(prepared, monkeypatch):
 
     monkeypatch.setattr(execution, "write_progress", observe)
     execution.execute_prepared_run(prepared)
-    assert [s["completed_steps"] for s in snapshots] == [0, 1, 2, 3, 4]
-    assert [s["percent_complete"] for s in snapshots] == [0, 25, 50, 75, 100]
+    assert [s["completed_steps"] for s in snapshots] == [0, 1, 2]
+    assert [s["percent_complete"] for s in snapshots] == [0, 50, 100]
     assert snapshots[-1]["scenario_id"] == 1
     assert snapshots[-1]["step"] == 2
-    assert snapshots[-1]["total_steps"] == 4
+    assert snapshots[-1]["total_steps"] == 2
 
 
 @pytest.mark.parametrize("content", [None, "{", "[]", '{"step": -1}'])
@@ -121,7 +121,34 @@ def test_invalid_progress_is_ignored(tmp_path, content):
     assert execution.read_progress(path) is None
 
 
-def test_cli_defaults_preserved(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"scenario_id": 0},
+        {"total_steps": 4, "percent_complete": 25},
+        {"completed_steps": 2, "percent_complete": 100},
+        {"scenario_id": None},
+        {"percent_complete": 0},
+    ],
+)
+def test_inconsistent_single_scenario_progress_is_ignored(tmp_path, changes):
+    path = tmp_path / "progress.json"
+    snapshot = {
+        "scenario_id": 1,
+        "step": 1,
+        "scenario_total_steps": 2,
+        "completed_steps": 1,
+        "total_steps": 2,
+        "percent_complete": 50,
+    }
+    execution.write_progress(path, snapshot)
+    assert execution.read_progress(path) == snapshot
+    execution.write_progress(path, dict(snapshot, **changes))
+    assert execution.read_progress(path) is None
+
+
+@pytest.mark.parametrize("with_pdl", [False, True])
+def test_cli_defaults_preserved(tmp_path, monkeypatch, with_pdl):
     template = execution.INPUT_DIR / "SimulatorScenarios_template.csv"
     private = tmp_path / "input"
     private.mkdir()
@@ -137,22 +164,23 @@ def test_cli_defaults_preserved(tmp_path, monkeypatch):
             pass
 
     monkeypatch.setattr(execution, "Simulator", NoWorkSimulator)
+    pdl = str(SCENARIOS / "s1-soja.pdl.yaml") if with_pdl else None
     execution.execute_cli(
-        pdl=None,
+        pdl=pdl,
         cascade=None,
         label=None,
         postgres_url=None,
         no_postgres=True,
     )
-    assert pd.read_csv(private / "SimulatorScenarios.csv")["id"].tolist() == [
-        0,
-        1,
-        2,
-    ]
+    expected_ids = [0, 1] if with_pdl else [0, 1, 2]
+    assert (
+        pd.read_csv(private / "SimulatorScenarios.csv")["id"].tolist()
+        == expected_ids
+    )
     manifest = json.loads((tmp_path / "output/runs.json").read_text())
     run = manifest["runs"][0]
-    assert run["scenario_ids"] == [0, 1, 2]
+    assert run["scenario_ids"] == expected_ids
     assert run["pdl"] == "s1-soja.pdl.yaml"
     default = (SCENARIOS / "s1-soja.pdl.yaml").read_bytes()
     assert run["pdl_sha256"] == hashlib.sha256(default).hexdigest()
-    assert run["cascade"] is None
+    assert run["cascade"] == ("soy_crisis_cascade" if with_pdl else None)

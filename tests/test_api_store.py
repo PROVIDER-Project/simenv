@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 from api_helpers import claim_job, require_job, submit
 
@@ -39,27 +40,62 @@ def test_running_only_excludes_other_states(tmp_path):
     assert require_job(store, failed["id"])["error"] == "boom"
 
 
-def test_progress_does_not_regress_or_disappear(tmp_path):
+def test_restart_normalizes_legacy_queued_totals_and_accepts_progress(tmp_path):
     store = JobStore(tmp_path)
-    run, job = submit(store, periods=2)
-    store.claim_next()
+    run, queued = submit(store, periods=2)
+    _, completed = submit(store, periods=2)
+    store.finish(completed["id"], status="completed")
+    # Reproduce persisted totals from the baseline-plus-PDL worker.
+    with sqlite3.connect(store.database) as db:
+        db.execute(
+            "UPDATE jobs SET progress=json_set(progress, '$.total_steps', 4)"
+        )
+
+    restarted = JobStore(tmp_path)
+    assert require_job(restarted, queued["id"])["progress"]["total_steps"] == 2
+    assert (
+        require_job(restarted, completed["id"])["progress"]["total_steps"]
+        == 4
+    )
+    assert claim_job(restarted)["id"] == queued["id"]
     snapshot = {
-        "scenario_id": 0,
+        "scenario_id": 1,
         "step": 1,
         "scenario_total_steps": 2,
         "completed_steps": 1,
-        "total_steps": 4,
-        "percent_complete": 25,
+        "total_steps": 2,
+        "percent_complete": 50,
     }
     write_progress(run.progress_path, snapshot)
-    assert require_job(store, job["id"])["progress"]["percent_complete"] == 25
+    assert require_job(restarted, queued["id"])["progress"] == snapshot
+    restarted.finish(queued["id"], status="completed")
+    final = require_job(restarted, queued["id"])["progress"]
+    assert final["completed_steps"] == final["step"] == 2
+    assert final["percent_complete"] == 100
+
+
+def test_progress_does_not_regress_or_disappear(tmp_path):
+    store = JobStore(tmp_path)
+    run, job = submit(store, periods=2)
+    assert job["progress"]["total_steps"] == 2
+    store.claim_next()
+    snapshot = {
+        "scenario_id": 1,
+        "step": 1,
+        "scenario_total_steps": 2,
+        "completed_steps": 1,
+        "total_steps": 2,
+        "percent_complete": 50,
+    }
+    write_progress(run.progress_path, snapshot)
+    assert require_job(store, job["id"])["progress"]["percent_complete"] == 50
     run.progress_path.write_text("{")
-    assert require_job(store, job["id"])["progress"]["percent_complete"] == 25
+    assert require_job(store, job["id"])["progress"]["percent_complete"] == 50
     older = dict(snapshot, step=0, completed_steps=0, percent_complete=0)
     write_progress(run.progress_path, older)
     store.finish(job["id"], status="failed", error="simulation failed")
     final = require_job(store, job["id"])
-    assert final["progress"]["percent_complete"] == 25
+    assert final["progress"]["percent_complete"] == 50
     assert final["started_at"] and final["finished_at"]
 
 
@@ -74,9 +110,9 @@ def test_recovery_fails_running_preserves_progress_and_queue(tmp_path):
             "scenario_id": 1,
             "step": 1,
             "scenario_total_steps": 2,
-            "completed_steps": 3,
-            "total_steps": 4,
-            "percent_complete": 75,
+            "completed_steps": 1,
+            "total_steps": 2,
+            "percent_complete": 50,
         },
     )
     recovered = JobStore(tmp_path)
@@ -84,7 +120,7 @@ def test_recovery_fails_running_preserves_progress_and_queue(tmp_path):
     assert require_job(recovered, active["id"])["status"] == "failed"
     assert (
         require_job(recovered, active["id"])["progress"]["percent_complete"]
-        == 75
+        == 50
     )
     assert (
         "interrupt" in require_job(recovered, active["id"])["error"].lower()
@@ -115,12 +151,12 @@ def test_inconsistent_percentage_cannot_regress_persisted_progress(tmp_path):
     run, job = submit(store)
     store.claim_next()
     snapshot = {
-        "scenario_id": 0,
+        "scenario_id": 1,
         "step": 100,
         "scenario_total_steps": 365,
         "completed_steps": 100,
-        "total_steps": 730,
-        "percent_complete": 100 / 730 * 100,
+        "total_steps": 365,
+        "percent_complete": 100 / 365 * 100,
     }
     write_progress(run.progress_path, snapshot)
     before = require_job(store, job["id"])["progress"]
@@ -137,24 +173,24 @@ def test_worker_cannot_change_job_totals(tmp_path):
     write_progress(
         run.progress_path,
         {
-            "scenario_id": 0,
+            "scenario_id": 1,
             "step": 1,
             "scenario_total_steps": 365,
             "completed_steps": 1,
-            "total_steps": 730,
-            "percent_complete": 1 / 730 * 100,
+            "total_steps": 365,
+            "percent_complete": 1 / 365 * 100,
         },
     )
     before = require_job(store, job["id"])["progress"]
     write_progress(
         run.progress_path,
         {
-            "scenario_id": 0,
+            "scenario_id": 1,
             "step": 1,
             "scenario_total_steps": 730,
             "completed_steps": 1,
-            "total_steps": 1460,
-            "percent_complete": 1 / 1460 * 100,
+            "total_steps": 730,
+            "percent_complete": 1 / 730 * 100,
         },
     )
     assert require_job(store, job["id"])["progress"] == before

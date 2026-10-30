@@ -1,4 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Keep Python output unbuffered so logs stream immediately.
 ENV PYTHONDONTWRITEBYTECODE=1 \

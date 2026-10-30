@@ -12,6 +12,9 @@ port capacity, input prices) and records price and sourcing behaviour across the
 
 Built on [Melodie](https://github.com/ABM4ALL/Melodie) (Python ABM framework).
 
+For contribution workflow and verification requirements, see the
+[repository agent guidelines](AGENTS.md).
+
 ### Recorded-run playback
 
 Run `docker compose -f compose.playback.yml up --build -d`, then open
@@ -53,10 +56,10 @@ simenv/
         │   ├── s1-soja.pdl.yaml
         │   └── s1-soja.roster.yaml
         ├── agents/
-        │   ├── farmer.py         ← producers + EU livestock farms
-        │   ├── trader.py         ← wholesalers + feed traders
-        │   ├── transport.py      ← land + sea transport operators
-        │   └── process.py        ← processors + feed manufacturers
+        │   ├── farmer.py         ← producer + consumer framework adapter
+        │   ├── trader.py         ← wholesaler + feed-trader adapter
+        │   ├── transport.py      ← land + sea transport adapter
+        │   └── process.py        ← processor + feed-manufacturer adapter
         └── data/
             ├── input/
             │   ├── SimulatorScenarios.csv            ← working copy Melodie reads
@@ -80,6 +83,7 @@ Melodie>=0.6.0
 pandas
 numpy
 pyyaml
+provider-agents (Git dependency, main branch)
 ```
 
 **PostgreSQL output (the `db` extra):**
@@ -120,11 +124,60 @@ pip install '.[db]'
 
 ---
 
+## Agent implementations
+
+Decision logic and versioned `AgentSpec` setup/step schemas live in
+[provider-agents](https://github.com/PROVIDER-Project/provider-agents).
+The classes in `provider_simenv.agents` are Melodie adapters: they gather
+upstream state, peer membership, graph metadata and resolved PDL effects,
+then apply the standalone agents' returned state changes. Transport
+admission returns keyed upstream updates, which the adapter applies to
+the original source agents in the same simulation step. Agent state
+remains visible to Melodie's collectors through wrapper attributes.
+
+The runtime dependency always targets the agents repository's **main** branch.
+For uv installations, run `uv sync --extra dev` (or select the extras you need).
+The project's `upgrade-package` setting makes every sync fetch current main,
+rather than reuse the historical revision recorded in `uv.lock`. Do not use
+`--frozen` or `--locked` when installing the moving agent dependency.
+For an existing pip environment, refresh the agents explicitly:
+
+```bash
+pip install --upgrade 'provider-agents @ git+https://github.com/PROVIDER-Project/provider-agents.git@main'
+```
+
+Git is required; the agents repository is public and needs no GitHub token
+or authentication. Cross-repository changes must merge in provider-agents
+first before a main-only installation can use them.
+
+To develop against unmerged agent changes, install a local checkout into
+the simulation environment **after** installing/syncing simenv:
+
+```bash
+git clone https://github.com/PROVIDER-Project/provider-agents.git ../provider-agents
+# Check out the agent implementation branch in that checkout.
+uv pip install --python .venv/bin/python --no-deps -e ../provider-agents
+python -m pytest tests/test_agent_adapters.py tests/test_transport_routing.py tests/test_feed_allocation.py
+```
+
+`pip install --no-deps -e ../provider-agents` is equivalent in an activated
+environment. This override is local: do not change the committed dependency
+to a development branch, commit, or local path. A later `uv sync` can replace
+the override with main; reinstall the local checkout when needed.
+
 ## Running the Simulation
 
 To submit simulations over HTTP and monitor live progress, see the
 [Simulation API guide](docs/api.md). Its single-service Docker Compose
-setup starts with `docker compose -f compose.api.yml up --build -d`.
+setup starts with:
+
+```bash
+docker compose -f compose.api.yml up --build -d
+```
+
+All Python-service Compose builds disable the build cache so each build installs
+current agent main. Direct `docker build` commands must likewise use `--no-cache`.
+No GitHub token or build secret is required.
 API jobs record to PostgreSQL: the API container needs
 `PROVIDER_SIMENV_POSTGRES_URL` set to a reachable database.
 
@@ -217,7 +270,7 @@ The simulation can also be run in a docker container.
 First, build the container. In the repo root run
 
 ```bash
-docker build -t provider-simenv .
+docker build --no-cache -t provider-simenv .
 ```
 
 Then you can run the simulation in the container with
@@ -312,7 +365,7 @@ Using our helper script, everything is configured automatically.
 Just run
 
 ```bash
-./compose-up.sh <path to pdl file>
+./compose-up.sh <path to pdl file> --build
 ```
 from the repository root. This builds the database container, if it's not already up and runs a simulation of the specified pdl file. You can run different configurations by simply repeating this call with the respective paths.
 

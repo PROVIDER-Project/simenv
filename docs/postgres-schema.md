@@ -10,9 +10,10 @@ Schnittstelle, plus the simenv maintainers.
 ## 1 · What this database holds
 
 One PROVIDER simulation invocation produces one **run**. A run executes every scenario row in
-`SimulatorScenarios.csv` — today a baseline (`id_scenario = 0`) and a PDL-shocked variant
-(`id_scenario = 1`) — over a fixed number of daily periods, and records the state of every
-agent and of the environment after each period.
+`SimulatorScenarios.csv` over a fixed number of daily periods, and records the state of
+every agent and of the environment after each period. API submissions execute only the
+submitted PDL scenario (`id_scenario = 1`). CLI PDL runs include both a baseline
+(`id_scenario = 0`) and the PDL-shocked variant (`id_scenario = 1`).
 
 A run is identified by its **run id**: `20260922T115943Z-f3c11976`, a UTC timestamp and eight
 hex characters. The same string names the run's CSV directory under `data/output/`, keys its

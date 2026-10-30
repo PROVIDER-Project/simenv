@@ -274,6 +274,7 @@ def write_progress(path: Path, snapshot: dict) -> None:
 
 
 def read_progress(path: Path) -> dict | None:
+    """Read a consistent snapshot for a single-scenario API job."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
@@ -299,18 +300,18 @@ def read_progress(path: Path) -> dict | None:
             return None
         scenario = data["scenario_id"]
         if scenario is not None and (
-            type(scenario) is not int or scenario not in (0, 1)
+            type(scenario) is not int or scenario != 1
         ):
             return None
         if (
             data["scenario_total_steps"] <= 0
-            or data["total_steps"] != 2 * data["scenario_total_steps"]
+            or data["total_steps"] != data["scenario_total_steps"]
         ):
             return None
         expected_steps = (
             0
             if scenario is None
-            else scenario * data["scenario_total_steps"] + data["step"]
+            else data["step"]
         )
         if data["completed_steps"] != expected_steps or (
             scenario is None and data["step"]
@@ -337,6 +338,7 @@ def _execute(
     label: str | None,
     progress_path: Path | None = None,
     no_postgres: bool = False,
+    include_baseline: bool = True,
 ) -> None:
     logger.info("Run id: %s", identity)
     csv_path = input_dir / "SimulatorScenarios.csv"
@@ -360,7 +362,11 @@ def _execute(
             raise ValueError("Template must contain exactly one baseline row")
         shock = baseline.copy()
         shock["id"] = 1
-        rows = pd.concat([baseline, shock], ignore_index=True)
+        rows = (
+            pd.concat([baseline, shock], ignore_index=True)
+            if include_baseline
+            else shock
+        )
         rows.to_csv(csv_path, index=False)
     if not {"id", "period_num"}.issubset(rows.columns):
         raise ValueError("Scenario CSV needs id and period_num columns")
@@ -472,6 +478,7 @@ def execute_prepared_run(run: PreparedRun) -> None:
         label=run.label,
         progress_path=run.progress_path,
         no_postgres=run.no_postgres,
+        include_baseline=False,
     )
 
 

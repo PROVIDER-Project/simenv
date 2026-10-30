@@ -7,6 +7,11 @@ root, then open http://localhost:8080 for recorded-run/scenario selection and
 on-demand database frames. See [Database playback](../docs/playback.md) for API
 configuration, buffering, raw-data fidelity and performance tests.
 
+The **Recorded playback** panel stacks run and scenario selection on the left
+of the globe. It starts expanded; **Hide** minimizes it to its header and
+**Show** restores the controls without changing your selection or interrupting
+playback. On smaller screens the panel follows the page's scrollable layout.
+
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
 explicitly uses its static exported demo. The legacy demo/export workflow below
@@ -131,7 +136,7 @@ The frontend can still display playback and export PDL without the API.
    as the run label. Both soy-crisis and energy-food cascades are supported.
 4. The panel displays the API-generated run ID and polls once per second
    through `queued` → `running` → `completed` or `failed`. Overall progress
-   covers both the baseline and PDL scenario; 100% can precede completion
+   covers the single submitted PDL scenario; 100% can precede completion
    while the worker saves results. The button is disabled during submission
    and while the tracked job is active.
 

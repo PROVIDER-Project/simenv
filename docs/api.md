@@ -20,9 +20,14 @@ curl http://localhost:8000/health
 ```
 
 This Compose file contains only the API service. The image runs as a
-non-root user and installs Python runtime dependencies from `uv.lock`
-with frozen versions and package hash verification. Update the lock
-deliberately when upgrading dependencies, then rebuild the image.
+non-root user and installs third-party Python dependencies from `uv.lock`
+with frozen versions and package hash verification. `provider-agents` is
+excluded from that export and installed separately from the latest **main**,
+never from the lock's recorded commit. Compose disables build caching so each
+build fetches main again. Update the lock deliberately for other dependencies.
+
+The agents repository is public: builds need no GitHub token or build secret.
+Git and CA certificates are installed in the Python images for the HTTPS clone.
 Inputs, metadata, logs, and results are stored in the named
 `simenv_api_data` volume mounted at `/data`. To use another host port:
 
@@ -61,7 +66,8 @@ name; on Linux, add it with `--add-host=host.docker.internal:host-gateway`.
 ## Run the Docker image directly
 
 ```bash
-docker build -f Dockerfile.api -t provider-simenv-api .
+docker build --no-cache \
+  -f Dockerfile.api -t provider-simenv-api .
 docker volume create simenv_api_data
 docker run --rm --name simenv-api -p 8000:8000 \
   -e PROVIDER_SIMENV_POSTGRES_URL=postgresql://postgres:postgres@host.docker.internal:5432/provider_simenv \
@@ -72,7 +78,8 @@ Docker is the deployment target. For local testing, build the same image
 with Podman's Docker format so the image health check is retained:
 
 ```bash
-podman build --format docker -f Dockerfile.api -t provider-simenv-api:latest .
+podman build --format docker --no-cache \
+  -f Dockerfile.api -t provider-simenv-api:latest .
 podman-compose -f compose.api.yml up -d --no-build
 ```
 
@@ -235,17 +242,19 @@ Queued jobs start at zero progress. While running, progress reports:
   "scenario_id": 1,
   "step": 100,
   "scenario_total_steps": 365,
-  "completed_steps": 465,
-  "total_steps": 730,
-  "percent_complete": 63.6986301369863
+  "completed_steps": 100,
+  "total_steps": 365,
+  "percent_complete": 27.397260273972602
 }
 ```
 
 `step` counts completed steps in the current scenario, not a zero-based
-step index. `scenario_id` is null before execution, 0 for the baseline,
-and 1 for the PDL scenario. Overall progress covers both scenarios and
-does not reset when the second starts. The bundled template supplies
-engine parameters and duration (365 periods per scenario by default);
+step index. `scenario_id` is null before execution and 1 for the submitted
+PDL scenario. Each API submission executes exactly one simulation with the
+submitted disruptions; no baseline simulation is added implicitly.
+`completed_steps` equals `step`, and `total_steps` equals
+`scenario_total_steps`. The bundled template supplies
+engine parameters and duration (365 periods by default);
 submitted PDL supplies topology, events, and cascade timing.
 
 A job becomes completed only after output saving succeeds and its worker

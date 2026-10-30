@@ -1,76 +1,89 @@
-"""
-Every actor in the chain shares three state variables:
-  quantity_available  How much output good is ready this step.
-  unit_price          Current asking price per unit.
-  active              Whether this agent is still in the market.
+"""Translate Melodie lifecycle and state into standalone agent contracts."""
 
-All concrete agent classes inherit from SupplyChainAgent.
-There are four concrete classes, each handling multiple roles
-via a 'role' attribute set at agent initialisation:
-
-  Farmer    role: "producer" | "consumer"
-  Trader    role: "wholesaler" | "feed_trader"
-  Transport role: "sa_land" | "sea" | "eu_land"
-  Process   role: "processor" | "feed_manufacturer"
-"""
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from Melodie import Agent
 
+if TYPE_CHECKING:
+    from ..environment import SupplyChainEnvironment
+    from ..model import SupplyChainModel
+    from ..scenario import SupplyChainScenario
+
 
 class SupplyChainAgent(Agent):
-    """
-    Shared base for every supply chain actor.
+    """Framework adapter; concrete wrappers select a standalone agent type."""
 
-    Melodie injects the following before setup() is called:
-      self.id           Unique integer per agent (auto-assigned)
-      self.scenario     Active SupplyChainScenario instance
-      self.environment  Active SupplyChainEnvironment instance
-      self.model        Active SupplyChainModel instance
-
-    The 'role' attribute must be set from the agent data table
-    (or by the model) before setup() is called, so that each
-    concrete class can branch its initialisation accordingly.
-    """
+    agent_type: ClassVar[Any]
+    model: "SupplyChainModel"
+    scenario: "SupplyChainScenario"
+    list_name: str
 
     def setup(self):
-        """
-        Explicitly assigns all shared instance attributes.
+        self._implementation = self.agent_type()
+        self._apply_result(self._implementation.setup({}))
+        self.origin = ""
+        self.binding = {}
 
-        Class-level annotations (active: bool = True) create class
-        attributes, not instance attributes — they won't appear in
-        agent.__dict__ and Melodie's data collector can't find them.
-        Assigning here with self.x = value puts them on the instance.
+    def _setup_input(self):
+        return self._state()
 
-        Subclasses must call super().setup() as their first line so
-        these are always initialised before subclass-specific logic.
-        """
-        self.quantity_available: float = 0.0
-        self.unit_price: float = 0.0
-        self.active: bool = True
+    def post_setup(self):
+        self._apply_result(self._implementation.setup(self._setup_input()))
 
-        # PDL entity id this agent represents. Set by model.setup() from the roster's entity_ids.
-        # "" for derived sea-transport agents, which have no PDL entity
-        self.origin: str = ""
+    def _state(self):
+        return {name: getattr(self, name) for name in self._implementation.defaults}
 
-        # PDL bindings: semantic slot -> (entity, impact_field).
-        # Applied by model.setup() from Archetype.params["bindings"] in
-        # topology.py (cross-entity slots), plus the entity-driven "capacity" slot.
-        self.binding: dict[str, tuple[str, str]] = {}
+    def _effects(self):
+        return {slot: self.effective(slot) for slot in self.binding}
+
+    def _step_input(self):
+        return {"state": self._state(), "effects": self._effects()}
 
     def step(self):
-        pass
+        data = {"state": self._state()}
+        sources = {}
+        if self._implementation.requires_observations(data["state"]):
+            data, sources = self._step_context()
+        self._apply_result(self._implementation.step(data), sources)
+
+    def _step_context(self):
+        return self._step_input(), {}
+
+    def _apply_result(self, result, sources=None):
+        for name, value in result.items():
+            if name != "upstream_updates":
+                setattr(self, name, value)
+        for update in result.get("upstream_updates", []):
+            source = (sources or {})[update["key"]]
+            for name, value in update.items():
+                if name != "key":
+                    setattr(source, name, value)
+
+    def _sources(self, upstream):
+        """Return plain source records and a step-local key/object lookup."""
+        from .transport import Transport
+
+        records = []
+        sources = {}
+        for index, source in enumerate(upstream or []):
+            key = str(index)
+            sources[key] = source
+            record = {
+                "key": key, "quantity_available": source.quantity_available,
+                "unit_price": source.unit_price,
+            }
+            if hasattr(source, "base_yield"):
+                record["base_yield"] = source.base_yield
+            if isinstance(source, Transport):
+                record.update(is_transport=True, capacity=source.capacity,
+                              effects=source._effects())
+            records.append(record)
+        return records, sources
 
     def effective(self, slot: str) -> float:
-        """
-        Effective shock multiplier for a semantic binding slot.
-
-        Resolves the slot to its PDL (entity, impact_field) via self.binding and
-        reads the current value from the environment. Returns 1.0 (unshocked)
-        when the slot is not bound for this role — so agents that don't read a
-        given shock, or PDLs that omit the entity, run unaffected rather than
-        raising. This is the single home of the absent-key -> 1.0 default.
-        """
+        """Resolve framework-owned PDL binding; absent bindings are neutral."""
         key = self.binding.get(slot)
         if key is None:
             return 1.0
-        return self.model.environment.get_effective_value(*key)
+        environment = cast("SupplyChainEnvironment", self.model.environment)
+        return environment.get_effective_value(*key)
