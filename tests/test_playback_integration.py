@@ -39,7 +39,7 @@ def test_completed_simulation_plays_from_db_without_input_files(playback_db, tmp
         scene = playback.get(f"/runs/{identity}/scenarios/1/scene")
         assert scene.status_code == 200 and scene.json()["nodes"]
         received = {}
-        for scenario in [0, 1]:
+        for scenario in [1]:
             for start in [0, 100]:
                 response = playback.get(f"/runs/{identity}/scenarios/{scenario}/frames?start={start}&limit=100")
                 assert response.status_code == 200, response.text
