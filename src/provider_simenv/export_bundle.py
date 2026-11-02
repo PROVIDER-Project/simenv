@@ -36,13 +36,16 @@ from pathlib import Path
 import pandas as pd
 
 from .agents import Transport
-from .data_collector import _PROPS_BY_ROLE, result_table_name
+from .data_collector import result_table_name
 from .db_config import PostgresDBConfig
 from .db_schema import ENVIRONMENT_ROLE, role_view_name
 from .pdl_loader import PDLLoader
 from .run_registry import resolve_run, run_dir
 from .topology import (
-    build_flow_adjacency, build_roster, load_roster_sidecar, sidecar_path,
+    build_flow_adjacency,
+    build_roster,
+    load_roster_sidecar,
+    sidecar_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,6 +56,18 @@ SUM_COLS = {
 }
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
+
+# The browser bundle is a public projection, independent of diagnostic recording.
+EXPORT_PROPS_BY_ROLE = {
+    "producer": ("quantity_available", "unit_price", "active"),
+    "consumer": ("feed_received", "livestock_output", "active"),
+    "wholesaler": (
+        "quantity_available", "unit_price", "storage_utilization",
+    ),
+    "processor": ("quantity_available", "unit_price"),
+    "feed_manufacturer": ("quantity_available", "unit_price"),
+    "feed_trader": ("quantity_available", "unit_price"),
+}
 
 
 def _resolve_pdl_path(pdl: str) -> Path:
@@ -171,7 +186,7 @@ def _node_metadata(entry, entities: dict[str, dict]) -> dict:
         "role": entry.archetype.role,
         "entityIds": entity_ids,
         "placements": placements,
-        "hasRecordedData": entry.archetype.role in _PROPS_BY_ROLE,
+        "hasRecordedData": entry.archetype.role in EXPORT_PROPS_BY_ROLE,
     }
 
 
@@ -289,7 +304,7 @@ class PostgresRunReader:
         self, node_id: str, role: str, scenario: int,
     ) -> pd.DataFrame | None:
         from sqlalchemy import text
-        columns = ", ".join(_PROPS_BY_ROLE[role])
+        columns = ", ".join(EXPORT_PROPS_BY_ROLE[role])
         query = text(
             f"SELECT period, agent_id AS id, {columns}"
             f" FROM {role_view_name(role)}"
@@ -346,7 +361,7 @@ def build_bundle(
             continue
         nodes.append(_node_metadata(entry, entities))
 
-        props = _PROPS_BY_ROLE.get(entry.archetype.role)
+        props = EXPORT_PROPS_BY_ROLE.get(entry.archetype.role)
         if props is None:
             continue
         df = reader.agent_rows(node_id, entry.archetype.role, scenario)

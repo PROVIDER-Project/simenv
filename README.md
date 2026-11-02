@@ -5,8 +5,8 @@ Agent-based supply chain simulation for the **PROVIDER** research project (BMBF-
 Models the global soya supply chain from Brazil, Argentina, and US farms through wholesalers,
 sea transport, EU processors, and feed manufacturers to EU livestock farms. A PDL YAML
 describes entities, stages, and shock events; a roster sidecar next to it declares
-archetypes and which PDL entities are not modelled. Added trading entities and
-edges are listed in the sidecar but not yet wired into the roster builder. The
+archetypes, added trading entities/edges, economic overrides and which PDL
+entities are not modelled. The roster builder wires those declared actors. The
 model applies those shocks (drought,
 port capacity, input prices) and records price and sourcing behaviour across the chain.
 
@@ -125,6 +125,12 @@ pip install '.[db]'
 ---
 
 ## Agent implementations
+
+For research, scientific citations, economic equations, validated sidecar
+settings and model limitations, see [Economic models](docs/economic-models.md).
+Processing supports configurable input throughput distinct from yield and
+records offered, processed and unused input. Cost shares allow selective
+input-price exposure; default shares retain illustrative legacy assumptions.
 
 Decision logic and versioned `AgentSpec` setup/step schemas live in
 [provider-agents](https://github.com/PROVIDER-Project/provider-agents).
@@ -252,8 +258,7 @@ Agent counts are not CSV columns — the roster derives one agent per PDL entity
 Shocks are not CSV columns. Pass `--pdl`; `EventTracker` applies drought, capacity, and
 input-price events from the YAML. The shipped files are `scenarios/s1-soja.pdl.yaml` and
 `scenarios/s1-soja.roster.yaml` beside it (archetype declarations and not-modelled
-exclusions; trading entities and edges are declared but not yet wired into the roster
-builder).
+exclusions, wired trading entities/edges and optional economic parameters).
 
 | Parameter | Effect |
 |---|---|

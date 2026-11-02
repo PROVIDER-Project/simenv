@@ -1,6 +1,7 @@
 # PROVIDER simenv — PostgreSQL schema
 
-**Status:** contract, agreed 2026-09-22, normalized 2026-09-29.
+**Status:** contract, agreed 2026-09-22, normalized 2026-09-29;
+processing diagnostics appended 2026-11-02.
 **Audience:** anyone joining this database to another schema, including the customer-side
 Schnittstelle, plus the simenv maintainers.
 **Companion:** `docs/pdl-derived-architecture.md` explains why the shape is PDL-independent.
@@ -193,10 +194,10 @@ changes.
 conventional. A consumer must therefore treat a missing `(agent, metric)` pair as "this agent
 has no such metric", not as a gap in the data.
 
-**The row count is proportional to the PDL.** The `s1-soja` scenario over 2 scenarios × 365
-periods produces 97,090 `sim_tick` rows (values): 45 recorded agents carrying 2 or 3 metrics
-each, plus 7 environment metrics, against 46 `sim_agent` rows (the 45 agents and the
-environment) and 13 `sim_metric` rows.
+**The row count is proportional to the PDL and recorded metrics.** Each period
+adds one value per recorded property of each recorded agent, plus environment
+properties. Processing roles now carry five metrics rather than two; the
+catalogue has 16 metrics. Actor counts derive from the loaded roster.
 
 ---
 
@@ -218,6 +219,9 @@ section 4 explains why they never change in place.
 | `feed_received` | consumer | feed units per period | Feed collected from upstream traders, split evenly across active consumers. |
 | `livestock_output` | consumer | output units per period | Livestock produced, proportional to `feed_received`. |
 | `active` | producer, consumer | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
+| `input_received` | processor, feed_manufacturer | input units per period | Equal-share upstream input offer; not settled purchases. |
+| `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
+| `unused_input` | processor, feed_manufacturer | input units per period | Offered input not processed this period; not carried inventory. |
 
 "Output units" are the units of whatever good the agent sells, so `quantity_available` for a
 producer is raw soy and for a feed trader is compound feed. The metric is the same; the good
@@ -287,8 +291,8 @@ One view per role, each with one column per metric that role carries:
 | `sim_producer_view` | `quantity_available`, `unit_price`, `active` |
 | `sim_consumer_view` | `feed_received`, `livestock_output`, `active` |
 | `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization` |
-| `sim_processor_view` | `quantity_available`, `unit_price` |
-| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price` |
+| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
+| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
 | `sim_feed_trader_view` | `quantity_available`, `unit_price` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
@@ -317,6 +321,12 @@ scenario, metric and period, so each group holds at most one value per column.
 In these views, and only here, a missing value shows as `NULL`, because a pivoted row has a
 column for every metric of the role. A role view never has a column for a metric its role does
 not carry.
+
+The diagnostic columns are appended to existing processing views. Historical
+periods without these metrics return `NULL` in those columns. Raw playback
+exposes recorded diagnostics; static bundle export selects its existing public
+properties independently and does not export missing diagnostics as NaN. See
+[Economic models](economic-models.md) for throughput and offer semantics.
 
 ### Changing a view
 

@@ -102,7 +102,18 @@ Inside the running app, open **PDL configurator** from the top-right panel to:
 - copy or download a runnable PDL document and the matching roster sidecar built from the current settings
 - press **Run simulation** to execute those same generated documents through the simulation API
 
-The generated files keep the shipped scenario topology and narrow the document to the currently selected cascade. Save both files beside each other so simenv can resolve the sidecar automatically, then run:
+The generated files keep the shipped scenario topology and narrow the document
+to the currently selected cascade. Save both files beside each other so simenv
+can resolve the sidecar automatically.
+
+Custom economic cost shares, processing throughput and binding aliases are
+configured in the roster YAML as described in
+[Economic models](../docs/economic-models.md). The configurator does not edit
+these settings. Generated rosters include compatibility energy bindings for
+freight; add measured shares or throughput settings to the downloaded YAML
+before CLI submission. Custom rosters without `economics` remain supported.
+
+Run the saved scenario with:
 
 ```bash
 python -m provider_simenv.main --pdl /path/to/generated-scenario.pdl.yaml

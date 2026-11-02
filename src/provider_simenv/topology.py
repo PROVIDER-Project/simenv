@@ -39,6 +39,7 @@ from .agents import (
     Trader,
     Transport,
 )
+from .economic_config import resolve_economics
 from .pdl_loader import PDLLoader
 from .scenario import SupplyChainScenario
 
@@ -73,20 +74,18 @@ class Archetype:
 # Fragments are shared by reference across archetypes.
 # ---------------------------------------------------------------------------
 
-_ENERGY = {"energy": ("gas_supply", "price")}   # gas price scales freight operating costs
-
 _FARMER_EU = {    # end consumer: no margin; base_yield stays 0.0 -> buyer init
     "scenario_attrs": {"fixed_costs": "fixed_costs_eu_farmer",
                        "size_sigma":  "farm_size_sigma_eu"},
 }
 _TRANSPORT_EXPORT = {
-    "bindings":       _ENERGY,
-    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_sa"},
+    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_sa",
+                       "margin_transport": "margin_transport"},
     "attrs":          {"capacity": 500.0},
 }
 _TRANSPORT_IMPORT = {
-    "bindings":       _ENERGY,
-    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_eu"},
+    "scenario_attrs": {"fixed_costs": "fixed_costs_transport_eu",
+                       "margin_transport": "margin_transport"},
     "attrs":          {"capacity": 500.0},
 }
 _PROCESSOR = {
@@ -121,6 +120,7 @@ class RosterSidecar:
     entities: tuple[Mapping[str, Any], ...]
     edges: tuple[tuple[str, str], ...]
     dependencies: tuple[Mapping[str, Any], ...]
+    economics: Mapping[str, Any] = field(default_factory=dict)
 
 
 def sidecar_path(pdl_path: str | Path) -> Path:
@@ -136,7 +136,11 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
     if not path.exists():
         return RosterSidecar({}, {}, (), (), ())
 
-    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(doc, dict):
+        raise ValueError(  # noqa: TRY004 -- invalid configuration document
+            "roster sidecar must be a mapping",
+        )
     pdl_ids = {e.get("id") for e in (PDLLoader(pdl_path)._doc.get("entities") or [])}
 
     entities = tuple(doc.get("entities") or [])
@@ -153,6 +157,7 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
         entities=entities,
         edges=tuple((e[0], e[1]) for e in (doc.get("edges") or [])),
         dependencies=tuple(doc.get("dependencies") or []),
+        economics=doc.get("economics", {}),
     )
 
 # ---------------------------------------------------------------------------
@@ -233,8 +238,8 @@ SEA_FREIGHT_ATTR: str = "fixed_costs_transport_sea"
 
 # sea-transport archetype params, single-sourced from the SeaEdge defaults above
 _SEA_TRANSPORT = {
-    "bindings":       _ENERGY,
-    "scenario_attrs": {"fixed_costs": SEA_FREIGHT_ATTR},
+    "scenario_attrs": {"fixed_costs": SEA_FREIGHT_ATTR,
+                       "margin_transport": "margin_transport"},
     "attrs":          {"capacity": SEA_CAPACITY, "transit_steps": 60},   # ~2-month Atlantic crossing
 }
 
@@ -433,7 +438,10 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
             order.append(arc)
             ids_by_arc[arc] = []
 
-    return [RosterEntry(arc, tuple(ids_by_arc[arc])) for arc in order]
+    roster = [RosterEntry(arc, tuple(ids_by_arc[arc])) for arc in order]
+    return resolve_economics(
+        roster, sidecar.economics, {entity["id"] for entity in entities},
+    )
 
 
 # ---------------------------------------------------------------------------

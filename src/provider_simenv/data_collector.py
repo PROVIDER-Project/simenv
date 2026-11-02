@@ -23,8 +23,14 @@ _PROPS_BY_ROLE = {
     ROLE_WHOLESALER: (
         "quantity_available", "unit_price", "storage_utilization",
     ),
-    ROLE_PROCESSOR: ("quantity_available", "unit_price"),
-    ROLE_FEED_MANUFACTURER: ("quantity_available", "unit_price"),
+    ROLE_PROCESSOR: (
+        "quantity_available", "unit_price", "input_received",
+        "input_processed", "unused_input",
+    ),
+    ROLE_FEED_MANUFACTURER: (
+        "quantity_available", "unit_price", "input_received",
+        "input_processed", "unused_input",
+    ),
     ROLE_FEED_TRADER: ("quantity_available", "unit_price"),
 }
 
