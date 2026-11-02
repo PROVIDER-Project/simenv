@@ -133,11 +133,11 @@ class TickWriter:
         conn.execute(
             text(
                 "INSERT INTO sim_run (run_id, started_at, finished_at, status,"
-                " pdl, pdl_sha256, roster_sha256, scenario_ids, period_num,"
-                " git_sha, label)"
+                " pdl, pdl_sha256, roster_sha256, cascade, scenario_ids,"
+                " period_num, git_sha, label)"
                 " VALUES (:run_id, :started_at, :finished_at, :status,"
-                " :pdl, :pdl_sha256, :roster_sha256, :scenario_ids, :period_num,"
-                " :git_sha, :label)"
+                " :pdl, :pdl_sha256, :roster_sha256, :cascade, :scenario_ids,"
+                " :period_num, :git_sha, :label)"
             ),
             record,
         )

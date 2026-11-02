@@ -30,6 +30,8 @@ from .tick_writer import TickWriter
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PDL = Path(__file__).parent / "scenarios" / "s1-soja.pdl.yaml"
+
 
 class SupplyChainModel(Model):
     _tick_writer: ClassVar[TickWriter]
@@ -59,8 +61,7 @@ class SupplyChainModel(Model):
         PDL the roster is derived from: the class _pdl_path set by execution.py for a
         swapped PDL, else the shipped scenario so the model runs standalone.
         """
-        default = Path(__file__).parent / "scenarios" / "s1-soja.pdl.yaml"
-        return getattr(self.__class__, "_pdl_path", str(default))
+        return getattr(self.__class__, "_pdl_path", str(DEFAULT_PDL))
 
 
     def setup(self):

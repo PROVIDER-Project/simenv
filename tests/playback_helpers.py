@@ -36,6 +36,7 @@ def seed_run(engine, identity="run-1", status="completed", scene=True):
     writer.open_run({
         "run_id": identity, "started_at": datetime.now(timezone.utc), "finished_at": None,
         "status": "running", "pdl": "test.yaml", "pdl_sha256": None, "roster_sha256": None,
+        "cascade": None,
         "scenario_ids": [0, 1], "period_num": 3, "git_sha": None, "label": identity,
     }, scene=snapshot)
     conn = writer._conn

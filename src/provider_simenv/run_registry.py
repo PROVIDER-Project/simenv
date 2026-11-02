@@ -78,6 +78,7 @@ def run_record(
     pdl: str | None,
     scenario_ids: list[int],
     period_num: int,
+    cascade: str | None = None,
     label: str | None = None,
     started_at: datetime | None = None,
 ) -> dict:
@@ -88,6 +89,7 @@ def run_record(
     hash, the roster sidecar's hash and the git sha are derived here and
     nowhere else. started_at
     defaults to now; execution.py passes one so both stores record the same instant.
+    cascade is the cascade the run played, None when no PDL events ran.
     """
     return {
         "run_id": run_id,
@@ -97,6 +99,7 @@ def run_record(
         "pdl": os.path.basename(pdl) if pdl else None,
         "pdl_sha256": _file_sha256(pdl) if pdl else None,
         "roster_sha256": _roster_sha256(pdl) if pdl else None,
+        "cascade": cascade,
         "scenario_ids": [int(i) for i in scenario_ids],
         "period_num": int(period_num),
         "git_sha": git_sha(),
