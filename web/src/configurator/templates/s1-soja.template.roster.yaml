@@ -82,3 +82,34 @@ dependencies:
     to: fertilizer_supply
     type: input
     criticality: medium
+
+# Keep these bindings aligned with the shipped CLI sidecar. They migrate the
+# former implicit freight-energy relationship; shares remain illustrative.
+economics:
+  santos_port:
+    bindings:
+      energy: [gas_supply, price]
+  paranagua_port:
+    bindings:
+      energy: [gas_supply, price]
+  rotterdam_port:
+    bindings:
+      energy: [gas_supply, price]
+  hamburg_port:
+    bindings:
+      energy: [gas_supply, price]
+  sea_transport_santos_port__rotterdam_port:
+    bindings:
+      energy: [gas_supply, price]
+  sea_transport_paranagua_port__hamburg_port:
+    bindings:
+      energy: [gas_supply, price]
+  sea_transport_argentina_farms__rotterdam_port:
+    bindings:
+      energy: [gas_supply, price]
+  sea_transport_us_gulf_ports__rotterdam_port:
+    bindings:
+      energy: [gas_supply, price]
+  eu_oil_mills:
+    bindings:
+      energy: [gas_supply, price]

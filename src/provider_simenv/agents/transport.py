@@ -16,10 +16,6 @@ __all__ = ["ROLE_LAND_TRANSPORT", "ROLE_SEA_TRANSPORT", "Transport"]
 class Transport(SupplyChainAgent):
     agent_type = TransportProviderAgent
 
-    def _setup_input(self):
-        return {**super()._setup_input(),
-                "margin_transport": self.scenario.margin_transport}
-
     def _step_context(self):
         upstream, sources = self._sources(self.model.upstream(self.list_name))
         peers = getattr(self.model, self.list_name).filter(lambda a: a.active)
@@ -39,5 +35,4 @@ class Transport(SupplyChainAgent):
                 "routes": routes, "route_weights": weights,
                 "adjacency": {name: list(values) for name, values
                               in self.model._flow_adjacency.items()}}
-        data["state"]["margin_transport"] = self.scenario.margin_transport
         return data, sources

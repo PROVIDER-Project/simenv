@@ -109,6 +109,18 @@ METRICS = (
         "current_step", "day",
         "The period index; redundant with period.",
     ),
+    Metric(
+        "input_received", "input units per period",
+        "The process's equal-share upstream input offer; not settled purchases.",
+    ),
+    Metric(
+        "input_processed", "input units per period",
+        "Input actually transformed under the throughput constraint.",
+    ),
+    Metric(
+        "unused_input", "input units per period",
+        "Offered input not processed this period; not carried inventory.",
+    ),
 )
 
 METRICS_BY_NAME = {m.name: m for m in METRICS}
