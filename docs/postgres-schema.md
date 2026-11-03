@@ -223,7 +223,8 @@ section 4 explains why they never change in place.
 | `active` | producer, consumer | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
 | `input_received` | processor, feed_manufacturer | input units per period | Equal-share upstream input offer; not settled purchases. |
 | `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
-| `unused_input` | processor, feed_manufacturer | input units per period | Offered input not processed this period; not carried inventory. |
+| `unused_input` | processor, feed_manufacturer | input units per period | Input left after processing this period. It carries into the next period as stock. |
+| `stock` | producer, wholesaler, processor, feed_manufacturer, feed_trader | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. |
 
 "Output units" are the units of whatever good the agent sells, so `quantity_available` for a
 producer is raw soy and for a feed trader is compound feed. The metric is the same; the good
@@ -290,12 +291,12 @@ One view per role, each with one column per metric that role carries:
 
 | View | Metric columns |
 |---|---|
-| `sim_producer_view` | `quantity_available`, `unit_price`, `active` |
+| `sim_producer_view` | `quantity_available`, `unit_price`, `active`, `stock` |
 | `sim_consumer_view` | `feed_received`, `livestock_output`, `active` |
-| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization` |
-| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
-| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
-| `sim_feed_trader_view` | `quantity_available`, `unit_price` |
+| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization`, `stock` |
+| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock` |
+| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock` |
+| `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,

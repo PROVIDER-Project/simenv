@@ -119,7 +119,13 @@ METRICS = (
     ),
     Metric(
         "unused_input", "input units per period",
-        "Offered input not processed this period; not carried inventory.",
+        "Input left after processing this period. It carries into the next "
+        "period as stock.",
+    ),
+    Metric(
+        "stock", "units held",
+        "What the agent holds this period before passing anything on. "
+        "Processes hold input units, all other roles their output good.",
     ),
 )
 

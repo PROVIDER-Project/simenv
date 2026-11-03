@@ -37,7 +37,11 @@ class SupplyChainAgent(Agent):
         return {slot: self.effective(slot) for slot in self.binding}
 
     def _step_input(self):
-        return {"state": self._state(), "effects": self._effects()}
+        data = {"state": self._state(), "effects": self._effects()}
+        shipped = self.model.shipped_last_tick(self)
+        if shipped is not None:
+            data["shipped"] = shipped
+        return data
 
     def step(self):
         data = {"state": self._state()}

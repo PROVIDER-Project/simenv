@@ -104,6 +104,7 @@ class SupplyChainModel(Model):
         self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
         self._execution_order: list[str] = execution_order(self._flow_adjacency)
         self._deliveries: dict[int, list] = {}
+        self._shipped: dict[int, float] | None = None
 
 
     def upstream_parts(self, name: str) -> list:
@@ -230,6 +231,12 @@ class SupplyChainModel(Model):
         booked = self._deliveries.setdefault(id(source), [source, 0.0])
         booked[1] += quantity
 
+    def shipped_last_tick(self, agent) -> float | None:
+        """What buyers took from `agent` in the previous tick, or None on the first tick."""
+        if self._shipped is None:
+            return None
+        return self._shipped.get(id(agent), 0.0)
+
     def overdrawn_suppliers(self, tolerance: float = 1e-9) -> list[tuple[str, float, float]]:
         """Suppliers whose buyers took more this tick than they had available,
         as (list name, taken, available)."""
@@ -243,6 +250,9 @@ class SupplyChainModel(Model):
         """
         Execute one simulation step at period t. Shared by run() and run_stepwise().
         """
+        self._shipped = None if t == 0 else {
+            key: taken for key, (_, taken) in self._deliveries.items()
+        }
         self._deliveries = {}
         self.environment.update_shock_scales(t)
 
