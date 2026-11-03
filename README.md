@@ -23,6 +23,13 @@ on-demand database playback. This stack includes separate browser-accessible
 simulation and playback APIs plus internal PostgreSQL. See
 [Database playback](docs/playback.md) for setup, data fidelity and verification.
 
+After completion, **View results** opens the submitted run's scenario 1 directly.
+The **Disturbance impact** panel explains green/amber/red/gray component status,
+the strongest contributing metric, and the selected reference condition. Use a
+recorded scenario-0 baseline to reveal disturbances already present at step 0;
+scenario-start comparison is explicitly limited. See the
+[workshop status rules](docs/playback.md#workshop-status-and-references).
+
 ### Run a configured scenario from the dashboard
 
 The globe frontend's **PDL configurator** supports **Run simulation**: adjust

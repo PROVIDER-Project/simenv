@@ -56,11 +56,13 @@ test('configurator executes its edited documents and tracks both cascades', { ti
       const status = page.getByRole('region', { name: 'Simulation execution' }).getByRole('status')
       assert.match(await status.innerText(), new RegExp(label))
       assert.match(await status.innerText(), /completed/)
-      assert.match(await status.innerText(), /730\/730 total steps/)
+      assert.match(await status.innerText(), /365\/365 total steps/)
       assert.equal(await page.getByRole('progressbar').getAttribute('value'), '100')
       const recorded = page.getByRole('combobox', { name: 'Recorded run', exact: true })
-      await recorded.locator(`option[value="${job.id}"]`).waitFor({ state: 'attached' })
-      await recorded.selectOption(job.id)
+      await page.getByRole('button', { name: 'View results', exact: true }).click()
+      await page.waitForFunction(id => document.querySelector('[aria-label="Recorded run"]')?.value === id, job.id)
+      assert.equal(await recorded.inputValue(), job.id)
+      assert.equal(await page.getByRole('combobox', { name: 'Recorded scenario', exact: true }).inputValue(), '1')
       await page.getByRole('button', { name: 'Pause', exact: true }).click()
       const frames = page.waitForResponse(response =>
         response.url().includes(`/runs/${job.id}/scenarios/1/frames?start=200&limit=100`),

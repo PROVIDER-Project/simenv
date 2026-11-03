@@ -17,6 +17,7 @@ import './configurator.css'
 interface ScenarioConfiguratorProps {
   meta: BundleMeta
   onCompleted?: (runId: string) => void
+  onViewResults?: (runId: string) => Promise<void>
 }
 
 interface RangeFieldProps {
@@ -66,7 +67,7 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
   )
 }
 
-export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConfiguratorProps) {
+export default function ScenarioConfigurator({ meta, onCompleted, onViewResults }: ScenarioConfiguratorProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState<string>('')
   const [exporting, setExporting] = useState<'copy-pdl' | 'download-pdl' | 'copy-roster' | 'download-roster' | null>(
@@ -135,6 +136,7 @@ export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConf
       </div>
 
       <SimulationRunner
+        onViewResults={onViewResults}
         onCompleted={onCompleted}
         hidden={collapsed}
         submission={{ pdl, roster, cascade: config.cascadeId, label: config.scenarioName.trim() || defaultScenarioConfig.scenarioName }}

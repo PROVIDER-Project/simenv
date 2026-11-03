@@ -3,13 +3,15 @@ import type { projectFrame } from './frame'
 import { formatValue, statusColor, statusLabel } from '../design/status'
 
 export function StatusLegend() {
-  return <details className="sim-status-legend"><summary>Status legend &amp; metric rules</summary>
+  return <section className="sim-status-legend" aria-label="Status legend">
     <div className="sim-status-scale">{[0, .5, 1, null].map(score => <span key={String(score)}><i style={{ background: statusColor(score) }} />{score === 0 ? 'Green: near reference' : score === .5 ? 'Amber: elevated' : score === 1 ? 'Red: severe' : 'Gray: unavailable'}</span>)}</div>
+    <details><summary>Thresholds &amp; metric rules</summary>
     <p>Relative adverse change: green through 5%, amber at 20%, red at 50%, interpolated between anchors. Capacity: green below 80%, amber at 80%, red at 95%. Illustrative workshop thresholds, pending domain calibration.</p>
     <p>Overview = strongest applicable metric of the strongest individual agent. Incomplete evidence is labeled; healthy evidence plus missing comparisons is gray.</p>
     <p>Connections: inferred upstream status, inherited from their source only. Gray sources give gray connections. Network-average transport utilization does not measure individual ports or routes.</p>
     <p>Lower availability alone does not prove unmet demand. Storage/handling pressure is not production utilization or persistent warehouse inventory. Geographic placement annotations and selection rings are separate from status.</p>
-  </details>
+    </details>
+  </section>
 }
 
 export default function StatusPanel({ scene, projected, period, selected, onSelect, reference }: {
@@ -26,7 +28,7 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
       <h3>{node.label} · step {period}</h3>
       <p className="sim-status-heading" style={{ borderColor: statusColor(status.score) }}><strong>{statusLabel(status.score)}</strong>{status.coverage === 'partial' && ' · Incomplete evidence'}</p>
       <p>{status.reason}</p>
-      {status.winner && <p>Responsible metric: {status.winner.metric.label} · agent {status.winner.agent.agent_id} ({status.winner.agent.role}).</p>}
+      {status.winner && status.score !== null && <p>Responsible metric: {status.winner.metric.label} · agent {status.winner.agent.agent_id} ({status.winner.agent.role}).</p>}
       <p>Aggregation: strongest individual status across {status.agents.length} recorded agents; values below remain separate.</p>
       {node.entityIds.length > 1 && <p>Pooled component: {node.entityIds.join(', ')}. Its geographic markers share this assessment.</p>}
       {node.placements.some(item => item.illustrative) && <p>Illustrative geographic placement (not a simulation-status indicator).</p>}

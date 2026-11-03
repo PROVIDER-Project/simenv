@@ -1,8 +1,10 @@
 # Simulation API
 
 The API accepts PDL YAML, queues a simulation, and exposes its lifecycle,
-live progress, and logs. Each job executes the existing baseline scenario
-and one PDL scenario in an isolated subprocess. A single worker executes
+live progress, and logs. Each job executes only the submitted PDL scenario
+(scenario 1) in an isolated subprocess. It does not record scenario 0; workshop
+comparison can select a compatible recorded baseline from a separate CLI run.
+A single worker executes
 jobs in submission order while the HTTP service remains responsive.
 
 **Job ID and simulation run ID are the same.** Simulation preparation

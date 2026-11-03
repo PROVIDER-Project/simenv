@@ -17,6 +17,47 @@ playback. On smaller screens the panel follows the page's scrollable layout.
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
 
+### Workshop disturbance inspection
+
+After a simulation completes, **View results** opens that exact run's scenario 1.
+Configurator changes after submission are labeled **Unsubmitted edits for the
+next run**; they do not change the displayed recorded results.
+
+The **Disturbance impact** panel provides a shared traffic-light legend, a
+**Reference condition** selector, and a keyboard-accessible **Inspect component**
+list (including unplaced/unrecorded components). Globe marker clicks select the
+same details. Details show the strongest metric/agent, individual current and
+reference values, percentage changes, and missing-data explanations. Pooled
+components and multi-agent strongest-status aggregation are explicit.
+
+- Green: near reference / low pressure; amber: elevated; red: severe; gray:
+  unavailable. Prices worsen upward, availability/output downward. All applicable
+  metrics contribute. Known adverse evidence survives incomplete coverage;
+  green-only evidence with missing comparisons stays gray.
+- Fixed illustrative thresholds: relative adverse change green through **5%**,
+  amber at **20%**, red at **50%**, with interpolation; capacity green below
+  **80%**, amber at **80%**, red at **95%**. Policy is centralized in
+  `src/playback/status.ts`; palette in `src/design/tokens.ts`.
+- Same-run scenario 0 is preferred at corresponding periods. Workshop API runs
+  contain scenario 1 only: select another completed run's scenario 0, using
+  **More runs** to discover older references. Structure, period coverage and exact
+  agent identities are checked. Equal economic configuration/seeds are not verified.
+- **Relative to scenario start** compares with the first recorded end-of-step
+  frame. It cannot reveal disturbances already present at the first step. Static
+  demo uses this mode and its legacy exported aggregation, not raw agent identities.
+- Zero/missing references and no-quote prices are unavailable, not healthy.
+  Inactivity is red. Recorded capacity pressure is absolute. Storage/handling
+  pressure is not production utilization; lower quantity alone is not unmet demand.
+  Processing input offered/processed are optional decrease indicators;
+  unused input is diagnostic only. Historical metrics absent on both sides are
+  unsupported rather than invented.
+- Connections inherit source status only, labeled **inferred upstream status**.
+  Network-average transport utilization does not measure a particular port/route.
+  The timeline synchronizes soy/feed prices, soy supply and average transport
+  utilization with playback. Placement annotations and selection rings are separate.
+
+See [reference rules, limitations and screenshots](../docs/playback.md#workshop-status-and-references).
+
 World map / globe view for the PROVIDER simulation environment. Renders the geolocatable
 projection of the soy supply chain — producers, ports, EU processing, livestock — and plays
 back an exported simulation run on a 3D globe.
@@ -185,9 +226,15 @@ origin via CORS; the default API service does not enable CORS.
 
 #### Viewing the new results
 
-Completion means the API saved the run; the globe continues playing its loaded
-`bundle.json`. The API currently provides status/log endpoints, not a downloadable
-playback bundle. To display a completed API run, export it and reload the page.
+With database playback configured, completion exposes **View results**, which
+finds the exact completed ID across catalogue pages and selects scenario 1.
+Errors explain missing/unplayable results and allow retrying the same ID. Both
+APIs must use the same database. Playback selection stays visibly separate from
+configurator inputs awaiting submission.
+
+In static-demo mode the action explains the required playback configuration;
+the demo continues showing its exported run. To update that standalone demo,
+export the completed run and reload the page.
 With a local API data directory, run from this repository root:
 
 ```bash
@@ -233,7 +280,9 @@ npm run test:simulation
 
 This creates two real jobs (one per cascade), verifies that slider/switch edits
 reach the API as the exact displayed PDL/roster, checks the submission lock and
-monitoring across panel hide/show, and waits for completed runs with 730 steps.
+monitoring across panel hide/show, and waits for completed runs with 365 steps
+each. It then uses **View results** to open each exact run/scenario 1 and seeks
+into a later database page.
 Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
 to increase the per-run completion wait (default 120000 ms) for a busy API or
 slower hardware. The test assumes the

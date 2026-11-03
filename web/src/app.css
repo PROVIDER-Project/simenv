@@ -100,7 +100,7 @@ body {
 .sim-frame-meta {
   position: fixed;
   right: 28px;
-  bottom: 24px;
+  bottom: 12px;
   left: 28px;
   z-index: 4;
   display: flex;

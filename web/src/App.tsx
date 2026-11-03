@@ -26,7 +26,35 @@ export default function App({ source }: { source: PlaybackSource }) {
   const [offset, setOffset] = useState(0)
   const [nextOffset, setNextOffset] = useState(0)
   const selection = useRef('')
+  const opening = useRef<AbortController | null>(null)
   const refreshRuns = useCallback(() => { setOffset(0); setRefresh(value => value + 1) }, [])
+  useEffect(() => () => opening.current?.abort(), [])
+
+  const viewResults = useCallback(async (runId: string): Promise<void> => {
+    if (source.mode === 'static') throw new Error('Viewing submitted results requires recorded playback. Configure VITE_PLAYBACK_API_BASE_URL; the displayed static demo is separate from your submitted run.')
+    opening.current?.abort()
+    const controller = new AbortController()
+    opening.current = controller
+    try {
+      let offset = 0
+      let found: RunSummary | undefined
+      while (!found) {
+        const page = await source.listRuns(50, offset, controller.signal)
+        if (controller.signal.aborted) throw new Error('Results selection changed')
+        found = page.items.find(item => item.id === runId)
+        offset += page.items.length
+        if (found || !page.items.length || offset >= page.total) break
+      }
+      if (!found) throw new Error(`Run ${runId} is not in the configured playback database. Check both services use the same database, then retry View results.`)
+      if (!found.playable || !found.scenario_ids.includes(1)) throw new Error(found.unavailable_reason || 'This completed run does not have playable scenario 1 results yet. Retry View results.')
+      if (controller.signal.aborted) throw new Error('Results selection changed')
+      selection.current = runId
+      setRuns(current => [...current.filter(item => item.id !== runId), found])
+      setSelected(runId); setScenario(1)
+    } finally {
+      if (opening.current === controller) opening.current = null
+    }
+  }, [source])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -69,12 +97,13 @@ export default function App({ source }: { source: PlaybackSource }) {
       onRun={id => {
         const run = runs.find(item => item.id === id)
         if (!run?.playable) return
+        opening.current?.abort()
         selection.current = id; setSelected(id)
         setScenario(run.scenario_ids.includes(1) ? 1 : run.scenario_ids[0])
-      }} onScenario={setScenario} />
+      }} onScenario={id => { opening.current?.abort(); setScenario(id) }} />
     {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} />
       : <div className="sim-playback-message">Select a completed run for playback.</div>}
-    <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} />
+    <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
   </main>
 }
 

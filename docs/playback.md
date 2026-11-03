@@ -19,7 +19,8 @@ use `docker build --no-cache -f Dockerfile.api ...` or
 
 Open **http://localhost:8080**. An empty database is supported: use the scenario
 configurator's **Run simulation** button to record the first run. On completion
-the catalogue refreshes. Select a run/scenario, then play, pause, or seek. The
+the catalogue refreshes. Use **View results** to select that exact run's scenario
+1, or select a run/scenario manually, then play, pause, or seek. The
 newest playable run is selected initially. Refresh and More runs browse records.
 
 Run and scenario selection are stacked in the **Recorded playback** panel on
@@ -87,11 +88,9 @@ Frames contain `period` and `agents`. Each agent contains `entity_id`, `agent_id
 averaging, rounding, downsampling, or interpolation. Flags remain numeric 0/1.
 JSON numbers retain the database's double precision and agents stay distinct.
 
-Globe colours are display-only relative changes from period zero: rising prices
-or falling output/quantity increase intensity, clipped to 0–1. Zero/missing
-references yield zero intensity. A multi-agent node shows its strongest
-individual visual intensity. These values never mutate or replace measurements.
-Colours no longer require full-run minimum/maximum values.
+Globe colours are display-only assessments using the fixed workshop rules below.
+They never mutate or replace measurements, and do not depend on page-cache contents
+or full-run minimum/maximum values.
 
 Only completed runs with available scenes are playable. New runs store versioned
 topology snapshots in PostgreSQL and remain playable if inputs change or
@@ -102,6 +101,115 @@ Errors: unknown run/scenario 404; unavailable/incomplete run 409; invalid range
 422; database outage 503; corrupt/incomplete committed measurements 500. No
 missing values are invented and database credentials are not returned.
 
+## Workshop status and references
+
+**Disturbance impact** combines a compact legend, reference selection and component
+inspection. Select a marker or use the keyboard-accessible **Inspect component**
+list, including nodes without geographic placement. Details show step, status,
+responsible metric/agent, current/reference values, changes and missing evidence.
+Pooled geographic markers share their roster node's assessment. Multi-agent nodes
+retain the strongest individual metric status, not an average; ties follow stable
+agent identity and metric-registry order.
+
+### Fixed illustrative workshop policy
+
+| Indicator | Adverse evidence | Green | Amber | Red |
+| --- | --- | --- | --- | --- |
+| Prices | Relative increase | through 5% | 20% | 50% and above |
+| Availability / output | Relative decrease | through 5% | 20% | 50% and above |
+| Capacity pressure | Absolute recorded fraction | below 80% | 80% | 95% and above |
+| Participation | Recorded `active` | active | — | inactive |
+
+Relative colors interpolate green–amber from 5–20% and amber–red from 20–50%.
+Capacity is green below 80%, then interpolates amber–red from 80–95%. Improvements
+return toward green. These are initial workshop defaults pending domain review,
+centrally configured in `web/src/playback/status.ts`; shared palette/interpolation
+live in `web/src/design/`. Selection rings and illustrative placement labels do
+not change status fill.
+
+Evaluate all role-applicable measurements: asking price and quantity for producers,
+wholesalers, processors, feed manufacturers/traders; feed received and livestock
+output for consumers; participation where recorded; storage/handling pressure for
+wholesalers. Optional processor/manufacturer `input_received` means **input
+offered**, while `input_processed` means transformed input. Their relative
+decreases contribute to status when supported; `unused_input` is diagnostic only.
+Historical optional diagnostics absent on both sides do not imply incomplete data.
+One-sided missing diagnostics do. These values cannot establish production-capacity
+utilization without a recorded capacity denominator. Storage pressure is not
+production utilization or persistent inventory, and low quantity alone does not
+establish unmet demand.
+
+Gray means missing measurements, unusable references, incompatible identities,
+or insufficient evidence. Relative references must be positive: zero-to-zero is
+unknown, not healthy. Zero current availability against a positive reference is
+a severe decline. Zero price is **no quote / no contributing volume**, not recovery.
+Inactivity and absolute capacity remain evaluable even if references fail.
+Known adverse evidence with missing comparisons retains its color and is labeled
+**Incomplete evidence**; green-only evidence with missing comparisons is gray.
+Expected-agent checks use the first-frame census; the API has no independent
+manifest to detect agents absent from every frame.
+
+### Choosing normal
+
+1. Default to **scenario 0 from the same recorded run**, when available, comparing
+   corresponding periods and exact `(entity_id, agent_id, role)` identities.
+2. API workshop submissions record **scenario 1 only**. Select a completed
+   reference run containing scenario 0; use **More runs** to load older choices.
+   A normal CLI PDL invocation records baseline and PDL scenarios. Structure
+   (nodes, represented entities, roles, recording flags, directed edges), period
+   coverage and recorded identities must match. Cosmetic labels, coordinates,
+   ordering and PDL filenames do not need to match.
+3. Otherwise default to **Relative to scenario start**, also selectable explicitly.
+   This pins the first recorded **end-of-step** frame outside the evictable cache.
+   It cannot reveal disturbances already present at the first step. The static
+   exported demo uses this mode and retains its legacy exporter aggregation.
+
+An external run is a **structurally compatible recorded baseline**; the existing
+API cannot verify equivalent economic settings, seed or implementation version.
+Do not interpret that comparison as a controlled causal experiment. Scenario 1
+is never offered as a verified unshocked reference. Missing periods, identities,
+metrics or requests explain unavailable comparison without silently switching
+mode. **Retry reference** retries the chosen source independently of playback.
+Initial agent censuses must match for a recorded baseline selection. If an agent
+later disappears, its assessment is unavailable but exact matches for surviving
+agents and unaffected network indicators retain their comparison evidence.
+Reference changes and seeking invalidate stale comparisons immediately; details,
+markers, connections and all four network indicators share the displayed frame.
+
+### Connections and workshop results
+
+Connections show **inferred upstream status**: inherit only their source node's
+assessment. Unknown source means gray, without target fallback or recursive
+propagation through unrecorded ports. The four synchronized timeline indicators
+are soy price, feed price, total soy supply and average transport utilization.
+The last is network-wide; individual route/port utilization is not recorded.
+
+After completion, **View results** searches catalogue pages for the submitted ID
+and opens its scenario 1. It never substitutes the newest run. Errors retain the
+displayed selection and allow retry. In static mode, configure
+`VITE_PLAYBACK_API_BASE_URL` to view database results. The caption identifies
+displayed recorded results; later configurator changes are **Unsubmitted edits
+for the next run**, separate from the submitted input snapshot.
+
+### Review screenshots
+
+- [Before: previous static demo interface, step 150](status-before.png) — main
+  checkout `9dee6b0`, before issue #75. Different data from the controlled states.
+- [Healthy: step 0](status-healthy.png).
+- [Disturbed: step 100](status-disturbed.png) — quantity down 50%, price increases,
+  and near-full network transport utilization.
+- [Recovered: step 250](status-recovered.png) — availability/prices return to reference.
+- [Unavailable: step 290](status-unavailable.png) — missing measurements stay gray.
+- [Metric breakdown: disturbed step 100](status-details.png) — current/reference
+  values and percentage changes in the scrollable inspector.
+- [Mobile inspection layout](status-mobile.png).
+
+The after screenshots use explicitly **controlled recorded-response fixtures**,
+not empirical simulation results. Reproduce from `web/` with Vite configured for
+`VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001`:
+`SIMENV_WEB_URL=http://127.0.0.1:5175 node tests/capture-status.mjs`.
+Real-service coverage separately submits and opens both supported cascades.
+
 ## Verification
 
 Install `.[dev]` and run against an isolated database:
@@ -111,16 +219,26 @@ SIMENV_TEST_POSTGRES_URL=postgresql+psycopg2://postgres:postgres@localhost/test_
   python -m pytest tests
 ```
 
-Fixtures create private schemas and remove only those schemas. The integration
-test submits a real 105-period run, deletes its private inputs, fetches both
-scenarios across pages, and compares every identity/value to PostgreSQL.
+Most fixtures create private schemas and remove only those schemas; the schema
+test also initializes the configured database's default schema. Use a disposable
+test database. The integration test submits a real 105-period run, deletes its
+private inputs, fetches scenario 1 across pages, and compares every identity/value
+to PostgreSQL. Set `PROVIDER_SIMENV_POSTGRES_URL` as well to enable live tick-writer
+checks. CSV parity is separately opt-in via `PROVIDER_SIMENV_PARITY_RUN`.
 
 From `web/`, run `npm run test:playback`. For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
 `npm run test:playback-browser`; only these tests intercept API responses.
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
-stack. It submits both cascades, verifies catalogue refresh, selects each
-completed run, and seeks into a later database page.
+stack. It submits both cascades, verifies catalogue refresh, opens each exact
+completed run via **View results**, and seeks into a later database page. Status
+browser regressions cover day-0 comparison, recovery, missing/reference failures,
+keyboard inspection, reference switching/refresh, delayed responses, cache eviction
+and exact-ID pagination/retry. Static-demo verification requires a Vite server
+without `VITE_PLAYBACK_API_BASE_URL`; no database fallback is implicit.
+Set `SIMENV_STATIC_WEB_URL` to that second server when running
+`npm run test:playback-browser` to include its static-demo acceptance case;
+without this setting that case is explicitly skipped.
 
 ### Frontend-versus-API performance
 
