@@ -42,17 +42,21 @@ class SupplyChainAgent(Agent):
     def step(self):
         data = {"state": self._state()}
         sources = {}
+        self._step_sources = {}
         if self._implementation.requires_observations(data["state"]):
             data, sources = self._step_context()
         self._apply_result(self._implementation.step(data), sources)
 
     def _step_context(self):
-        return self._step_input(), {}
+        data = self._step_input()
+        return data, self._step_sources
 
     def _apply_result(self, result, sources=None):
         for name, value in result.items():
-            if name != "upstream_updates":
+            if name not in ("upstream_updates", "received"):
                 setattr(self, name, value)
+        for entry in result.get("received", []):
+            self.model.book_delivery((sources or {})[entry["key"]], entry["quantity"])
         for update in result.get("upstream_updates", []):
             source = (sources or {})[update["key"]]
             for name, value in update.items():
@@ -78,6 +82,7 @@ class SupplyChainAgent(Agent):
                 record.update(is_transport=True, capacity=source.capacity,
                               effects=source._effects())
             records.append(record)
+        self._step_sources = sources
         return records, sources
 
     def effective(self, slot: str) -> float:

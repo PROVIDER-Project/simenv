@@ -103,6 +103,7 @@ class SupplyChainModel(Model):
         from .topology import build_flow_adjacency, execution_order
         self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
         self._execution_order: list[str] = execution_order(self._flow_adjacency)
+        self._deliveries: dict[int, list] = {}
 
 
     def upstream_parts(self, name: str) -> list:
@@ -224,10 +225,25 @@ class SupplyChainModel(Model):
             '─' * 63,
         )
 
+    def book_delivery(self, source, quantity: float) -> None:
+        """Record that a buyer took `quantity` from `source` in the current tick."""
+        booked = self._deliveries.setdefault(id(source), [source, 0.0])
+        booked[1] += quantity
+
+    def overdrawn_suppliers(self, tolerance: float = 1e-9) -> list[tuple[str, float, float]]:
+        """Suppliers whose buyers took more this tick than they had available,
+        as (list name, taken, available)."""
+        return [
+            (source.list_name, taken, source.quantity_available)
+            for source, taken in self._deliveries.values()
+            if taken > source.quantity_available + tolerance * max(1.0, source.quantity_available)
+        ]
+
     def _do_step(self, t: int) -> None:
         """
         Execute one simulation step at period t. Shared by run() and run_stepwise().
         """
+        self._deliveries = {}
         self.environment.update_shock_scales(t)
 
         # tracker event logging
