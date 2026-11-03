@@ -77,6 +77,7 @@ test('reference failure keeps capacity and participation while retry restores re
     const details = page.getByRole('region', { name: 'Component status' })
     assert.match(await details.innerText(), /Unavailable/)
     assert.match(await details.innerText(), /active/)
+    await details.locator('.sim-metric').filter({ hasText: 'unit_price' }).getByText('Change: Unavailable', { exact: true }).waitFor()
     const transport = page.locator('[data-metric="transport_utilisation"]')
     assert.match(await transport.innerText(), /Severe/)
     state.referenceFailure = false
@@ -203,7 +204,7 @@ test('scenario-start reference remains pinned after first-page eviction and back
   } finally { await browser.close() }
 })
 
-test('delayed reference page leaves all consumers on displayed period with unknown relative evidence', async () => {
+test('delayed reference page holds the last matched display pair until the seek is ready', async () => {
   const browser = await chromium.launch({ headless: true })
   let release
   try {
@@ -211,13 +212,15 @@ test('delayed reference page leaves all consumers on displayed period with unkno
     const state = await workshop(page)
     await page.goto(webUrl); await pause(page)
     await page.getByRole('region', { name: 'Component status' }).getByText('Supply availability down 50%', { exact: true }).first().waitFor()
+    const previous = await page.getByRole('slider', { name: 'Simulation step' }).inputValue()
     state.delay = new Promise(resolve => { release = resolve })
     await page.getByRole('slider', { name: 'Simulation step' }).fill('250')
-    await page.waitForFunction(() => document.querySelector('[aria-label="Component status"]')?.dataset.period === '250')
+    await page.getByRole('region', { name: 'Reference comparison' }).getByText(/Waiting for matching measurements/).waitFor()
     const details = page.getByRole('region', { name: 'Component status' })
-    assert.match(await details.innerText(), /Unavailable/)
-    assert.equal(await page.getByRole('group', { name: 'Network indicators' }).getAttribute('data-period'), '250')
-    assert.match(await page.locator('[data-metric="soy_price"]').innerText(), /Unavailable/)
+    assert.equal(await details.getAttribute('data-period'), previous)
+    assert.equal(await page.getByRole('group', { name: 'Network indicators' }).getAttribute('data-period'), previous)
+    assert.match(await details.innerText(), /Supply availability down 50%/)
+    assert.match(await page.locator('[data-metric="soy_price"]').innerText(), /Soy price up 50%/)
     assert.match(await page.locator('[data-metric="transport_utilisation"]').innerText(), /Severe/)
     release(); state.delay = null
     await details.getByText('Supply availability up 0%', { exact: true }).waitFor()

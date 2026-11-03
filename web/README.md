@@ -12,6 +12,8 @@ keeping the central globe clear. Both panels start expanded and have independent
 **Hide**/**Show** buttons that preserve selection and playback. Desktop controls
 share one scroll area, including on short windows. On smaller screens they use
 the page's full-width scrollable layout without nested panel scrolling.
+The timeline's height is reserved separately from the sidebar; very short windows
+also switch to page flow so the scrubber remains clickable.
 
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
@@ -56,6 +58,13 @@ components and multi-agent strongest-status aggregation are explicit.
   Network-average transport utilization does not measure a particular port/route.
   The timeline synchronizes soy/feed prices, soy supply and average transport
   utilization with playback. Placement annotations and selection rings are separate.
+
+Playback presents current/reference measurements as one matched pair. If a page
+is still loading, the displayed step, colors and values hold together until the
+pair is ready, then resume. Cached steps do not flash gray. Changing reference
+invalidates prior comparison evidence immediately; actual errors/missing data
+remain explicitly unavailable. The indicator grid, tabular values and reserved
+loading space keep readouts stable while playing.
 
 See [reference rules, limitations and screenshots](../docs/playback.md#workshop-status-and-references).
 

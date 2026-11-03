@@ -17,8 +17,9 @@ frontend-only change using the existing paged source and frame buffers.
 - `playback/frame.ts`: one display projection for nodes, source-inherited edges,
   and the four environment indicators. Join recordings to `Node.id`, not its
   geographic `entityIds`. Keep measurements immutable and precision intact.
-- A focused reference hook owns a separate bounded buffer, reference metadata,
-  retry/cancellation and period matching. `usePlayback` pins the first frame.
+- `referenceLoader.ts` owns a separate bounded buffer, compatibility checks and
+  settled reference failures. `usePlayback` pins the first frame, owns lifecycle
+  cancellation and atomically publishes matching current/reference snapshots.
 - Shared status colors, legend, reference selector, component list/details and
   timeline consume the projection. Selection rings and illustrative-placement
   annotations are independent of status fill.
@@ -76,15 +77,20 @@ and filenames. Validate identities each period. Explain incompatibility, missing
 metrics/periods and request failures; never silently fall back. State that
 structural compatibility does not verify economic configuration equivalence.
 
-Retain the displayed frame during current-frame buffering. Recorded scenario-0
+Retain the complete displayed pair during current/reference buffering for the same
+generation, including seeking; suspend advancement until both requested frames
+are ready. Cache hits do not become unavailable/loading states. Recorded scenario-0
 references must match the displayed period; scenario-start references always
 remain at the first recorded period. Both must belong to the active selection
-and reference generation. Reference
-loading/error immediately makes relative comparisons unavailable, while capacity
+and reference generation. A source/reference-generation change or actual reference
+error makes relative comparisons unavailable immediately, while capacity
 and participation still work. All indicators, details and globe colors consume
 that same projection. Reject late responses after seek/run/scenario/reference
 changes even if transport cancellation is ignored. Reference errors have a
-separate retry action. Validate HTTP scene response identities as well as pages.
+separate retry action and remain settled until explicit retry. Prefetch both
+streams. Validate HTTP scene response identities as well as pages. Fixed indicator
+grid cells, tabular numbers and reserved status/detail rows prevent playback text
+from shifting layout; long explanations remain accessible.
 
 ## Interface and workshop loop
 

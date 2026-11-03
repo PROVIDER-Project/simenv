@@ -2,11 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 
-await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/data/httpPlaybackSource.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
+await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
 const { createPlaybackBuffer } = await import('../.test-build/playback/buffer.js')
 const { projectFrame } = await import('../.test-build/playback/frame.js')
 const { parseFramePage } = await import('../.test-build/data/httpPlaybackSource.js')
 const { referenceCompatibility } = await import('../.test-build/playback/reference.js')
+const { createReferenceLoader } = await import('../.test-build/playback/referenceLoader.js')
 
 test('buffer deduplicates, aligns seeks, evicts and rejects stale loads', async () => {
   const requests = []
@@ -18,6 +19,9 @@ test('buffer deduplicates, aligns seeks, evicts and rejects stale loads', async 
   const buffer = createPlaybackBuffer(source, 'run', 1)
   await Promise.all([buffer.load(15), buffer.load(18)])
   assert.deepEqual(requests, [0])
+  assert.equal(buffer.peek(15).period, 15)
+  assert.equal(buffer.peek(200), null)
+  assert.deepEqual(requests, [0], 'peek never initiates a request')
   assert.equal((await buffer.load(299)).period, 299)
   await buffer.load(100); await buffer.load(300); await buffer.load(400)
   await buffer.load(0)
@@ -26,6 +30,7 @@ test('buffer deduplicates, aligns seeks, evicts and rejects stale loads', async 
   const slow = createPlaybackBuffer({ getFrames: () => new Promise(r => { resolve = r }) }, 'old', 0)
   const pending = slow.load(0)
   slow.dispose()
+  assert.equal(slow.peek(0), null)
   resolve({ run_id: 'old', scenario_id: 0, start: 0, next_start: null, frames: [{ period: 0, agents: [] }] })
   await assert.rejects(pending)
 })
@@ -129,4 +134,50 @@ test('wire validation preserves precision and rejects nonfinite and duplicate ag
   assert.throws(() => parseFramePage(invalid))
   page.frames[0].agents.push(page.frames[0].agents[0])
   assert.throws(() => parseFramePage(page))
+})
+
+test('reference failures settle without retrying each step and a new generation can retry', async () => {
+  const calls = []
+  let fail = true
+  const source = { async getScene() { return scene }, async getFrames(run_id, scenario_id, start) {
+    calls.push(start)
+    if (start === 200 && fail) throw new Error('Reference offline')
+    return { run_id, scenario_id, start, next_start: null, frames: Array.from({ length: 100 }, (_, i) => ({ period: start + i, agents: [agent(normal)] })) }
+  } }
+  const scene = { run_id: 'r', scenario_id: 0, min_period: 0, max_period: 299, nodes: [], edges: [] }
+  const baseline = { period: 0, agents: [agent(normal)] }
+  const loader = createReferenceLoader(source, scene, baseline, 'r')
+  assert.equal(loader.peek(baseline), null)
+  assert.equal((await loader.load(baseline)).frame.period, 0)
+  assert.equal(loader.peek({ ...baseline, period: 50 }).frame.period, 50)
+  assert.equal((await loader.load({ ...baseline, period: 250 })).error, 'Reference offline')
+  assert.equal((await loader.load({ ...baseline, period: 251 })).error, 'Reference offline')
+  assert.deepEqual(calls, [0, 200])
+  loader.dispose()
+  assert.equal(loader.peek(baseline), null)
+  await assert.rejects(loader.load(baseline), /Reference changed/)
+  fail = false
+  const retry = createReferenceLoader(source, scene, baseline, 'r')
+  assert.equal((await retry.load({ ...baseline, period: 250 })).frame.period, 250)
+  retry.dispose()
+})
+
+test('a superseded reference failure cannot poison the active seek', async () => {
+  let reject
+  const scene = { run_id: 'r', scenario_id: 0, min_period: 0, max_period: 299, nodes: [], edges: [] }
+  const baseline = { period: 0, agents: [agent(normal)] }
+  const loader = createReferenceLoader({ async getScene() { return scene }, async getFrames(run_id, scenario_id, start) {
+    if (start === 200) return new Promise((_, failure) => { reject = failure })
+    return { run_id, scenario_id, start, next_start: null, frames: [baseline] }
+  } }, scene, baseline, 'r')
+  await loader.load(baseline)
+  const controller = new AbortController()
+  const old = loader.load({ ...baseline, period: 250 }, controller.signal)
+  await new Promise(resolve => setImmediate(resolve))
+  controller.abort()
+  assert.equal((await loader.load(baseline)).error, null)
+  reject(new Error('Late old-page failure'))
+  await assert.rejects(old, /Reference changed/)
+  assert.equal(loader.peek(baseline).frame.period, 0)
+  loader.dispose()
 })

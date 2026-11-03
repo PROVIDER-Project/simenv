@@ -27,8 +27,10 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
     {node && status && <>
       <h3>{node.label} · step {period}</h3>
       <p className="sim-status-heading" style={{ borderColor: statusColor(status.score) }}><strong>{statusLabel(status.score)}</strong>{status.coverage === 'partial' && ' · Incomplete evidence'}</p>
-      <p>{status.reason}</p>
-      {status.winner && status.score !== null && <p>Responsible metric: {status.winner.metric.label} · agent {status.winner.agent.agent_id} ({status.winner.agent.role}).</p>}
+      <p className="sim-status-reason" title={status.reason}>{status.reason}</p>
+      <p className="sim-status-responsible">{status.winner && status.score !== null
+        ? `Responsible metric: ${status.winner.metric.label} · agent ${status.winner.agent.agent_id} (${status.winner.agent.role}).`
+        : 'Responsible metric: unavailable comparison evidence.'}</p>
       <p>Aggregation: strongest individual status across {status.agents.length} recorded agents; values below remain separate.</p>
       {node.entityIds.length > 1 && <p>Pooled component: {node.entityIds.join(', ')}. Its geographic markers share this assessment.</p>}
       {node.placements.some(item => item.illustrative) && <p>Illustrative geographic placement (not a simulation-status indicator).</p>}
@@ -38,8 +40,11 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
         {!agent.metrics.length && <p>{agent.reason}</p>}
         <dl>{agent.metrics.map(metric => <div key={metric.key} className="sim-metric" style={{ borderColor: statusColor(metric.score) }}>
           <dt>{metric.label} <code>{metric.key}</code></dt>
-          <dd>Current: {formatValue(metric.current, metric.direction === 'capacity')} · Reference: {formatValue(metric.reference, metric.direction === 'capacity')}
-            {metric.change !== null && ` · Change: ${metric.change >= 0 ? '+' : ''}${(metric.change * 100).toFixed(1)}%`}</dd>
+          <dd className="sim-metric-values"><span>Current: {formatValue(metric.current, metric.direction === 'capacity')}</span>
+            <span>Reference: {formatValue(metric.reference, metric.direction === 'capacity')}</span>
+            <span>Change: {metric.change === null
+              ? metric.direction === 'increase' || metric.direction === 'decrease' ? 'Unavailable' : 'Not a relative comparison'
+              : `${metric.change >= 0 ? '+' : ''}${(metric.change * 100).toFixed(1)}%`}</span></dd>
           <dd>{metric.reason}</dd>
         </div>)}</dl>
       </details>)}

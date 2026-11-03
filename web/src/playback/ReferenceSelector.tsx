@@ -13,7 +13,9 @@ export default function ReferenceSelector({ runs, choice, onChange, explanation,
         <option key={run.id} value={run.id}>{run.label || run.id} · scenario 0</option>)}
     </select></label>
     <p>{explanation}</p>
-    {loading && <p role="status">Loading reference; relative assessments unavailable…</p>}
-    {error && <><p role="status">Reference unavailable: {error}</p><button type="button" onClick={onRetry}>Retry reference</button></>}
+    <p className="sim-reference-status" role={loading || error ? 'status' : undefined}>
+      {error ? `Reference unavailable: ${error}` : loading ? 'Waiting for matching measurements…' : ''}
+    </p>
+    {error && <button type="button" onClick={onRetry}>Retry reference</button>}
   </section>
 }

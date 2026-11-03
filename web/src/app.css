@@ -22,6 +22,9 @@ body {
 }
 
 .sim-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 155px minmax(0, 1fr) auto 50px;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -206,9 +209,9 @@ body {
 }
 /* Recorded playback controls remain available with an empty database. */
 .sim-playback-sidebar {
-  position: absolute; z-index: 10; top: 155px; left: 24px;
-  width: 300px; max-height: max(100px, calc(100dvh - 340px)); overflow-y: auto;
-  display: grid; gap: 12px; scrollbar-gutter: stable;
+  grid-row: 2; position: relative; z-index: 10; left: 24px;
+  width: 300px; min-height: 0; overflow-y: auto; margin-bottom: 16px;
+  display: grid; align-content: start; gap: 12px; scrollbar-gutter: stable;
 }
 .sim-run-selector {
   min-width: 0;
@@ -237,21 +240,27 @@ body {
 .sim-run-selector button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Keep playback status beside the selector, including on short desktop windows. */
 .sim-playback-message { position: absolute; z-index: 11; top: 155px; left: 340px; max-width: 300px; color: #eee; background: #091624e8; padding: 12px; }
+.sim-playback-notice { position: absolute; z-index: 11; top: 155px; left: 340px; max-width: 300px; }
+.sim-playback-notice .sim-playback-message { position: static; margin: 0; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1100px), (max-height: 540px) {
   /* A scrollable control flow prevents messages from covering submission controls. */
-  .sim-app { overflow-y: auto; padding-bottom: 20px; }
+  .sim-app { display: block; overflow-y: auto; padding-bottom: 20px; }
   .sim-app .sim-globe-stage { position: fixed; }
   .sim-app .sim-frame-heading { position: relative; inset: auto; margin: 18px 14px; }
   .sim-app .sim-playback-sidebar,
   .sim-app .sim-playback-message,
+  .sim-app .sim-playback-notice,
   .sim-app .sim-configurator,
   .sim-app .sim-frame-meta,
   .sim-app .sim-timeline {
     position: relative; inset: auto; transform: none;
     width: calc(100% - 28px); max-width: none; margin: 12px 14px;
   }
-  .sim-app .sim-playback-sidebar { max-height: none; overflow: visible; scrollbar-gutter: auto; }
+  .sim-app .sim-playback-notice { min-height: 48px; }
+  .sim-app .sim-playback-notice .sim-playback-message { width: 100%; margin: 0; }
+  .sim-app .sim-playback-sidebar { grid-row: auto; max-height: none; overflow: visible; scrollbar-gutter: auto; }
+  .sim-app .sim-timeline { grid-row: auto; }
   .sim-app .sim-configurator { max-height: none; overflow: visible; }
   .sim-app .sim-run-selector { max-height: none; }
   .sim-app .sim-run-selector select { max-width: 100%; width: 100%; }

@@ -10,7 +10,6 @@ import RunSelector from './playback/RunSelector'
 import { usePlayback } from './playback/usePlayback'
 import { projectFrame } from './playback/frame'
 import { measure } from './playback/measure'
-import { useReference } from './playback/useReference'
 import ReferenceSelector from './playback/ReferenceSelector'
 import StatusPanel, { StatusLegend } from './playback/StatusPanel'
 import './app.css'
@@ -113,9 +112,9 @@ export default function App({ source }: { source: PlaybackSource }) {
 }
 
 function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null }) {
-  const playback = usePlayback(source, run, scenario)
   const [referenceChoice, setReferenceChoice] = useState(() => runs.find(item => item.id === run)?.scenario_ids.includes(0) ? run : 'start')
-  const reference = useReference(source, playback.scene, playback.frame, playback.baseline, referenceChoice)
+  const playback = usePlayback(source, run, scenario, referenceChoice)
+  const reference = playback.reference
   const [selectedNode, setSelectedNode] = useState('')
   const [impactExpanded, setImpactExpanded] = useState(true)
   const impactControlsId = useId()
@@ -148,12 +147,14 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
       <StatusLegend />
       {playback.scene && playback.frame && projected && <StatusPanel scene={playback.scene} projected={projected}
         period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
-        reference={[reference.explanation, reference.error, reference.loading ? 'Loading reference' : ''].filter(Boolean).join(' ')} />}
+        reference={[reference.explanation, reference.error].filter(Boolean).join(' ')} />}
       </div>
     </aside>, impactSlot)}
-    {playback.buffering && <p className="sim-playback-message" role="status">Buffering playback…</p>}
-    {playback.error && <div className="sim-playback-message"><p role="alert">{playback.error}</p>
-      <button type="button" onClick={playback.retryPlayback}>Retry playback</button></div>}
+    <div className="sim-playback-notice">
+      {playback.buffering && <p className="sim-playback-message" role="status">Buffering playback…</p>}
+      {playback.error && <div className="sim-playback-message"><p role="alert">{playback.error}</p>
+        <button type="button" onClick={playback.retryPlayback}>Retry playback</button></div>}
+    </div>
     {playback.frame && playback.scene && <Timeline period={playback.frame.period} minPeriod={playback.scene.min_period}
       maxPeriod={playback.scene.max_period} playing={playback.playing} env={projected?.env ?? null}
       indicators={projected?.indicators}

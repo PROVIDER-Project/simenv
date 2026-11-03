@@ -1,7 +1,7 @@
 .sim-timeline {
-  position: absolute;
+  grid-row: 3;
+  position: relative;
   left: 50%;
-  bottom: 50px;
   z-index: 6;
   display: flex;
   align-items: center;
@@ -63,6 +63,8 @@
   color: var(--sim-color-text);
   font-variant-numeric: tabular-nums;
 }
+.sim-timeline-readout > span:first-child { flex: 0 0 15ch; }
+.sim-timeline-readout > span:not(:first-child):not(.sim-timeline-sep) { flex: 0 0 16ch; }
 
 .sim-timeline-sep {
   width: 1px;

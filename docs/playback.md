@@ -31,6 +31,9 @@ share a single bounded scroll area, so collapsing run selection moves impact up
 naturally without adding an overlay across the globe. On smaller screens the
 sidebar becomes full-width page flow with no nested scrolling. Globe connections
 remain visible in all status states, including gray for unknown upstream status.
+The desktop grid reserves the timeline's actual height below the sidebar so it
+cannot cover the scrubber. Very short windows (540px high or less) also use page
+flow to keep all controls reachable.
 
 Interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
@@ -176,8 +179,22 @@ mode. **Retry reference** retries the chosen source independently of playback.
 Initial agent censuses must match for a recorded baseline selection. If an agent
 later disappears, its assessment is unavailable but exact matches for surviving
 agents and unaffected network indicators retain their comparison evidence.
-Reference changes and seeking invalidate stale comparisons immediately; details,
-markers, connections and all four network indicators share the displayed frame.
+Current and reference frames are published together. During a same-reference seek
+or page load, playback holds the last complete pair at its existing displayed step
+until both measurements for the requested step are ready; the playback clock waits
+too. Cached periods do not insert loading states or gray flashes. Both streams
+prefetch their next page. A user pause while waiting remains paused after loading.
+Changing source/run/scenario/reference (or retrying a reference) immediately
+invalidates old reference evidence. A genuine reference failure settles to explicit
+unavailable comparison until **Retry reference**; it does not trigger a new request
+at every step. Current-page failures retain the display and stop playback. Details,
+markers, connections and all four network indicators always share the displayed
+pair, and late responses cannot replace a newer selection or seek.
+
+The bottom indicators use fixed grid cells and tabular numbers. Loading messages
+have reserved space, and detail values use separate current/reference/change rows,
+so changing text and digit counts do not move the readouts while playing. Long
+indicator explanations retain their full accessible text, focus label and tooltip.
 
 ### Connections and workshop results
 
@@ -248,6 +265,10 @@ and exact-ID pagination/retry. Edge-bearing globe regressions inspect finite
 THREE curve geometry and RGBA buffers, geographic endpoints, and visible canvas
 pixels through healthy/disturbed/recovered/unknown states and run/scenario changes.
 Sidebar regressions cover independent collapse, continuous playback and resizing.
+Continuous commit/animation-frame observation checks no transient unknown status,
+stable desktop/mobile readout bounds, and coherent holding at delayed current and
+reference page boundaries. Loader regressions cover sticky failures, explicit retry,
+cache inspection/disposal and superseded-request failures.
 Static-demo verification requires a Vite server
 without `VITE_PLAYBACK_API_BASE_URL`; no database fallback is implicit.
 Set `SIMENV_STATIC_WEB_URL` to that second server when running

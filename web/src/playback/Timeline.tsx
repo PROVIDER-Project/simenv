@@ -67,8 +67,9 @@ export default function Timeline({
           )}
         </div>
         <div className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
-          {indicators.map(metric => <span key={metric.key} data-metric={metric.key} style={{ borderColor: statusColor(metric.score) }} title={metric.reason}>
-            {metric.label}: <b>{formatValue(metric.current, metric.direction === 'capacity')}</b>
+          {indicators.map(metric => <span key={metric.key} data-metric={metric.key} style={{ borderColor: statusColor(metric.score) }}
+            tabIndex={0} title={metric.reason} aria-label={`${metric.label}: ${formatValue(metric.current, metric.direction === 'capacity')}. ${statusLabel(metric.score)}. ${metric.reason}`}>
+            <span className="sim-network-label">{metric.label}</span><b>{formatValue(metric.current, metric.direction === 'capacity')}</b>
             <small>{statusLabel(metric.score)} · {metric.reason}</small>
           </span>)}
         </div>

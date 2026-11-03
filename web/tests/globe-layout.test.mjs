@@ -154,3 +154,26 @@ test('impact stays below run selection in a narrow independently collapsible sid
     assert.equal(await page.getByRole('slider', { name: 'Simulation step' }).inputValue(), period)
   } finally { await browser.close() }
 })
+
+test('expanded sidebar never intercepts timeline controls on a narrow short desktop', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1101, height: 600 } })
+    await mockPlayback(page); await page.goto(webUrl)
+    await page.getByRole('button', { name: 'Pause', exact: true }).click()
+    const slider = page.getByRole('slider', { name: 'Simulation step' })
+    await slider.fill('150')
+    await page.waitForFunction(() => document.querySelector('[aria-label="Simulation step"]')?.value === '150')
+    assert.equal(await slider.evaluate(element => {
+      const rect = element.getBoundingClientRect(), y = rect.y + rect.height / 2
+      return [rect.x + 2, rect.right - 2].every(x => document.elementFromPoint(x, y) === element)
+    }), true, 'both slider endpoints must receive pointer input')
+    const rect = await slider.boundingBox()
+    await page.mouse.click(rect.x + 2, rect.y + rect.height / 2)
+    await page.waitForFunction(() => Number(document.querySelector('[aria-label="Simulation step"]')?.value) < 5)
+    assert.equal(await page.getByRole('button', { name: 'Play', exact: true }).evaluate(element => {
+      const r = element.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+      return hit === element || element.contains(hit)
+    }), true)
+  } finally { await browser.close() }
+})
