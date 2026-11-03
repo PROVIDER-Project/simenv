@@ -3,7 +3,7 @@
  *
  * The globe is a realistic blue-marble Earth (NASA texture + topology bump on a
  * night-sky field), matching the reference explorer's renderer treatment: a
- * light-blue atmosphere rim, a slow spin, and teal supply corridors drawn as a
+ * light-blue atmosphere rim and supply corridors drawn as a
  * layered glow. Keeping the values here lets later chrome reuse the same
  * language without shipping that out-of-scope chrome in this batch.
  */
@@ -67,7 +67,6 @@ export const globe = {
   atmosphereAltitude: 0.18,
   cameraDesktop: 1.78,
   cameraMobile: 4.4,
-  autoRotateSpeed: 0.35,
 } as const
 
 /**

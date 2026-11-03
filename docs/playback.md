@@ -22,6 +22,8 @@ configurator's **Run simulation** button to record the first run. On completion
 the catalogue refreshes. Use **View results** to select that exact run's scenario
 1, or select a run/scenario manually, then play, pause, or seek. The
 newest playable run is selected initially. Refresh and More runs browse records.
+The globe does not rotate automatically. Drag to rotate it manually and scroll
+to zoom; simulation playback is independent of camera movement.
 
 Run and scenario selection are stacked in **Recorded playback**, with
 **Disturbance impact directly below it** in one narrow left sidebar. Both panels

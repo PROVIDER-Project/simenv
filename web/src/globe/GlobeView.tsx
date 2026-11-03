@@ -215,8 +215,7 @@ export default function GlobeView({
     )
 
     const controls = globe.controls()
-    controls.autoRotate = true
-    controls.autoRotateSpeed = globeTok.autoRotateSpeed
+    controls.autoRotate = false
     controls.enableDamping = true
     controls.dampingFactor = 0.08
     controls.minDistance = globe.getGlobeRadius() * 1.38

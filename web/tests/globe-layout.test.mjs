@@ -3,6 +3,45 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 import { mockPlayback, origin, webUrl, scene, page as framePage } from './playback-fixtures.mjs'
 
+test('globe starts stationary while manual dragging and wheel zoom remain available', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await mockPlayback(page); await page.goto(webUrl)
+    await page.getByRole('button', { name: 'Pause', exact: true }).click()
+    await page.evaluate(() => {
+      const root = document.querySelector('#root')
+      const fiber = root[Object.keys(root).find(key => key.startsWith('__reactContainer'))]
+      function find(node) {
+        if (!node) return null
+        let hook = node.memoizedState
+        while (hook) {
+          if (typeof hook.memoizedState?.current?.controls === 'function') return hook.memoizedState.current
+          hook = hook.next
+        }
+        return find(node.child) || find(node.sibling)
+      }
+      window.manualGlobe = find(fiber.stateNode?.current ?? fiber)
+    })
+    // These bounds are set by onGlobeReady; do not inspect before initialization.
+    await page.waitForFunction(() => window.manualGlobe.controls().minDistance > 0)
+    assert.equal(await page.evaluate(() => window.manualGlobe.controls().autoRotate), false)
+    const before = await page.evaluate(() => window.manualGlobe.pointOfView())
+    await page.waitForTimeout(250)
+    const stationary = await page.evaluate(() => window.manualGlobe.pointOfView())
+    assert.ok(Math.abs(stationary.lat - before.lat) < .001 && Math.abs(stationary.lng - before.lng) < .001)
+    await page.mouse.move(800, 420); await page.mouse.down()
+    await page.mouse.move(880, 480, { steps: 8 }); await page.mouse.up()
+    await page.waitForFunction(previous => {
+      const current = window.manualGlobe.pointOfView()
+      return Math.abs(current.lat - previous.lat) + Math.abs(current.lng - previous.lng) > .1
+    }, before)
+    const altitude = await page.evaluate(() => window.manualGlobe.pointOfView().altitude)
+    await page.mouse.wheel(0, 250)
+    await page.waitForFunction(previous => Math.abs(window.manualGlobe.pointOfView().altitude - previous) > .01, altitude)
+  } finally { await browser.close() }
+})
+
 // Test-only inspection of React's mounted ref, using the real GlobeMethods API.
 // No application hooks or alternative renderer are installed for these checks.
 async function inspectGlobe(page) {

@@ -12,6 +12,7 @@ keeping the central globe clear. Both panels start expanded and have independent
 **Hide**/**Show** buttons that preserve selection and playback. Desktop controls
 share one scroll area, including on short windows. On smaller screens they use
 the page's full-width scrollable layout without nested panel scrolling.
+The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
 The timeline's height is reserved separately from the sidebar; very short windows
 also switch to page flow so the scrubber remains clickable.
 
