@@ -122,7 +122,11 @@ export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
       // One marker per entity id. A single-entity node yields one; a pooled node
       // (e.g. eu_farmers) yields several — the required 3-way livestock split.
       for (const eid of node.entityIds) {
-        const g = node.placements.find((placement) => placement.entityId === eid) ?? GAZETTEER[eid]
+        const placement = node.placements.find((placement) => placement.entityId === eid)
+        const fallback = GAZETTEER[eid]
+        // A coordinate fallback must not overwrite a component's custom name.
+        // Pooled markers retain their distinct member labels.
+        const g = placement ?? (fallback && node.entityIds.length === 1 ? { ...fallback, label: node.label } : fallback)
         if (g) {
           const markerId = node.entityIds.length > 1 ? `${node.id}::${eid}` : node.id
           markers.push(toMarker(markerId, node, g))

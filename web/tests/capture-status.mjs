@@ -2,6 +2,7 @@
 // Run against Vite configured for the playback-fixtures origin (see docs/playback.md).
 import { chromium } from 'playwright'
 import { origin, webUrl, run, scene, page as framePage } from './playback-fixtures.mjs'
+import { clickMarker } from './globe-browser-utils.mjs'
 
 const browser = await chromium.launch({ headless: true })
 try {
@@ -57,5 +58,10 @@ try {
     await demo.screenshot({ path: '../docs/status-static-network.png' })
     await demo.getByRole('button', { name: 'Hide disturbance impact' }).click()
     await demo.screenshot({ path: '../docs/status-static-network-collapsed.png' })
+    await clickMarker(demo, 'argentina_farms')
+    await demo.waitForFunction(() => document.querySelector('[aria-label="Component status"] select')?.value === 'argentina_farms')
+    await demo.getByRole('region', { name: 'Component status' }).getByRole('heading', { name: /Argentina soy farms/ }).waitFor()
+    await demo.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await demo.screenshot({ path: '../docs/status-map-selection.png' })
   }
 } finally { await browser.close() }

@@ -2,12 +2,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 
-await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
+await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
 const { createPlaybackBuffer } = await import('../.test-build/playback/buffer.js')
 const { projectFrame } = await import('../.test-build/playback/frame.js')
 const { parseFramePage } = await import('../.test-build/data/httpPlaybackSource.js')
 const { referenceCompatibility } = await import('../.test-build/playback/reference.js')
 const { createReferenceLoader } = await import('../.test-build/playback/referenceLoader.js')
+const { presentScene, entityDisplayName } = await import('../.test-build/data/presentation.js')
+const { resolveScene } = await import('../.test-build/data/gazetteer.js')
 
 test('buffer deduplicates, aligns seeks, evicts and rejects stale loads', async () => {
   const requests = []
@@ -180,4 +182,30 @@ test('a superseded reference failure cannot poison the active seek', async () =>
   await assert.rejects(old, /Reference changed/)
   assert.equal(loader.peek(baseline).frame.period, 0)
   loader.dispose()
+})
+
+test('English presentation covers legacy identities, placements and pooled labels without mutating recordings', () => {
+  const node = (id, label, entityIds, placements = []) => ({ id, label, entityIds, placements, role: 'processor', hasRecordedData: true })
+  const raw = { run_id: 'recorded', scenario_id: 1, min_period: 0, max_period: 299, pdl: 'original.yaml', honesty_note: 'Recorded metadata', nodes: [
+    node('processors', 'EU Ölmühlen', ['eu_oil_mills'], [{ entityId: 'eu_oil_mills', label: 'EU Ölmühlen', lat: 52, lng: 4.5, illustrative: true }]),
+    node('eu_farmers', 'Geflügelbetriebe / Schweinebetriebe / Milchwirtschaft', ['poultry_farms', 'pig_farms', 'dairy_farms']),
+    node('brazil_farms', 'Workshop North Farm', ['brazil_farms']),
+    node('custom', 'Workshop processor', ['custom'], [{ entityId: 'custom', label: 'Custom site', lat: 1, lng: 2, illustrative: false }]),
+  ], edges: [{ id: 'flow', source: 'processors', target: 'eu_farmers', isSeaCrossing: false }] }
+  const original = structuredClone(raw)
+  function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value) } }
+  freeze(raw)
+  const display = presentScene(raw)
+  assert.deepEqual(raw, original)
+  assert.equal(display.nodes[0].label, 'EU oil mills')
+  assert.equal(display.nodes[0].placements[0].label, 'EU oil mills')
+  assert.equal(display.nodes[1].label, 'EU poultry farms / EU pig farms / EU dairy farms')
+  assert.deepEqual(display.nodes[1].entityIds.map(id => entityDisplayName(display.nodes[1], id)), ['EU poultry farms', 'EU pig farms', 'EU dairy farms'])
+  assert.equal(display.nodes[2].label, 'Workshop North Farm')
+  assert.equal(resolveScene(display.nodes, display.edges).markers.find(marker => marker.nodeId === 'brazil_farms').label, 'Workshop North Farm')
+  assert.equal(display.nodes[3].label, 'Workshop processor')
+  assert.equal(display.nodes[3].placements[0].label, 'Custom site')
+  assert.equal(resolveScene(display.nodes, display.edges).edges[0].label, 'EU oil mills → EU poultry farms / EU pig farms / EU dairy farms')
+  assert.deepEqual(display.nodes.map(n => [n.id, n.entityIds, n.role, n.hasRecordedData]), original.nodes.map(n => [n.id, n.entityIds, n.role, n.hasRecordedData]))
+  assert.equal(referenceCompatibility({ ...raw, scenario_id: 1 }, { ...display, scenario_id: 0 }), null)
 })

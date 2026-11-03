@@ -33,6 +33,19 @@ same details. Details show the strongest metric/agent, individual current and
 reference values, percentage changes, and missing-data explanations. Pooled
 components and multi-agent strongest-status aggregation are explicit.
 
+Click a component icon on the map to select it: the details panel opens and
+reveals the inspector, and **Inspect component** updates to the same selection.
+The dropdown remains available for keyboard use; both directions share one
+component selection. Connection graphics do not intercept icon clicks, and
+selecting a component does not reset or pause playback. Split livestock markers
+select their shared pooled component.
+
+Built-in component and placement names are consistently displayed in English
+across the map, connections, dropdown and details, including older recordings
+with German metadata. This is a presentation-only projection; recorded values,
+identities and provenance remain unchanged. Custom English names are preserved,
+including when coordinates come from the fallback gazetteer.
+
 - Green: near reference / low pressure; amber: elevated; red: severe; gray:
   unavailable. Prices worsen upward, availability/output downward. All applicable
   metrics contribute. Known adverse evidence survives incomplete coverage;

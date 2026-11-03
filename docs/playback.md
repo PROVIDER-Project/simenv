@@ -117,6 +117,18 @@ Pooled geographic markers share their roster node's assessment. Multi-agent node
 retain the strongest individual metric status, not an average; ties follow stable
 agent identity and metric-registry order.
 
+Clicking an icon opens **Disturbance impact**, brings its component inspector
+into view and updates the dropdown. Clicking an already selected icon also
+reopens/reveals the details. Decorative connection layers remain visible but do
+not intercept marker clicks. Map and dropdown selection use the same owning node
+ID, including pooled components, and preserve playback, reference and run selection.
+
+A shared English presentation scene supplies node/placement/connection labels,
+dropdown options, headings and pooled member names. Exact built-in German names
+are normalized using represented entity IDs, including historical roster aliases.
+Custom English names are retained. Original recordings, metric values, coordinates
+and reference compatibility checks are unaffected.
+
 ### Fixed illustrative workshop policy
 
 | Indicator | Adverse evidence | Green | Amber | Red |
@@ -226,6 +238,7 @@ for the next run**, separate from the submitted input snapshot.
 - [Collapsed impact sidebar](status-sidebar-collapsed.png).
 - [Static-demo network with restored connections](status-static-network.png) and
   [the same network with impact collapsed](status-static-network-collapsed.png).
+- [Map-icon selection with synchronized English details/dropdown](status-map-selection.png).
 
 The after screenshots use explicitly **controlled recorded-response fixtures**,
 not empirical simulation results. Reproduce from `web/` with Vite configured for

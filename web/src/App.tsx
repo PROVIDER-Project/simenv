@@ -2,6 +2,7 @@ import { Profiler, useCallback, useEffect, useId, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import type { PlaybackSource, RunSummary } from './data/playback'
 import { resolveScene } from './data/gazetteer'
+import { presentScene } from './data/presentation'
 import { designVars } from './design/tokens'
 import GlobeView from './globe/GlobeView'
 import ScenarioConfigurator from './configurator/ScenarioConfigurator'
@@ -118,10 +119,24 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
   const [selectedNode, setSelectedNode] = useState('')
   const [impactExpanded, setImpactExpanded] = useState(true)
   const impactControlsId = useId()
+  const inspector = useRef<HTMLDivElement | null>(null)
+  const [revealRequest, setRevealRequest] = useState(0)
   const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
-  const scene = useMemo(() => playback.scene ? resolveScene(playback.scene.nodes, playback.scene.edges) : null, [playback.scene])
+  const displayScene = useMemo(() => playback.scene ? presentScene(playback.scene) : null, [playback.scene])
+  const scene = useMemo(() => displayScene ? resolveScene(displayScene.nodes, displayScene.edges) : null, [displayScene])
   const projected = useMemo(() => playback.scene && playback.frame
     ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [playback.scene, playback.frame, playback.baseline, reference.frame])
+  const selectFromMap = useCallback((id: string) => {
+    setSelectedNode(id); setImpactExpanded(true)
+    setRevealRequest(value => value + 1)
+  }, [])
+  useEffect(() => {
+    if (!revealRequest || !impactExpanded || !inspector.current) return
+    const target = inspector.current
+    const sidebar = target.closest<HTMLElement>('.sim-playback-sidebar')
+    const scroller = sidebar && getComputedStyle(sidebar).overflowY === 'auto' ? sidebar : target.closest<HTMLElement>('.sim-app')
+    if (scroller) scroller.scrollTop += target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 12
+  }, [revealRequest, impactExpanded, impactSlot])
   useEffect(() => {
     for (const item of scene?.unplaced ?? []) console.warn(`[gazetteer] not rendered — ${item.kind} "${item.id}": ${item.reason}`)
   }, [scene])
@@ -134,7 +149,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
     {scene && projected && <Profiler id="globe" onRender={(_id, _phase, duration) => {
       measure('playback.react', performance.now() - duration)
     }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected.markerIntensity} edgeIntensity={projected.edgeIntensity}
-      selectedNode={selectedComponent} onSelectNode={setSelectedNode} /></Profiler>}
+      selectedNode={selectedComponent} onSelectNode={selectFromMap} /></Profiler>}
     {impactSlot && createPortal(<aside className="sim-status-panel" aria-label="Disturbance impact">
       <header className="sim-status-panel-header"><h2>Disturbance impact</h2>
         <button type="button" aria-expanded={impactExpanded} aria-controls={impactControlsId}
@@ -145,9 +160,11 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
         <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
         explanation={reference.explanation} loading={reference.loading} error={reference.error} onRetry={reference.retry} />
       <StatusLegend />
-      {playback.scene && playback.frame && projected && <StatusPanel scene={playback.scene} projected={projected}
+      <div ref={inspector}>
+      {displayScene && playback.frame && projected && <StatusPanel scene={displayScene} projected={projected}
         period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
         reference={[reference.explanation, reference.error].filter(Boolean).join(' ')} />}
+      </div>
       </div>
     </aside>, impactSlot)}
     <div className="sim-playback-notice">

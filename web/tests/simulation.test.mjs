@@ -64,6 +64,9 @@ test('configurator executes its edited documents and tracks both cascades', { ti
       assert.equal(await recorded.inputValue(), job.id)
       assert.equal(await page.getByRole('combobox', { name: 'Recorded scenario', exact: true }).inputValue(), '1')
       await page.getByRole('button', { name: 'Pause', exact: true }).click()
+      const componentNames = await page.getByRole('combobox', { name: 'Inspect component' }).locator('option').allTextContents()
+      assert.ok(componentNames.length > 0, 'completed scene exposes component names')
+      assert.doesNotMatch(componentNames.join(' '), /Sojaanbau|Hafen |Ölmühlen|Futtermittelhersteller|Geflügelbetriebe|Schweinebetriebe|Milchwirtschaft/)
       const frames = page.waitForResponse(response =>
         response.url().includes(`/runs/${job.id}/scenarios/1/frames?start=200&limit=100`),
       )

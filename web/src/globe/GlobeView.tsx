@@ -239,6 +239,8 @@ export default function GlobeView({
           return point.nodeId === selectedNode ? markerTok.selectedRadius : markerTok.radius
         }}
         pointResolution={18}
+        // Decorative connection layers must not steal clicks from node icons.
+        pointerEventsFilter={(_object, data) => !(data && 'edgeId' in data && 'layer' in data)}
         onPointClick={datum => onSelectNode?.((datum as PointDatum).nodeId)}
         pointsMerge={false}
         pointsTransitionDuration={0}
