@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test:simulation": "node --test tests/simulation.test.mjs",
     "test:playback": "node --test tests/playback.test.mjs",
-    "test:playback-browser": "node --test tests/playback-browser.test.mjs",
+    "test:playback-browser": "node --test tests/playback-browser.test.mjs tests/status-browser.test.mjs",
     "test:playback-performance": "node --test tests/playback-performance.test.mjs"
   },
   "dependencies": {

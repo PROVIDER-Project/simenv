@@ -79,9 +79,14 @@ export function createHttpPlaybackSource(baseUrl: string): PlaybackSource {
   }
   const path = (run: string, scenario: number) => `/runs/${encodeURIComponent(run)}/scenarios/${scenario}`
   return {
+    mode: 'recorded',
     name: 'PostgreSQL playback',
     listRuns: (limit, offset, signal) => get(`/runs?limit=${limit}&offset=${offset}`, parseRuns, signal),
-    getScene: (run, scenario, signal) => get(`${path(run, scenario)}/scene`, parseScene, signal),
+    getScene: async (run, scenario, signal) => {
+      const scene = await get(`${path(run, scenario)}/scene`, parseScene, signal)
+      if (scene.run_id !== run || scene.scenario_id !== scenario) throw new Error('Playback scene identity mismatch')
+      return scene
+    },
     getFrames: async (run, scenario, start, limit, signal) => {
       const page = await get(`${path(run, scenario)}/frames?start=${start}&limit=${limit}`, parseFramePage, signal)
       if (page.run_id !== run || page.scenario_id !== scenario || page.start !== start || page.frames.length > limit) {

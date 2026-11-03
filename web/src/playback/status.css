@@ -1,0 +1,32 @@
+.sim-status-panel {
+  position: absolute; z-index: 9; top: 155px; left: 340px;
+  width: 315px; max-height: calc(100dvh - 370px); overflow-y: auto;
+  padding: 14px; border: 1px solid var(--sim-color-border); border-radius: 14px;
+  background: rgba(6, 15, 28, .94); backdrop-filter: blur(14px);
+  font-size: 12px; line-height: 1.45;
+}
+.sim-status-panel p { margin: 8px 0; }
+.sim-status-panel label { display: grid; gap: 5px; }
+.sim-status-panel select { width: 100%; min-width: 0; }
+.sim-status-panel select, .sim-status-panel button {
+  padding: 8px; background: #0a1b2c; color: #f2f8ff;
+  border: 1px solid #46617b; border-radius: 6px;
+}
+.sim-status-panel button { cursor: pointer; }
+.sim-status-panel :focus-visible { outline: 2px solid #b9e9ff; outline-offset: 3px; }
+.sim-status-panel h2 { margin: 0; font-size: 17px; }
+.sim-status-panel summary { cursor: pointer; padding: 7px 0; }
+.sim-status-heading { border-left: 5px solid; padding-left: 9px; }
+.sim-status-legend { border-block: 1px solid var(--sim-color-border); margin: 12px 0; }
+.sim-status-scale { display: grid; gap: 6px; }
+.sim-status-scale i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; }
+.sim-metric { border-left: 3px solid; padding-left: 7px; margin-block: 10px; }
+.sim-metric dd { margin: 3px 0; overflow-wrap: anywhere; }
+.sim-metric code { display: block; color: #a9bdd2; font-size: 10px; }
+.sim-reference-note { color: #b5c7d8; overflow-wrap: anywhere; }
+.sim-network-indicators { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sim-network-indicators > span { border-left: 4px solid; padding: 3px 8px; background: #081523; font-size: 11px; }
+.sim-network-indicators small { display: block; }
+@media (max-width: 1100px) {
+  .sim-app .sim-status-panel { position: relative; inset: auto; width: calc(100% - 28px); max-height: none; margin: 12px 14px; }
+}

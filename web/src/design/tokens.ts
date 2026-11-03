@@ -25,6 +25,8 @@ export const color = {
   textFaint: '#536980',
 } as const
 
+export const statusPalette = { green: '#51E3A5', amber: '#F6C55B', red: '#FF6050', unavailable: '#8793A3' } as const
+
 export const typography = {
   display: 'Bahnschrift, "Avenir Next Condensed", "Segoe UI Variable Display", sans-serif',
   body: 'Aptos, "Segoe UI Variable Text", "Segoe UI", sans-serif',

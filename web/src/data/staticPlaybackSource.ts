@@ -21,6 +21,7 @@ export function createStaticPlaybackSource(): PlaybackSource {
   }
   let all: ReturnType<typeof frames> | undefined
   return {
+    mode: 'static',
     name: 'Static demo (exported values)',
     async listRuns(limit, offset) {
       const b = await bundle()

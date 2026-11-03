@@ -9,7 +9,11 @@ import RunSelector from './playback/RunSelector'
 import { usePlayback } from './playback/usePlayback'
 import { projectFrame } from './playback/frame'
 import { measure } from './playback/measure'
+import { useReference } from './playback/useReference'
+import ReferenceSelector from './playback/ReferenceSelector'
+import StatusPanel, { StatusLegend } from './playback/StatusPanel'
 import './app.css'
+import './playback/status.css'
 
 export default function App({ source }: { source: PlaybackSource }) {
   const [runs, setRuns] = useState<RunSummary[]>([])
@@ -68,17 +72,21 @@ export default function App({ source }: { source: PlaybackSource }) {
         selection.current = id; setSelected(id)
         setScenario(run.scenario_ids.includes(1) ? 1 : run.scenario_ids[0])
       }} onScenario={setScenario} />
-    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} />
+    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} />
       : <div className="sim-playback-message">Select a completed run for playback.</div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} />
   </main>
 }
 
-function SelectedPlayback({ source, run, scenario }: { source: PlaybackSource; run: string; scenario: number }) {
+function SelectedPlayback({ source, run, scenario, runs }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[] }) {
   const playback = usePlayback(source, run, scenario)
+  const [referenceChoice, setReferenceChoice] = useState(() => runs.find(item => item.id === run)?.scenario_ids.includes(0) ? run : 'start')
+  const reference = useReference(source, playback.scene, playback.frame, playback.baseline, referenceChoice)
+  const [selectedNode, setSelectedNode] = useState('')
+  const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const scene = useMemo(() => playback.scene ? resolveScene(playback.scene.nodes, playback.scene.edges) : null, [playback.scene])
-  const projected = useMemo(() => playback.scene && playback.frame && playback.baseline
-    ? projectFrame(playback.scene, playback.frame, playback.baseline) : null, [playback.scene, playback.frame, playback.baseline])
+  const projected = useMemo(() => playback.scene && playback.frame
+    ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [playback.scene, playback.frame, playback.baseline, reference.frame])
   useEffect(() => {
     for (const item of scene?.unplaced ?? []) console.warn(`[gazetteer] not rendered — ${item.kind} "${item.id}": ${item.reason}`)
   }, [scene])
@@ -90,14 +98,25 @@ function SelectedPlayback({ source, run, scenario }: { source: PlaybackSource; r
   return <>
     {scene && projected && <Profiler id="globe" onRender={(_id, _phase, duration) => {
       measure('playback.react', performance.now() - duration)
-    }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected.markerIntensity} edgeIntensity={projected.edgeIntensity} /></Profiler>}
+    }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected.markerIntensity} edgeIntensity={projected.edgeIntensity}
+      selectedNode={selectedComponent} onSelectNode={setSelectedNode} /></Profiler>}
+    <aside className="sim-status-panel" aria-label="Disturbance impact">
+      <h2>Disturbance impact</h2>
+      <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
+        explanation={reference.explanation} loading={reference.loading} error={reference.error} onRetry={reference.retry} />
+      <StatusLegend />
+      {playback.scene && playback.frame && projected && <StatusPanel scene={playback.scene} projected={projected}
+        period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
+        reference={[reference.explanation, reference.error, reference.loading ? 'Loading reference' : ''].filter(Boolean).join(' ')} />}
+    </aside>
     {playback.buffering && <p className="sim-playback-message" role="status">Buffering playback…</p>}
     {playback.error && <div className="sim-playback-message"><p role="alert">{playback.error}</p>
       <button type="button" onClick={playback.retryPlayback}>Retry playback</button></div>}
     {playback.frame && playback.scene && <Timeline period={playback.frame.period} minPeriod={playback.scene.min_period}
       maxPeriod={playback.scene.max_period} playing={playback.playing} env={projected?.env ?? null}
+      indicators={projected?.indicators}
       onSeek={playback.seek} onTogglePlay={playback.toggle} />}
-    <footer className="sim-frame-meta"><span>{source.name} · {run} · scenario {scenario}</span>
+    <footer className="sim-frame-meta"><span>Displayed recorded results: {source.name} · {run} · scenario {scenario}</span>
       <p className="sim-frame-honesty">{playback.scene?.honesty_note}</p></footer>
   </>
 }

@@ -20,10 +20,12 @@ export function usePlayback(source: PlaybackSource, runId: string, scenarioId: n
     const cache = createPlaybackBuffer(source, runId, scenarioId)
     buffer.current = cache
     setBuffering(true); setError(null)
-    Promise.all([source.getScene(runId, scenarioId, controller.signal), cache.load(0)])
-      .then(([nextScene, first]) => {
+    source.getScene(runId, scenarioId, controller.signal).then(async nextScene => {
+      const first = await cache.load(nextScene.min_period)
+      return { nextScene, first }
+    }).then(({ nextScene, first }) => {
         if (controller.signal.aborted) return
-        setScene(nextScene); setBaseline(first); setFrame(first)
+        setScene(nextScene); setBaseline(first); setFrame(first); setTarget(first.period)
         setBuffering(false); setPlaying(nextScene.max_period > 0)
       }).catch(reason => {
         if (!controller.signal.aborted) { setError(String(reason instanceof Error ? reason.message : reason)); setBuffering(false) }
@@ -50,7 +52,7 @@ export function usePlayback(source: PlaybackSource, runId: string, scenarioId: n
 
   useEffect(() => {
     if (!playing || !frame || !scene || buffering || error) return
-    const next = frame.period >= scene.max_period ? 0 : frame.period + 1
+    const next = frame.period >= scene.max_period ? scene.min_period : frame.period + 1
     const nextPage = (Math.floor(frame.period / 100) + 1) * 100
     if (nextPage <= scene.max_period) buffer.current?.prefetch(nextPage)
     const timer = window.setTimeout(() => setTarget(next), 60)

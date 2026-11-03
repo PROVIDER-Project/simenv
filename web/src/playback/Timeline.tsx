@@ -1,4 +1,6 @@
 import type { EnvState } from '../data/types'
+import type { MetricStatus } from './status'
+import { formatValue, statusColor, statusLabel } from '../design/status'
 import './timeline.css'
 
 interface TimelineProps {
@@ -7,6 +9,7 @@ interface TimelineProps {
   maxPeriod: number
   playing: boolean
   env: EnvState | null
+  indicators?: MetricStatus[]
   onSeek: (period: number) => void
   onTogglePlay: () => void
 }
@@ -20,6 +23,7 @@ export default function Timeline({
   maxPeriod,
   playing,
   env,
+  indicators = [],
   onSeek,
   onTogglePlay,
 }: TimelineProps) {
@@ -61,6 +65,12 @@ export default function Timeline({
               </span>
             </>
           )}
+        </div>
+        <div className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
+          {indicators.map(metric => <span key={metric.key} data-metric={metric.key} style={{ borderColor: statusColor(metric.score) }} title={metric.reason}>
+            {metric.label}: <b>{formatValue(metric.current, metric.direction === 'capacity')}</b>
+            <small>{statusLabel(metric.score)} · {metric.reason}</small>
+          </span>)}
         </div>
       </div>
     </div>
