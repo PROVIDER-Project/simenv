@@ -1,6 +1,6 @@
-/** Project a real icon with GlobeMethods, then send real pointer input. */
-export async function clickMarker(page, markerId) {
-  const position = await page.evaluate(async id => {
+/** Aim at a real marker with GlobeMethods and return its projected position. */
+export async function aimAtMarker(page, markerId) {
+  return page.evaluate(async id => {
     const root = document.querySelector('#root')
     const fiber = root[Object.keys(root).find(key => key.startsWith('__reactContainer'))]
     function find(node) {
@@ -22,6 +22,11 @@ export async function clickMarker(page, markerId) {
     const rect = document.querySelector('.sim-globe-stage canvas').getBoundingClientRect()
     return { x: rect.x + point.x, y: rect.y + point.y }
   }, markerId)
+}
+
+/** Send actual pointer input to the projected icon. */
+export async function clickMarker(page, markerId) {
+  const position = await aimAtMarker(page, markerId)
   await page.mouse.move(position.x, position.y)
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   await page.mouse.click(position.x, position.y)

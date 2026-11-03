@@ -18,6 +18,7 @@
 .sim-status-panel-header + div:not([hidden]) { margin-top: 12px; }
 .sim-status-panel summary { cursor: pointer; padding: 7px 0; }
 .sim-component-status { font-variant-numeric: tabular-nums; }
+.sim-stable-inspector-content { display: flow-root; }
 .sim-status-heading { border-left: 5px solid; padding-left: 9px; min-height: 2.9em; }
 .sim-status-reason { height: 2.9em; overflow: hidden; }
 .sim-status-responsible { min-height: 4.35em; }

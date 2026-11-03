@@ -33,12 +33,18 @@ same details. Details show the strongest metric/agent, individual current and
 reference values, percentage changes, and missing-data explanations. Pooled
 components and multi-agent strongest-status aggregation are explicit.
 
-Click a component icon on the map to select it: the details panel opens and
-reveals the inspector, and **Inspect component** updates to the same selection.
+Click a component icon or its map label to select it: the details panel opens,
+and **Inspect component** updates to the same selection. Component labels are
+keyboard-operable buttons (Enter/Space); connection labels are informational.
 The dropdown remains available for keyboard use; both directions share one
 component selection. Connection graphics do not intercept icon clicks, and
 selecting a component does not reset or pause playback. Split livestock markers
 select their shared pooled component.
+
+The sidebar/page keeps its current scroll position when selection changes;
+only the details content updates. Taller detail content retains its space while
+switching to shorter components, preventing a bottom-scrolled view from jumping.
+The reservation resets for a new run/scenario or a changed inspector width.
 
 Built-in component and placement names are consistently displayed in English
 across the map, connections, dropdown and details, including older recordings

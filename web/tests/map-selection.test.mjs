@@ -5,7 +5,7 @@ import { mockPlayback, origin, webUrl, scene } from './playback-fixtures.mjs'
 
 import { clickMarker } from './globe-browser-utils.mjs'
 
-test('a map icon selects and reveals details and synchronizes the dropdown with arcs present', async () => {
+test('a map icon selects details without moving the sidebar and synchronizes the dropdown', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -24,6 +24,7 @@ test('a map icon selects and reveals details and synchronizes the dropdown with 
     await page.waitForFunction(() => document.querySelector('[aria-label="Simulation step"]')?.value === '150')
     await page.getByRole('combobox', { name: 'Reference condition' }).selectOption('start')
     await page.getByRole('button', { name: 'Hide disturbance impact' }).click()
+    const scrollTop = await page.locator('.sim-playback-sidebar').evaluate(element => element.scrollTop)
     await clickMarker(page, 'argentina_farms')
     const selector = page.getByRole('combobox', { name: 'Inspect component' })
     await selector.waitFor({ state: 'visible' })
@@ -32,10 +33,8 @@ test('a map icon selects and reveals details and synchronizes the dropdown with 
     await page.getByRole('region', { name: 'Component status' }).getByRole('heading', { name: 'Argentina soy farms · step 150' }).waitFor()
     assert.equal(await page.getByRole('slider', { name: 'Simulation step' }).inputValue(), '150')
     assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'start')
-    assert.equal(await selector.evaluate(element => {
-      const r = element.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-      return hit === element || element.contains(hit)
-    }), true, 'map selection reveals the inspector within the sidebar')
+    assert.equal(await page.locator('.sim-playback-sidebar').evaluate(element => element.scrollTop), scrollTop,
+      'map selection updates content without scrolling to the inspector')
     await page.getByRole('button', { name: 'Hide disturbance impact' }).click()
     await clickMarker(page, 'argentina_farms')
     await selector.waitFor({ state: 'visible' })

@@ -13,6 +13,7 @@ import { projectFrame } from './playback/frame'
 import { measure } from './playback/measure'
 import ReferenceSelector from './playback/ReferenceSelector'
 import StatusPanel, { StatusLegend } from './playback/StatusPanel'
+import StableInspector from './playback/StableInspector'
 import './app.css'
 import './playback/status.css'
 
@@ -119,8 +120,6 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
   const [selectedNode, setSelectedNode] = useState('')
   const [impactExpanded, setImpactExpanded] = useState(true)
   const impactControlsId = useId()
-  const inspector = useRef<HTMLDivElement | null>(null)
-  const [revealRequest, setRevealRequest] = useState(0)
   const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const displayScene = useMemo(() => playback.scene ? presentScene(playback.scene) : null, [playback.scene])
   const scene = useMemo(() => displayScene ? resolveScene(displayScene.nodes, displayScene.edges) : null, [displayScene])
@@ -128,15 +127,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
     ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [playback.scene, playback.frame, playback.baseline, reference.frame])
   const selectFromMap = useCallback((id: string) => {
     setSelectedNode(id); setImpactExpanded(true)
-    setRevealRequest(value => value + 1)
   }, [])
-  useEffect(() => {
-    if (!revealRequest || !impactExpanded || !inspector.current) return
-    const target = inspector.current
-    const sidebar = target.closest<HTMLElement>('.sim-playback-sidebar')
-    const scroller = sidebar && getComputedStyle(sidebar).overflowY === 'auto' ? sidebar : target.closest<HTMLElement>('.sim-app')
-    if (scroller) scroller.scrollTop += target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 12
-  }, [revealRequest, impactExpanded, impactSlot])
   useEffect(() => {
     for (const item of scene?.unplaced ?? []) console.warn(`[gazetteer] not rendered — ${item.kind} "${item.id}": ${item.reason}`)
   }, [scene])
@@ -160,11 +151,11 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
         <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
         explanation={reference.explanation} loading={reference.loading} error={reference.error} onRetry={reference.retry} />
       <StatusLegend />
-      <div ref={inspector}>
+      <StableInspector>
       {displayScene && playback.frame && projected && <StatusPanel scene={displayScene} projected={projected}
         period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
         reference={[reference.explanation, reference.error].filter(Boolean).join(' ')} />}
-      </div>
+      </StableInspector>
       </div>
     </aside>, impactSlot)}
     <div className="sim-playback-notice">

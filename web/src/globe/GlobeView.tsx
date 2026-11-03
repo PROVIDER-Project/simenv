@@ -18,6 +18,7 @@ interface Anchor {
   text: string
   kind: LabelKind
   illustrative: boolean
+  nodeId?: string
 }
 
 /** One rendered arc. Each edge expands into a halo/glow/core stack for the glow. */
@@ -120,6 +121,7 @@ export default function GlobeView({
         text: marker.label,
         kind: 'node',
         illustrative: marker.illustrative,
+        nodeId: marker.nodeId,
       })
     }
     for (const edge of edges) {
@@ -183,14 +185,25 @@ export default function GlobeView({
     const anchor = datum as Anchor
     const outer = document.createElement('div')
     outer.className = `sim-anchor sim-anchor--${anchor.kind}`
-    const label = document.createElement('div')
+    const label = anchor.kind === 'node' ? document.createElement('button') : document.createElement('div')
     label.className = `sim-label sim-label--${anchor.kind}${
       anchor.illustrative ? ' sim-label--illustrative' : ''
     }`
     label.textContent = anchor.text
+    const nodeId = anchor.nodeId
+    if (label instanceof HTMLButtonElement && nodeId) {
+      label.type = 'button'
+      label.setAttribute('aria-label', `Select ${anchor.text}`)
+      label.title = anchor.text
+      label.addEventListener('pointerdown', event => event.stopPropagation())
+      label.addEventListener('click', event => {
+        event.stopPropagation()
+        onSelectNode?.(nodeId)
+      })
+    }
     outer.appendChild(label)
     return outer
-  }, [])
+  }, [onSelectNode])
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current

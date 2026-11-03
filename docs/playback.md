@@ -117,11 +117,19 @@ Pooled geographic markers share their roster node's assessment. Multi-agent node
 retain the strongest individual metric status, not an average; ties follow stable
 agent identity and metric-registry order.
 
-Clicking an icon opens **Disturbance impact**, brings its component inspector
-into view and updates the dropdown. Clicking an already selected icon also
-reopens/reveals the details. Decorative connection layers remain visible but do
+Clicking an icon or its component label opens **Disturbance impact** and updates
+the dropdown in place. Clicking an already selected component also reopens
+collapsed details, without automatically scrolling or moving focus. Node labels
+are native buttons supporting pointer input and Enter/Space; connection labels
+remain informational. Decorative connection layers remain visible but do
 not intercept marker clicks. Map and dropdown selection use the same owning node
 ID, including pooled components, and preserve playback, reference and run selection.
+
+Selection retains both the sidebar's desktop scroll position and the responsive
+page position. Scroll anchoring is disabled in these containers, and the inspector
+retains its tallest visible content height at the current width so shorter details
+cannot clamp a bottom-scrolled position. Hidden/collapsed measurements do not erase
+that reservation. It resets on an actual width change or new run/scenario.
 
 A shared English presentation scene supplies node/placement/connection labels,
 dropdown options, headings and pooled member names. Exact built-in German names
@@ -238,7 +246,8 @@ for the next run**, separate from the submitted input snapshot.
 - [Collapsed impact sidebar](status-sidebar-collapsed.png).
 - [Static-demo network with restored connections](status-static-network.png) and
   [the same network with impact collapsed](status-static-network-collapsed.png).
-- [Map-icon selection with synchronized English details/dropdown](status-map-selection.png).
+- [Map-label selection with synchronized English details/dropdown](status-map-selection.png).
+  Compare the [reader's position immediately before selection](status-label-selection-before.png).
 
 The after screenshots use explicitly **controlled recorded-response fixtures**,
 not empirical simulation results. Reproduce from `web/` with Vite configured for

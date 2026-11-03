@@ -2,7 +2,7 @@
 // Run against Vite configured for the playback-fixtures origin (see docs/playback.md).
 import { chromium } from 'playwright'
 import { origin, webUrl, run, scene, page as framePage } from './playback-fixtures.mjs'
-import { clickMarker } from './globe-browser-utils.mjs'
+import { aimAtMarker } from './globe-browser-utils.mjs'
 
 const browser = await chromium.launch({ headless: true })
 try {
@@ -58,7 +58,14 @@ try {
     await demo.screenshot({ path: '../docs/status-static-network.png' })
     await demo.getByRole('button', { name: 'Hide disturbance impact' }).click()
     await demo.screenshot({ path: '../docs/status-static-network-collapsed.png' })
-    await clickMarker(demo, 'argentina_farms')
+    await demo.getByRole('button', { name: 'Show disturbance impact' }).click()
+    // The reader chooses this scroll position before selecting another label.
+    await demo.locator('.sim-playback-sidebar').evaluate(sidebar => {
+      sidebar.scrollTop += sidebar.querySelector('[aria-label="Component status"]').getBoundingClientRect().top - sidebar.getBoundingClientRect().top - 12
+    })
+    await aimAtMarker(demo, 'argentina_farms')
+    await demo.screenshot({ path: '../docs/status-label-selection-before.png' })
+    await demo.getByRole('button', { name: 'Select Argentina soy farms', exact: true }).click()
     await demo.waitForFunction(() => document.querySelector('[aria-label="Component status"] select')?.value === 'argentina_farms')
     await demo.getByRole('region', { name: 'Component status' }).getByRole('heading', { name: /Argentina soy farms/ }).waitFor()
     await demo.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
