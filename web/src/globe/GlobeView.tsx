@@ -31,7 +31,7 @@ interface ArcDatum {
   intensity: number | null
 }
 
-/** A marker with its current (quantised) playback intensity baked in. */
+/** A marker with its current playback intensity baked in. */
 interface PointDatum extends Marker {
   intensity: number | null
 }
@@ -73,10 +73,10 @@ function arcSpec(layer: ArcLayer) {
   return layer === 'halo' ? arcTok.halo : layer === 'glow' ? arcTok.glow : arcTok.core
 }
 
-/** Arc layer colour, lerped teal → red by the edge intensity. */
-function colorForArc(datum: ArcDatum): string[] {
+/** A constant status color per layer. Arrays denote multi-stop gradients. */
+function colorForArc(datum: ArcDatum): string {
   const spec = arcSpec(datum.layer)
-  return [rgba(hexToRgb(statusColor(datum.intensity)), spec.alpha)]
+  return rgba(hexToRgb(statusColor(datum.intensity)), spec.alpha)
 }
 
 /**
@@ -236,7 +236,7 @@ export default function GlobeView({
         pointAltitude={markerTok.altitude}
         pointRadius={(datum: object) => {
           const point = datum as PointDatum
-           return point.nodeId === selectedNode ? markerTok.selectedRadius : markerTok.radius
+          return point.nodeId === selectedNode ? markerTok.selectedRadius : markerTok.radius
         }}
         pointResolution={18}
         onPointClick={datum => onSelectNode?.((datum as PointDatum).nodeId)}

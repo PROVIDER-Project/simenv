@@ -23,11 +23,14 @@ the catalogue refreshes. Use **View results** to select that exact run's scenari
 1, or select a run/scenario manually, then play, pause, or seek. The
 newest playable run is selected initially. Refresh and More runs browse records.
 
-Run and scenario selection are stacked in the **Recorded playback** panel on
-the left, leaving the central globe clear. The panel starts expanded. Use
-**Hide** to minimize it to its header and **Show** to reopen it; the selected
-run, scenario, and current playback are retained. On smaller screens the panel
-is part of the scrollable page.
+Run and scenario selection are stacked in **Recorded playback**, with
+**Disturbance impact directly below it** in one narrow left sidebar. Both panels
+start expanded and have independent **Hide**/**Show** buttons; run, scenario,
+reference, inspected component and current playback are retained. Desktop panels
+share a single bounded scroll area, so collapsing run selection moves impact up
+naturally without adding an overlay across the globe. On smaller screens the
+sidebar becomes full-width page flow with no nested scrolling. Globe connections
+remain visible in all status states, including gray for unknown upstream status.
 
 Interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
@@ -203,11 +206,18 @@ for the next run**, separate from the submitted input snapshot.
 - [Metric breakdown: disturbed step 100](status-details.png) — current/reference
   values and percentage changes in the scrollable inspector.
 - [Mobile inspection layout](status-mobile.png).
+- [Collapsed impact sidebar](status-sidebar-collapsed.png).
+- [Static-demo network with restored connections](status-static-network.png) and
+  [the same network with impact collapsed](status-static-network-collapsed.png).
 
 The after screenshots use explicitly **controlled recorded-response fixtures**,
 not empirical simulation results. Reproduce from `web/` with Vite configured for
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001`:
-`SIMENV_WEB_URL=http://127.0.0.1:5175 node tests/capture-status.mjs`.
+`SIMENV_WEB_URL=http://127.0.0.1:5175 SIMENV_STATIC_WEB_URL=http://127.0.0.1:5176 node tests/capture-status.mjs`.
+The static-network images use the committed demo bundle rather than intercepted
+responses. For comparison, the
+[previous overlapping layout](https://github.com/PROVIDER-Project/simenv/blob/f216590f2da88b106c2441af1189bff96f1cc00d/docs/status-disturbed.png)
+documents the interface before the sidebar correction.
 Real-service coverage separately submits and opens both supported cascades.
 
 ## Verification
@@ -234,7 +244,11 @@ stack. It submits both cascades, verifies catalogue refresh, opens each exact
 completed run via **View results**, and seeks into a later database page. Status
 browser regressions cover day-0 comparison, recovery, missing/reference failures,
 keyboard inspection, reference switching/refresh, delayed responses, cache eviction
-and exact-ID pagination/retry. Static-demo verification requires a Vite server
+and exact-ID pagination/retry. Edge-bearing globe regressions inspect finite
+THREE curve geometry and RGBA buffers, geographic endpoints, and visible canvas
+pixels through healthy/disturbed/recovered/unknown states and run/scenario changes.
+Sidebar regressions cover independent collapse, continuous playback and resizing.
+Static-demo verification requires a Vite server
 without `VITE_PLAYBACK_API_BASE_URL`; no database fallback is implicit.
 Set `SIMENV_STATIC_WEB_URL` to that second server when running
 `npm run test:playback-browser` to include its static-demo acceptance case;

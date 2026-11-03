@@ -1,4 +1,5 @@
-import { Profiler, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Profiler, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { PlaybackSource, RunSummary } from './data/playback'
 import { resolveScene } from './data/gazetteer'
 import { designVars } from './design/tokens'
@@ -25,6 +26,7 @@ export default function App({ source }: { source: PlaybackSource }) {
   const [refresh, setRefresh] = useState(0)
   const [offset, setOffset] = useState(0)
   const [nextOffset, setNextOffset] = useState(0)
+  const [impactSlot, setImpactSlot] = useState<HTMLDivElement | null>(null)
   const selection = useRef('')
   const opening = useRef<AbortController | null>(null)
   const refreshRuns = useCallback(() => { setOffset(0); setRefresh(value => value + 1) }, [])
@@ -92,7 +94,8 @@ export default function App({ source }: { source: PlaybackSource }) {
   return <main className="sim-app" style={designVars as CSSProperties}>
     <header className="sim-frame-heading"><p className="sim-frame-eyebrow">PROVIDER · SIMENV / GEOGRAPHY</p>
       <h1>World supply network</h1><p className="sim-frame-subtitle">Recorded supply-chain playback</p></header>
-    <RunSelector runs={runs} selected={selected} scenario={scenario} loading={loading} error={error}
+    <div className="sim-playback-sidebar">
+      <RunSelector runs={runs} selected={selected} scenario={scenario} loading={loading} error={error}
       hasMore={nextOffset < total} onRefresh={refreshRuns} onMore={() => setOffset(nextOffset)}
       onRun={id => {
         const run = runs.find(item => item.id === id)
@@ -101,17 +104,21 @@ export default function App({ source }: { source: PlaybackSource }) {
         selection.current = id; setSelected(id)
         setScenario(run.scenario_ids.includes(1) ? 1 : run.scenario_ids[0])
       }} onScenario={id => { opening.current?.abort(); setScenario(id) }} />
-    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} />
+      <div ref={setImpactSlot} />
+    </div>
+    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} />
       : <div className="sim-playback-message">Select a completed run for playback.</div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
   </main>
 }
 
-function SelectedPlayback({ source, run, scenario, runs }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[] }) {
+function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null }) {
   const playback = usePlayback(source, run, scenario)
   const [referenceChoice, setReferenceChoice] = useState(() => runs.find(item => item.id === run)?.scenario_ids.includes(0) ? run : 'start')
   const reference = useReference(source, playback.scene, playback.frame, playback.baseline, referenceChoice)
   const [selectedNode, setSelectedNode] = useState('')
+  const [impactExpanded, setImpactExpanded] = useState(true)
+  const impactControlsId = useId()
   const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const scene = useMemo(() => playback.scene ? resolveScene(playback.scene.nodes, playback.scene.edges) : null, [playback.scene])
   const projected = useMemo(() => playback.scene && playback.frame
@@ -129,15 +136,21 @@ function SelectedPlayback({ source, run, scenario, runs }: { source: PlaybackSou
       measure('playback.react', performance.now() - duration)
     }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected.markerIntensity} edgeIntensity={projected.edgeIntensity}
       selectedNode={selectedComponent} onSelectNode={setSelectedNode} /></Profiler>}
-    <aside className="sim-status-panel" aria-label="Disturbance impact">
-      <h2>Disturbance impact</h2>
-      <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
+    {impactSlot && createPortal(<aside className="sim-status-panel" aria-label="Disturbance impact">
+      <header className="sim-status-panel-header"><h2>Disturbance impact</h2>
+        <button type="button" aria-expanded={impactExpanded} aria-controls={impactControlsId}
+          aria-label={`${impactExpanded ? 'Hide' : 'Show'} disturbance impact`}
+          onClick={() => setImpactExpanded(value => !value)}>{impactExpanded ? 'Hide' : 'Show'}</button>
+      </header>
+      <div id={impactControlsId} hidden={!impactExpanded}>
+        <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
         explanation={reference.explanation} loading={reference.loading} error={reference.error} onRetry={reference.retry} />
       <StatusLegend />
       {playback.scene && playback.frame && projected && <StatusPanel scene={playback.scene} projected={projected}
         period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
         reference={[reference.explanation, reference.error, reference.loading ? 'Loading reference' : ''].filter(Boolean).join(' ')} />}
-    </aside>
+      </div>
+    </aside>, impactSlot)}
     {playback.buffering && <p className="sim-playback-message" role="status">Buffering playback…</p>}
     {playback.error && <div className="sim-playback-message"><p role="alert">{playback.error}</p>
       <button type="button" onClick={playback.retryPlayback}>Retry playback</button></div>}

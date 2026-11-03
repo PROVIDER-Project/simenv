@@ -37,11 +37,25 @@ try {
     await page.waitForFunction(() => !document.querySelector('[aria-label="Reference comparison"] [role="status"]'))
     await page.screenshot({ path: `../docs/status-${label}.png` })
     if (label === 'disturbed') {
-      await page.locator('.sim-status-panel').evaluate(panel => { panel.scrollTop = panel.scrollHeight })
+      await page.locator('.sim-playback-sidebar').evaluate(panel => { panel.scrollTop = panel.scrollHeight })
       await page.screenshot({ path: '../docs/status-details.png' })
-      await page.locator('.sim-status-panel').evaluate(panel => { panel.scrollTop = 0 })
+      await page.locator('.sim-playback-sidebar').evaluate(panel => { panel.scrollTop = 0 })
     }
   }
+  await page.getByRole('button', { name: 'Hide disturbance impact' }).click()
+  await page.screenshot({ path: '../docs/status-sidebar-collapsed.png' })
+  await page.getByRole('button', { name: 'Show disturbance impact' }).click()
   await page.setViewportSize({ width: 390, height: 844 })
   await page.screenshot({ path: '../docs/status-mobile.png', fullPage: true })
+  if (process.env.SIMENV_STATIC_WEB_URL) {
+    const demo = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 })
+    await demo.goto(process.env.SIMENV_STATIC_WEB_URL)
+    await demo.getByRole('button', { name: 'Pause', exact: true }).click()
+    await demo.getByRole('slider', { name: 'Simulation step' }).fill('150')
+    await demo.waitForFunction(() => document.querySelector('[aria-label="Simulation step"]')?.value === '150')
+    await demo.getByRole('button', { name: 'Hide', exact: true }).click()
+    await demo.screenshot({ path: '../docs/status-static-network.png' })
+    await demo.getByRole('button', { name: 'Hide disturbance impact' }).click()
+    await demo.screenshot({ path: '../docs/status-static-network-collapsed.png' })
+  }
 } finally { await browser.close() }

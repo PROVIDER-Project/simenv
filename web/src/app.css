@@ -205,9 +205,13 @@ body {
   }
 }
 /* Recorded playback controls remain available with an empty database. */
-.sim-run-selector {
+.sim-playback-sidebar {
   position: absolute; z-index: 10; top: 155px; left: 24px;
-  width: 300px; max-height: calc(100dvh - 340px); overflow-y: auto;
+  width: 300px; max-height: max(100px, calc(100dvh - 340px)); overflow-y: auto;
+  display: grid; gap: 12px; scrollbar-gutter: stable;
+}
+.sim-run-selector {
+  min-width: 0;
   padding: 16px; border: 1px solid var(--sim-color-border);
   border-radius: var(--sim-radius-lg);
   background: linear-gradient(180deg, rgba(9, 19, 34, 0.92), rgba(6, 13, 24, 0.88));
@@ -239,7 +243,7 @@ body {
   .sim-app { overflow-y: auto; padding-bottom: 20px; }
   .sim-app .sim-globe-stage { position: fixed; }
   .sim-app .sim-frame-heading { position: relative; inset: auto; margin: 18px 14px; }
-  .sim-app .sim-run-selector,
+  .sim-app .sim-playback-sidebar,
   .sim-app .sim-playback-message,
   .sim-app .sim-configurator,
   .sim-app .sim-frame-meta,
@@ -247,6 +251,7 @@ body {
     position: relative; inset: auto; transform: none;
     width: calc(100% - 28px); max-width: none; margin: 12px 14px;
   }
+  .sim-app .sim-playback-sidebar { max-height: none; overflow: visible; scrollbar-gutter: auto; }
   .sim-app .sim-configurator { max-height: none; overflow: visible; }
   .sim-app .sim-run-selector { max-height: none; }
   .sim-app .sim-run-selector select { max-width: 100%; width: 100%; }

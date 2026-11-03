@@ -7,10 +7,11 @@ root, then open http://localhost:8080 for recorded-run/scenario selection and
 on-demand database frames. See [Database playback](../docs/playback.md) for API
 configuration, buffering, raw-data fidelity and performance tests.
 
-The **Recorded playback** panel stacks run and scenario selection on the left
-of the globe. It starts expanded; **Hide** minimizes it to its header and
-**Show** restores the controls without changing your selection or interrupting
-playback. On smaller screens the panel follows the page's scrollable layout.
+The narrow left sidebar stacks **Recorded playback** above **Disturbance impact**,
+keeping the central globe clear. Both panels start expanded and have independent
+**Hide**/**Show** buttons that preserve selection and playback. Desktop controls
+share one scroll area, including on short windows. On smaller screens they use
+the page's full-width scrollable layout without nested panel scrolling.
 
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
