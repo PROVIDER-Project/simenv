@@ -93,6 +93,6 @@ test('pooled map icons select their owning component while playback continues', 
     await page.waitForFunction(previous => Number(document.querySelector('[aria-label="Simulation step"]')?.value) > previous, period)
     assert.equal(await page.getByRole('combobox', { name: 'Recorded run', exact: true }).inputValue(), 'first')
     assert.equal(await page.getByRole('combobox', { name: 'Recorded scenario', exact: true }).inputValue(), '1')
-    assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'first')
+    assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'auto')
   } finally { await browser.close() }
 })

@@ -9,7 +9,6 @@ import {
   defaultScenarioConfig,
   suggestedFileName,
   suggestedRosterFileName,
-  type CascadeId,
   type ScenarioConfig,
 } from './pdlTemplate'
 import './configurator.css'
@@ -88,8 +87,6 @@ export default function ScenarioConfigurator({ meta, onCompleted, onViewResults 
   const fileName = useMemo(() => suggestedFileName(config), [config])
   const rosterFileName = useMemo(() => suggestedRosterFileName(config), [config])
 
-  const setCascade = (cascadeId: CascadeId) => setConfig((current) => ({ ...current, cascadeId }))
-
   const download = (content: string, name: string, kind: 'download-pdl' | 'download-roster') => {
     setExporting(kind)
     const blob = new Blob([content], { type: 'application/yaml;charset=utf-8' })
@@ -161,12 +158,7 @@ export default function ScenarioConfigurator({ meta, onCompleted, onViewResults 
             <span>Active cascade</span>
             <select
               value={config.cascadeId}
-              onChange={(event) => {
-                const nextCascade = event.target.value
-                if (nextCascade === 'soy_crisis_cascade' || nextCascade === 'energy_food_cascade') {
-                  setCascade(nextCascade)
-                }
-              }}
+              disabled
             >
               <option value="soy_crisis_cascade">{cascadeLabel('soy_crisis_cascade')}</option>
               <option value="energy_food_cascade">{cascadeLabel('energy_food_cascade')}</option>

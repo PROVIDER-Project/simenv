@@ -61,10 +61,17 @@ including when coordinates come from the fallback gazetteer.
   amber at **20%**, red at **50%**, with interpolation; capacity green below
   **80%**, amber at **80%**, red at **95%**. Policy is centralized in
   `src/playback/status.ts`; palette in `src/design/tokens.ts`.
-- Same-run scenario 0 is preferred at corresponding periods. Workshop API runs
-  contain scenario 1 only: select another completed run's scenario 0, using
-  **More runs** to discover older references. Structure, period coverage and exact
-  agent identities are checked. Equal economic configuration/seeds are not verified.
+- Recorded mode defaults to **Disruption-free reference (automatic)**. It searches
+  catalogue/history pages for a compatible scenario 0 or a verified empty-events
+  scenario 1, and attaches to a matching queued/running reference if one exists.
+  Otherwise the frontend explicitly submits one separate no-disruption job and
+  waits for completed, playable data. The simulation API never adds a baseline
+  automatically. No start-relative comparison is shown while preparing.
+- API reference eligibility uses preserved PDL/roster and engine parameters, not
+  labels. Structure, coverage and exact initial agent identities must also match.
+  Original-input/default mismatches are explained instead of silently substituting
+  today's settings. External scenario 0 is structurally compatible only; runtime
+  version equivalence is not certified for any external experiment.
 - **Relative to scenario start** compares with the first recorded end-of-step
   frame. It cannot reveal disturbances already present at the first step. Static
   demo uses this mode and its legacy exported aggregation, not raw agent identities.
@@ -167,7 +174,7 @@ npm run lint        # eslint src
 
 Inside the running app, open **PDL configurator** from the top-right panel to:
 
-- switch between the soy-crisis and energy-food cascades
+- use the currently fixed soy-crisis cascade (the Active cascade selector is disabled)
 - tune a first set of event magnitudes, durations, and activation days with sliders
 - toggle mitigation and contingency events with switches
 - copy or download a runnable PDL document and the matching roster sidecar built from the current settings
@@ -211,11 +218,12 @@ The frontend can still display playback and export PDL without the API.
 2. In this checkout's `web/`, run `npm ci` and `npm run dev`, then open
    <http://localhost:5173>. Vite proxies `/api/*` to `http://127.0.0.1:8000/*`,
    so the browser does not need cross-origin API access.
-3. Open **PDL configurator**, select a cascade, name the scenario, and adjust
+3. Open **PDL configurator**, name the scenario, and adjust
    sliders/switches. Click **Run simulation** in its **Execute this scenario**
    section. No file download is required: the request contains the current
    PDL preview, matching roster preview, selected cascade, and scenario name
-   as the run label. Both soy-crisis and energy-food cascades are supported.
+   as the run label. **Active cascade** is disabled at **Soy crisis cascade**;
+   the general API/CLI still supports other cascades.
 4. The panel displays the API-generated run ID and polls once per second
    through `queued` → `running` → `completed` or `failed`. Overall progress
    covers the single submitted PDL scenario; 100% can precede completion
@@ -308,11 +316,13 @@ npx playwright install --with-deps chromium
 npm run test:simulation
 ```
 
-This creates two real jobs (one per cascade), verifies that slider/switch edits
+This creates two edited soy jobs, verifies that slider/switch edits
 reach the API as the exact displayed PDL/roster, checks the submission lock and
 monitoring across panel hide/show, and waits for completed runs with 365 steps
 each. It then uses **View results** to open each exact run/scenario 1 and seeks
-into a later database page.
+into a later database page. It verifies automatic empty-events reference creation
+or reuse and checks that both soy configurations use the same scenario-1 reference.
+The frontend may submit one additional reference job if none is recorded already.
 Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
 to increase the per-run completion wait (default 120000 ms) for a busy API or
 slower hardware. The test assumes the

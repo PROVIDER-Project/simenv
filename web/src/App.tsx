@@ -14,6 +14,8 @@ import { measure } from './playback/measure'
 import ReferenceSelector from './playback/ReferenceSelector'
 import StatusPanel, { StatusLegend } from './playback/StatusPanel'
 import StableInspector from './playback/StableInspector'
+import { useAutomaticReference } from './playback/useAutomaticReference'
+import { REFERENCE_LABEL } from './playback/automaticReference'
 import './app.css'
 import './playback/status.css'
 
@@ -79,7 +81,7 @@ export default function App({ source }: { source: PlaybackSource }) {
       })
       setTotal(page.total)
       setNextOffset(offset + loaded.length)
-      const first = loaded.find(run => run.playable)
+      const first = loaded.find(run => run.playable && run.label !== REFERENCE_LABEL) ?? loaded.find(run => run.playable)
       if (!selection.current && first) {
         selection.current = first.id; setSelected(first.id)
         setScenario(first.scenario_ids.includes(1) ? 1 : first.scenario_ids[0])
@@ -114,17 +116,20 @@ export default function App({ source }: { source: PlaybackSource }) {
 }
 
 function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null }) {
-  const [referenceChoice, setReferenceChoice] = useState(() => runs.find(item => item.id === run)?.scenario_ids.includes(0) ? run : 'start')
-  const playback = usePlayback(source, run, scenario, referenceChoice)
+  const [referenceChoice, setReferenceChoice] = useState(source.mode === 'static' ? 'start' : 'auto')
+  const automatic = referenceChoice === 'auto'
+  const preparation = useAutomaticReference(source, run, scenario, automatic)
+  const playback = usePlayback(source, run, scenario, automatic ? preparation.reference ?? null : referenceChoice)
   const reference = playback.reference
+  const comparisonReady = !automatic || (preparation.phase === 'ready' && !!(reference.frame || reference.error))
   const [selectedNode, setSelectedNode] = useState('')
   const [impactExpanded, setImpactExpanded] = useState(true)
   const impactControlsId = useId()
   const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const displayScene = useMemo(() => playback.scene ? presentScene(playback.scene) : null, [playback.scene])
   const scene = useMemo(() => displayScene ? resolveScene(displayScene.nodes, displayScene.edges) : null, [displayScene])
-  const projected = useMemo(() => playback.scene && playback.frame
-    ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [playback.scene, playback.frame, playback.baseline, reference.frame])
+  const projected = useMemo(() => comparisonReady && playback.scene && playback.frame
+    ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [comparisonReady, playback.scene, playback.frame, playback.baseline, reference.frame])
   const selectFromMap = useCallback((id: string) => {
     setSelectedNode(id); setImpactExpanded(true)
   }, [])
@@ -137,9 +142,9 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
     return () => cancelAnimationFrame(id)
   }, [playback.frame])
   return <>
-    {scene && projected && <Profiler id="globe" onRender={(_id, _phase, duration) => {
+    {scene && <Profiler id="globe" onRender={(_id, _phase, duration) => {
       measure('playback.react', performance.now() - duration)
-    }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected.markerIntensity} edgeIntensity={projected.edgeIntensity}
+    }}><GlobeView markers={scene.markers} edges={scene.edges} markerIntensity={projected?.markerIntensity} edgeIntensity={projected?.edgeIntensity}
       selectedNode={selectedComponent} onSelectNode={selectFromMap} /></Profiler>}
     {impactSlot && createPortal(<aside className="sim-status-panel" aria-label="Disturbance impact">
       <header className="sim-status-panel-header"><h2>Disturbance impact</h2>
@@ -149,7 +154,12 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
       </header>
       <div id={impactControlsId} hidden={!impactExpanded}>
         <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
-        explanation={reference.explanation} loading={reference.loading} error={reference.error} onRetry={reference.retry} />
+        automaticAvailable={source.mode === 'recorded'}
+        explanation={reference.explanation}
+        loading={automatic && preparation.phase !== 'ready' ? preparation.phase !== 'error' : reference.loading}
+        error={automatic && preparation.phase === 'error' ? preparation.message : reference.error}
+        preparation={automatic && preparation.phase !== 'ready' && preparation.phase !== 'error' ? preparation.message : undefined}
+        onRetry={automatic && preparation.phase === 'error' ? preparation.retry : reference.retry} />
       <StatusLegend />
       <StableInspector>
       {displayScene && playback.frame && projected && <StatusPanel scene={displayScene} projected={projected}
@@ -159,7 +169,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
       </div>
     </aside>, impactSlot)}
     <div className="sim-playback-notice">
-      {playback.buffering && <p className="sim-playback-message" role="status">Buffering playback…</p>}
+      {playback.buffering && (!automatic || preparation.phase === 'ready') && <p className="sim-playback-message" role="status">Buffering playback…</p>}
       {playback.error && <div className="sim-playback-message"><p role="alert">{playback.error}</p>
         <button type="button" onClick={playback.retryPlayback}>Retry playback</button></div>}
     </div>

@@ -179,25 +179,44 @@ manifest to detect agents absent from every frame.
 
 ### Choosing normal
 
-1. Default to **scenario 0 from the same recorded run**, when available, comparing
-   corresponding periods and exact `(entity_id, agent_id, role)` identities.
-2. API workshop submissions record **scenario 1 only**. Select a completed
-   reference run containing scenario 0; use **More runs** to load older choices.
-   A normal CLI PDL invocation records baseline and PDL scenarios. Structure
-   (nodes, represented entities, roles, recording flags, directed edges), period
-   coverage and recorded identities must match. Cosmetic labels, coordinates,
-   ordering and PDL filenames do not need to match.
-3. Otherwise default to **Relative to scenario start**, also selectable explicitly.
+1. Recorded playback defaults to **Disruption-free reference (automatic)**.
+   Discovery exhausts catalogue pages and prefers a compatible same-run scenario
+   0, then external scenario 0, comparing corresponding periods and exact
+   `(entity_id, agent_id, role)` identities. Incompatible candidates are skipped.
+2. Workshop API jobs contain **scenario 1 only**. The frontend reads preserved
+   inputs through `GET /simulations/{id}/inputs` and searches for a verified
+   empty-events scenario 1 with the same canonical non-event PDL, roster and
+   engine parameters. A matching queued/running API job is monitored instead of
+   being submitted again. Completed history without recorded playback is not
+   considered an existing database reference.
+3. If no eligible recording or active job exists, the **frontend calls the
+   simulation API** to submit a separate job with `events: []` and a declared
+   `unshocked_reference` cascade containing `timeline: []`. Non-event declarations,
+   economics, roster absence, duration and seed are preserved/checked. The API
+   still executes just the single submitted scenario. Comparison waits for both
+   completion and playable database results; 100% progress alone is not completion.
+   Progress/errors appear in the reference area, with no transient start-relative
+   comparison. Accepted parameters are checked again to detect changed defaults.
+4. **Relative to scenario start** remains an explicit option in recorded mode.
    This pins the first recorded **end-of-step** frame outside the evictable cache.
    It cannot reveal disturbances already present at the first step. The static
    exported demo uses this mode and retains its legacy exporter aggregation.
 
-An external run is a **structurally compatible recorded baseline**; the existing
-API cannot verify equivalent economic settings, seed or implementation version.
-Do not interpret that comparison as a controlled causal experiment. Scenario 1
-is never offered as a verified unshocked reference. Missing periods, identities,
-metrics or requests explain unavailable comparison without silently switching
-mode. **Retry reference** retries the chosen source independently of playback.
+External scenario 0 is a **structurally compatible recorded baseline**; its
+economic equivalence is not certified. Automatically selected scenario 1 must
+have verified empty event definitions/timeline and matching preserved model,
+roster and engine settings. Labels are never baseline evidence. Neither path
+certifies equal runtime/agent versions. Missing historical inputs or incompatible
+current API defaults explain why automatic reproduction is unavailable; today's
+defaults are never silently substituted. Static mode never creates a job.
+
+**Retry reference** resumes discovery/monitoring of an accepted job without
+resubmitting it. Confirmed failed jobs need explicit retry before replacement;
+ambiguous POST outcomes are latched and retries only rediscover possible accepted
+work. Discovery outages or incomplete pagination never mean “no baseline exists.”
+Source-scoped coordination survives selection changes and StrictMode effects;
+deduplication is local to the page/coordinator, not globally exactly-once across
+independent clients. Missing data never silently switches comparison mode.
 Initial agent censuses must match for a recorded baseline selection. If an agent
 later disappears, its assessment is unavailable but exact matches for surviving
 agents and unaffected network indicators retain their comparison evidence.
@@ -220,6 +239,10 @@ indicator explanations retain their full accessible text, focus label and toolti
 
 ### Connections and workshop results
 
+The workshop **Active cascade** control is fixed to **Soy crisis cascade** for
+now; its magnitude/timing/mitigation controls remain editable. API/CLI multi-cascade
+support and playback of historical energy runs remain supported.
+
 Connections show **inferred upstream status**: inherit only their source node's
 assessment. Unknown source means gray, without target fallback or recursive
 propagation through unrecorded ports. The four synchronized timeline indicators
@@ -234,6 +257,14 @@ displayed recorded results; later configurator changes are **Unsubmitted edits
 for the next run**, separate from the submitted input snapshot.
 
 ### Review screenshots
+
+- [Automatic reference preparing](automatic-reference-preparing.png) — the
+  frontend's separate job can still be running at 100%; no comparison is shown.
+- [Automatic reference ready, soy cascade locked](automatic-reference-ready.png)
+  and [day-0 detail comparison](automatic-reference-details.png). These use
+  explicitly controlled API/playback fixtures; real-service acceptance separately
+  verifies empty-event job creation/reuse. Reproduce from `web/` with
+  `SIMENV_WEB_URL=http://127.0.0.1:5175 SIMENV_CAPTURE_BASELINE=1 node --test tests/automatic-reference-browser.test.mjs`.
 
 - [Before: previous static demo interface, step 150](status-before.png) — main
   checkout `9dee6b0`, before issue #75. Different data from the controlled states.

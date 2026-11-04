@@ -25,9 +25,12 @@ simulation and playback APIs plus internal PostgreSQL. See
 
 After completion, **View results** opens the submitted run's scenario 1 directly.
 The **Disturbance impact** panel explains green/amber/red/gray component status,
-the strongest contributing metric, and the selected reference condition. Use a
-recorded scenario-0 baseline to reveal disturbances already present at step 0;
-scenario-start comparison is explicitly limited. See the
+the strongest contributing metric, and the selected reference condition. Recorded
+mode defaults to a disruption-free reference, reusing compatible recorded results
+or submitting a separate empty-events experiment from the frontend when needed.
+It waits for playable reference data before comparison, revealing day-0 effects.
+The workshop cascade is currently locked to soy; API jobs still execute only the
+single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
 ### Run a configured scenario from the dashboard
