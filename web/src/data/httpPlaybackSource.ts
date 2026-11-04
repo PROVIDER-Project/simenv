@@ -2,6 +2,10 @@ import type { FramePage, PlaybackSource, RunList, Scene } from './playback'
 import { parseBundle } from './staticJsonSource'
 import { measure } from '../playback/measure'
 
+export class PlaybackApiError extends Error {
+  constructor(message: string, public status: number) { super(message) }
+}
+
 function object(value: unknown): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid playback object')
 }
@@ -65,7 +69,7 @@ export function createHttpPlaybackSource(baseUrl: string): PlaybackSource {
     const response = await fetch(`${base}${path}`, { signal })
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
-      throw new Error(typeof body.detail === 'string' ? body.detail : `Playback request failed (${response.status})`)
+      throw new PlaybackApiError(typeof body.detail === 'string' ? body.detail : `Playback request failed (${response.status})`, response.status)
     }
     const text = await response.text()
     measure('playback.request', started)
@@ -79,9 +83,14 @@ export function createHttpPlaybackSource(baseUrl: string): PlaybackSource {
   }
   const path = (run: string, scenario: number) => `/runs/${encodeURIComponent(run)}/scenarios/${scenario}`
   return {
+    mode: 'recorded',
     name: 'PostgreSQL playback',
     listRuns: (limit, offset, signal) => get(`/runs?limit=${limit}&offset=${offset}`, parseRuns, signal),
-    getScene: (run, scenario, signal) => get(`${path(run, scenario)}/scene`, parseScene, signal),
+    getScene: async (run, scenario, signal) => {
+      const scene = await get(`${path(run, scenario)}/scene`, parseScene, signal)
+      if (scene.run_id !== run || scene.scenario_id !== scenario) throw new Error('Playback scene identity mismatch')
+      return scene
+    },
     getFrames: async (run, scenario, start, limit, signal) => {
       const page = await get(`${path(run, scenario)}/frames?start=${start}&limit=${limit}`, parseFramePage, signal)
       if (page.run_id !== run || page.scenario_id !== scenario || page.start !== start || page.frames.length > limit) {
