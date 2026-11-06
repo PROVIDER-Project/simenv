@@ -74,6 +74,8 @@ test('reference failure keeps capacity and participation while retry restores re
       : route.fulfill({ json: scene('shock', 0) }))
     await page.goto(webUrl); await pause(page)
     await page.getByRole('region', { name: 'Reference comparison' }).getByText('Reference offline', { exact: false }).waitFor()
+    assert.equal(await page.getByRole('region', { name: 'Component status' }).count(), 0, 'automatic mode waits rather than showing a start-relative comparison')
+    await page.getByRole('combobox', { name: 'Reference condition' }).selectOption('shock')
     const details = page.getByRole('region', { name: 'Component status' })
     assert.match(await details.innerText(), /Unavailable/)
     assert.match(await details.innerText(), /active/)

@@ -64,11 +64,15 @@ every frame. Multiple placements share the same pooled-node assessment.
 
 ## Reference policy and synchronization
 
-Default to same-run scenario 0 at corresponding periods, when catalogued;
-otherwise use **Relative to scenario start**. Start means the first recorded
-end-of-step frame, which may already contain a day-0 disturbance. Pin it outside
-the evictable page cache. External reference selection offers completed playable
-runs containing scenario 0, never labels scenario 1 as unshocked.
+Recorded mode now defaults to frontend-managed automatic reference discovery
+and explicit empty-events submission when needed, as specified in
+`2026-11-04-automatic-reference-design.md`. Same-run scenario 0 is preferred;
+verified empty-events scenario 1 is also eligible. There is no implicit
+scenario-start fallback while preparing. **Relative to scenario start** remains
+an explicit option and the static default. It pins the first recorded end-of-step
+frame outside the cache; this may already include a day-0 disturbance. Manual
+external selection offers scenario 0; automatic scenario-1 references require
+preserved-input evidence, never a baseline label.
 
 External references must have matching canonical nodes (IDs, roles, represented
 entities, recording flags), directed edges/sea classification, exact recorded
@@ -79,7 +83,7 @@ structural compatibility does not verify economic configuration equivalence.
 
 Retain the complete displayed pair during current/reference buffering for the same
 generation, including seeking; suspend advancement until both requested frames
-are ready. Cache hits do not become unavailable/loading states. Recorded scenario-0
+are ready. Cache hits do not become unavailable/loading states. Recorded
 references must match the displayed period; scenario-start references always
 remain at the first recorded period. Both must belong to the active selection
 and reference generation. A source/reference-generation change or actual reference

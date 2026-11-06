@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PlaybackSource, RecordedFrame, Scene } from '../data/playback'
 import { createPlaybackBuffer } from './buffer'
 import { createReferenceLoader, referenceExplanation, type ReferenceResult } from './referenceLoader'
+import type { ReferenceChoice } from './reference'
 
 interface CurrentResource {
   key: object
@@ -14,7 +15,7 @@ interface Failure { key: object; message: string }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
 /** Current/reference measurements are committed as one coherent display snapshot. */
-export function usePlayback(source: PlaybackSource, runId: string, scenarioId: number, choice = 'start') {
+export function usePlayback(source: PlaybackSource, runId: string, scenarioId: number, choice: ReferenceChoice = 'start') {
   const [initialRetry, setInitialRetry] = useState(0)
   const [referenceRetry, setReferenceRetry] = useState(0)
   const [retry, setRetry] = useState(0)
@@ -45,7 +46,7 @@ export function usePlayback(source: PlaybackSource, runId: string, scenarioId: n
   }, [source, runId, scenarioId, selection])
 
   useEffect(() => {
-    if (!active) return
+    if (!active || choice === null) return
     const loader = createReferenceLoader(source, active.scene, active.baseline, choice)
     setResource({ key: generation, loader })
     return () => loader.dispose()

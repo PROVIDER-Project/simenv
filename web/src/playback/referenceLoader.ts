@@ -1,15 +1,16 @@
 import type { PlaybackSource, RecordedFrame, Scene } from '../data/playback'
 import { createPlaybackBuffer } from './buffer'
-import { agentIdentity, referenceCompatibility } from './reference'
+import { agentIdentity, recordedReference, referenceCompatibility, type ReferenceChoice } from './reference'
 
 export interface ReferenceResult { frame: RecordedFrame | null; error: string | null }
 const identities = (frame: RecordedFrame) => JSON.stringify(frame.agents.map(agentIdentity).sort())
 
 /** One reference generation. Failures settle until an explicit retry replaces it. */
-export function createReferenceLoader(source: PlaybackSource, scene: Scene, baseline: RecordedFrame, choice: string) {
+export function createReferenceLoader(source: PlaybackSource, scene: Scene, baseline: RecordedFrame, choice: Exclude<ReferenceChoice, null>) {
   const controller = new AbortController()
-  const cache = createPlaybackBuffer(source, choice, 0)
   const start = choice === 'start'
+  const selected = start ? null : recordedReference(choice)
+  const cache = createPlaybackBuffer(source, selected?.runId ?? scene.run_id, selected?.scenarioId ?? scene.scenario_id)
   let ready = start
   let failure: string | null = null
   let setup: Promise<void> | null = null
@@ -17,9 +18,10 @@ export function createReferenceLoader(source: PlaybackSource, scene: Scene, base
     if (controller.signal.aborted || signal?.aborted) throw new DOMException('Reference changed', 'AbortError')
   }
   async function initialize() {
-    const reference = await source.getScene(choice, 0, controller.signal)
+    if (!selected) return
+    const reference = await source.getScene(selected.runId, selected.scenarioId, controller.signal)
     active()
-    const error = referenceCompatibility(scene, reference)
+    const error = referenceCompatibility(scene, reference, selected.evidence)
     if (error) throw new Error(error)
     const first = await cache.load(scene.min_period)
     active()
@@ -56,10 +58,14 @@ export function createReferenceLoader(source: PlaybackSource, scene: Scene, base
 }
 
 export function referenceExplanation(scene: Scene | null, current: RecordedFrame | null, reference: RecordedFrame | null,
-  baseline: RecordedFrame | null, choice: string): string {
+  baseline: RecordedFrame | null, choice: ReferenceChoice): string {
+  if (choice === null) return 'Preparing a disruption-free reference before displaying comparison.'
+  const selected = choice === 'start' ? null : recordedReference(choice)
   const source = choice === 'start'
     ? `Relative to scenario start (first recorded step ${baseline?.period ?? '…'}). This cannot reveal disturbances already present at the first step.`
-    : `Recorded unshocked reference: ${choice}, scenario 0, corresponding recorded periods.${choice !== scene?.run_id ? ' Structurally compatible baseline; economic configuration equivalence is not verified.' : ''}`
+    : `Recorded unshocked reference: ${selected?.runId}, scenario ${selected?.scenarioId}, corresponding recorded periods.${selected?.evidence === 'empty-events'
+      ? ' Verified empty events/timeline and matching preserved inputs/parameters; runtime-version equivalence is not certified.'
+      : selected?.runId !== scene?.run_id ? ' Structurally compatible baseline; economic configuration equivalence is not verified.' : ''}`
   return source + (reference && current && identities(reference) !== identities(current)
     ? ' Recorded agent identities differ at this period; only exact matches are compared. Missing agents are unavailable evidence.' : '')
 }
