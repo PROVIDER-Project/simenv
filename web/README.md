@@ -7,15 +7,93 @@ root, then open http://localhost:8080 for recorded-run/scenario selection and
 on-demand database frames. See [Database playback](../docs/playback.md) for API
 configuration, buffering, raw-data fidelity and performance tests.
 
-The **Recorded playback** panel stacks run and scenario selection on the left
-of the globe. It starts expanded; **Hide** minimizes it to its header and
-**Show** restores the controls without changing your selection or interrupting
-playback. On smaller screens the panel follows the page's scrollable layout.
+The narrow left sidebar stacks **Recorded playback** above **Disturbance impact**,
+keeping the central globe clear. Both panels start expanded and have independent
+**Hide**/**Show** buttons that preserve selection and playback. Desktop controls
+share one scroll area, including on short windows. On smaller screens they use
+the page's full-width scrollable layout without nested panel scrolling.
+The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
+The timeline's height is reserved separately from the sidebar; very short windows
+also switch to page flow so the scrubber remains clickable.
 
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
+
+### Workshop disturbance inspection
+
+After a simulation completes, **View results** opens that exact run's scenario 1.
+Configurator changes after submission are labeled **Unsubmitted edits for the
+next run**; they do not change the displayed recorded results.
+
+The **Disturbance impact** panel provides a shared traffic-light legend, a
+**Reference condition** selector, and a keyboard-accessible **Inspect component**
+list (including unplaced/unrecorded components). Globe marker clicks select the
+same details. Details show the strongest metric/agent, individual current and
+reference values, percentage changes, and missing-data explanations. Pooled
+components and multi-agent strongest-status aggregation are explicit.
+
+Click a component icon or its map label to select it: the details panel opens,
+and **Inspect component** updates to the same selection. Component labels are
+keyboard-operable buttons (Enter/Space); connection labels are informational.
+The dropdown remains available for keyboard use; both directions share one
+component selection. Connection graphics do not intercept icon clicks, and
+selecting a component does not reset or pause playback. Split livestock markers
+select their shared pooled component.
+
+The sidebar/page keeps its current scroll position when selection changes;
+only the details content updates. Taller detail content retains its space while
+switching to shorter components, preventing a bottom-scrolled view from jumping.
+The reservation resets for a new run/scenario or a changed inspector width.
+
+Built-in component and placement names are consistently displayed in English
+across the map, connections, dropdown and details, including older recordings
+with German metadata. This is a presentation-only projection; recorded values,
+identities and provenance remain unchanged. Custom English names are preserved,
+including when coordinates come from the fallback gazetteer.
+
+- Green: near reference / low pressure; amber: elevated; red: severe; gray:
+  unavailable. Prices worsen upward, availability/output downward. All applicable
+  metrics contribute. Known adverse evidence survives incomplete coverage;
+  green-only evidence with missing comparisons stays gray.
+- Fixed illustrative thresholds: relative adverse change green through **5%**,
+  amber at **20%**, red at **50%**, with interpolation; capacity green below
+  **80%**, amber at **80%**, red at **95%**. Policy is centralized in
+  `src/playback/status.ts`; palette in `src/design/tokens.ts`.
+- Recorded mode defaults to **Disruption-free reference (automatic)**. It searches
+  catalogue/history pages for a compatible scenario 0 or a verified empty-events
+  scenario 1, and attaches to a matching queued/running reference if one exists.
+  Otherwise the frontend explicitly submits one separate no-disruption job and
+  waits for completed, playable data. The simulation API never adds a baseline
+  automatically. No start-relative comparison is shown while preparing.
+- API reference eligibility uses preserved PDL/roster and engine parameters, not
+  labels. Structure, coverage and exact initial agent identities must also match.
+  Original-input/default mismatches are explained instead of silently substituting
+  today's settings. External scenario 0 is structurally compatible only; runtime
+  version equivalence is not certified for any external experiment.
+- **Relative to scenario start** compares with the first recorded end-of-step
+  frame. It cannot reveal disturbances already present at the first step. Static
+  demo uses this mode and its legacy exported aggregation, not raw agent identities.
+- Zero/missing references and no-quote prices are unavailable, not healthy.
+  Inactivity is red. Recorded capacity pressure is absolute. Storage/handling
+  pressure is not production utilization; lower quantity alone is not unmet demand.
+  Processing input offered/processed are optional decrease indicators;
+  unused input is diagnostic only. Historical metrics absent on both sides are
+  unsupported rather than invented.
+- Connections inherit source status only, labeled **inferred upstream status**.
+  Network-average transport utilization does not measure a particular port/route.
+  The timeline synchronizes soy/feed prices, soy supply and average transport
+  utilization with playback. Placement annotations and selection rings are separate.
+
+Playback presents current/reference measurements as one matched pair. If a page
+is still loading, the displayed step, colors and values hold together until the
+pair is ready, then resume. Cached steps do not flash gray. Changing reference
+invalidates prior comparison evidence immediately; actual errors/missing data
+remain explicitly unavailable. The indicator grid, tabular values and reserved
+loading space keep readouts stable while playing.
+
+See [reference rules, limitations and screenshots](../docs/playback.md#workshop-status-and-references).
 
 World map / globe view for the PROVIDER simulation environment. Renders the geolocatable
 projection of the soy supply chain — producers, ports, EU processing, livestock — and plays
@@ -96,7 +174,7 @@ npm run lint        # eslint src
 
 Inside the running app, open **PDL configurator** from the top-right panel to:
 
-- switch between the soy-crisis and energy-food cascades
+- use the currently fixed soy-crisis cascade (the Active cascade selector is disabled)
 - tune a first set of event magnitudes, durations, and activation days with sliders
 - toggle mitigation and contingency events with switches
 - copy or download a runnable PDL document and the matching roster sidecar built from the current settings
@@ -140,11 +218,12 @@ The frontend can still display playback and export PDL without the API.
 2. In this checkout's `web/`, run `npm ci` and `npm run dev`, then open
    <http://localhost:5173>. Vite proxies `/api/*` to `http://127.0.0.1:8000/*`,
    so the browser does not need cross-origin API access.
-3. Open **PDL configurator**, select a cascade, name the scenario, and adjust
+3. Open **PDL configurator**, name the scenario, and adjust
    sliders/switches. Click **Run simulation** in its **Execute this scenario**
    section. No file download is required: the request contains the current
    PDL preview, matching roster preview, selected cascade, and scenario name
-   as the run label. Both soy-crisis and energy-food cascades are supported.
+   as the run label. **Active cascade** is disabled at **Soy crisis cascade**;
+   the general API/CLI still supports other cascades.
 4. The panel displays the API-generated run ID and polls once per second
    through `queued` → `running` → `completed` or `failed`. Overall progress
    covers the single submitted PDL scenario; 100% can precede completion
@@ -185,9 +264,15 @@ origin via CORS; the default API service does not enable CORS.
 
 #### Viewing the new results
 
-Completion means the API saved the run; the globe continues playing its loaded
-`bundle.json`. The API currently provides status/log endpoints, not a downloadable
-playback bundle. To display a completed API run, export it and reload the page.
+With database playback configured, completion exposes **View results**, which
+finds the exact completed ID across catalogue pages and selects scenario 1.
+Errors explain missing/unplayable results and allow retrying the same ID. Both
+APIs must use the same database. Playback selection stays visibly separate from
+configurator inputs awaiting submission.
+
+In static-demo mode the action explains the required playback configuration;
+the demo continues showing its exported run. To update that standalone demo,
+export the completed run and reload the page.
 With a local API data directory, run from this repository root:
 
 ```bash
@@ -231,9 +316,13 @@ npx playwright install --with-deps chromium
 npm run test:simulation
 ```
 
-This creates two real jobs (one per cascade), verifies that slider/switch edits
+This creates two edited soy jobs, verifies that slider/switch edits
 reach the API as the exact displayed PDL/roster, checks the submission lock and
-monitoring across panel hide/show, and waits for completed runs with 730 steps.
+monitoring across panel hide/show, and waits for completed runs with 365 steps
+each. It then uses **View results** to open each exact run/scenario 1 and seeks
+into a later database page. It verifies automatic empty-events reference creation
+or reuse and checks that both soy configurations use the same scenario-1 reference.
+The frontend may submit one additional reference job if none is recorded already.
 Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
 to increase the per-run completion wait (default 120000 ms) for a busy API or
 slower hardware. The test assumes the

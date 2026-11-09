@@ -9,7 +9,6 @@ import {
   defaultScenarioConfig,
   suggestedFileName,
   suggestedRosterFileName,
-  type CascadeId,
   type ScenarioConfig,
 } from './pdlTemplate'
 import './configurator.css'
@@ -17,6 +16,7 @@ import './configurator.css'
 interface ScenarioConfiguratorProps {
   meta: BundleMeta
   onCompleted?: (runId: string) => void
+  onViewResults?: (runId: string) => Promise<void>
 }
 
 interface RangeFieldProps {
@@ -66,7 +66,7 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
   )
 }
 
-export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConfiguratorProps) {
+export default function ScenarioConfigurator({ meta, onCompleted, onViewResults }: ScenarioConfiguratorProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [notice, setNotice] = useState<string>('')
   const [exporting, setExporting] = useState<'copy-pdl' | 'download-pdl' | 'copy-roster' | 'download-roster' | null>(
@@ -86,8 +86,6 @@ export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConf
   const summary = useMemo(() => cascadeSummary(config), [config])
   const fileName = useMemo(() => suggestedFileName(config), [config])
   const rosterFileName = useMemo(() => suggestedRosterFileName(config), [config])
-
-  const setCascade = (cascadeId: CascadeId) => setConfig((current) => ({ ...current, cascadeId }))
 
   const download = (content: string, name: string, kind: 'download-pdl' | 'download-roster') => {
     setExporting(kind)
@@ -135,6 +133,7 @@ export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConf
       </div>
 
       <SimulationRunner
+        onViewResults={onViewResults}
         onCompleted={onCompleted}
         hidden={collapsed}
         submission={{ pdl, roster, cascade: config.cascadeId, label: config.scenarioName.trim() || defaultScenarioConfig.scenarioName }}
@@ -159,12 +158,7 @@ export default function ScenarioConfigurator({ meta, onCompleted }: ScenarioConf
             <span>Active cascade</span>
             <select
               value={config.cascadeId}
-              onChange={(event) => {
-                const nextCascade = event.target.value
-                if (nextCascade === 'soy_crisis_cascade' || nextCascade === 'energy_food_cascade') {
-                  setCascade(nextCascade)
-                }
-              }}
+              disabled
             >
               <option value="soy_crisis_cascade">{cascadeLabel('soy_crisis_cascade')}</option>
               <option value="energy_food_cascade">{cascadeLabel('energy_food_cascade')}</option>

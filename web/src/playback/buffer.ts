@@ -32,6 +32,13 @@ export function createPlaybackBuffer(source: Pick<PlaybackSource, 'getFrames'>, 
     return request
   }
   return {
+    /** Read-only cache inspection; load still owns recency and eviction protection. */
+    peek(period: number): RecordedFrame | null {
+      if (controller.signal.aborted) return null
+      const page = pages.get(aligned(period))
+      const frame = page?.frames[period - page.start]
+      return frame?.period === period ? frame : null
+    },
     async load(period: number): Promise<RecordedFrame> {
       current = aligned(period)
       const page = await pageAt(current)

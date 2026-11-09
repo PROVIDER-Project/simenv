@@ -1,8 +1,12 @@
 # Simulation API
 
 The API accepts PDL YAML, queues a simulation, and exposes its lifecycle,
-live progress, and logs. Each job executes the existing baseline scenario
-and one PDL scenario in an isolated subprocess. A single worker executes
+live progress, and logs. Each job executes only the submitted PDL scenario
+(scenario 1) in an isolated subprocess. It does not record scenario 0; workshop
+comparison reuses a compatible recorded baseline or the frontend explicitly
+submits a separate empty-events job. That job also records only scenario 1;
+the service never adds a baseline job or experiment automatically.
+A single worker executes
 jobs in submission order while the HTTP service remains responsive.
 
 **Job ID and simulation run ID are the same.** Simulation preparation
@@ -274,6 +278,32 @@ to 16384 bytes and is capped at 65536. Before any log output or at the end
 of a log, `text` is empty and `next_offset` equals `offset`. Chunks decode
 as UTF-8 with replacement for split multibyte characters. Both stdout and
 stderr are captured.
+
+### Preserved inputs for frontend reference creation
+
+`GET /simulations/{id}/inputs` is read-only. It returns parsed JSON-compatible
+`pdl`, `roster` (null when absent), the resolved nonempty `cascade`, preserved
+row-0 `parameters`, `current_parameters` for a new ordinary submission, and
+`evidence` (`preserved` before execution hashes exist, or `execution-hashes`).
+Only the scenario ID is excluded from parameter maps; duration, seed, run count
+and all other engine settings remain included.
+
+The endpoint checks job membership before reading paths. Unknown jobs return
+404. Deleted, modified, malformed or unsupported preserved inputs return 409.
+Completed jobs require their execution manifest and scenario-1 CSV; PDL/roster
+bytes are checked against recorded hashes, including recorded roster absence,
+and executed parameters must agree with the copied template. Missing evidence
+never downgrades a completed job to `preserved`. Reads are bounded to 8 MiB per
+file and 1,000 CSV rows. Parameters outside the exact JSON integer range are
+rejected rather than rounded into a false match. YAML-only values are not coerced.
+
+The frontend removes all events and uses an empty cascade timeline while
+preserving non-event PDL declarations and roster economics. JSON text is valid
+YAML for the existing POST endpoint. It compares canonical recipes and parameters,
+then validates the accepted job inputs again before and after execution. This
+does not attest historical template hashes or equal runtime/agent revisions.
+Historical CLI runs are not API jobs; deleted API inputs cannot be reconstructed
+from a PDL filename. Existing recorded scenario-0 playback remains available.
 
 ## Data layout and CSV results
 

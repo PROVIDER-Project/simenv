@@ -37,6 +37,7 @@ export interface FramePage {
   frames: RecordedFrame[]
 }
 export interface PlaybackSource {
+  mode: 'recorded' | 'static'
   name: string
   listRuns(limit: number, offset: number, signal?: AbortSignal): Promise<RunList>
   getScene(runId: string, scenarioId: number, signal?: AbortSignal): Promise<Scene>

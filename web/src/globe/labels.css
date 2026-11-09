@@ -44,6 +44,13 @@
   left: 50%;
   bottom: 10px;
   transform: translateX(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  text-align: left;
+}
+.sim-label--node:focus-visible {
+  outline: 2px solid var(--sim-color-accent-bright);
+  outline-offset: 3px;
 }
 
 .sim-label--node::after {

@@ -12,7 +12,8 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..execution import InvalidSimulation, prepare_run
+from ..execution import INPUT_DIR, InvalidSimulation, prepare_run
+from .inputs import InputsUnavailable, read_inputs
 from .queue import SimulationQueue
 from .store import JobStore
 
@@ -171,6 +172,21 @@ def create_app(
                 status_code=404, detail="Simulation not found"
             )
         return chunk
+
+    @application.get("/simulations/{job_id}/inputs")
+    def simulation_inputs(job_id: str):
+        """Read validated preserved documents for frontend reference creation."""
+        store = application.state.store
+        job = store.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Simulation not found")
+        try:
+            return read_inputs(
+                store.data_dir / "jobs" / job_id, job,
+                INPUT_DIR / "SimulatorScenarios_template.csv",
+            )
+        except InputsUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @application.get("/health")
     def health():
