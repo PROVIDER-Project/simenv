@@ -1,6 +1,6 @@
 .sim-timeline {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   position: relative;
   z-index: 6;
   display: flex;

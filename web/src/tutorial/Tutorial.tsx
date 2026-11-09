@@ -8,7 +8,7 @@ function read(key: string) { try { return localStorage.getItem(prefix + key) } c
 function write(key: string, value?: string) { try { if (value) localStorage.setItem(prefix + key, value); else localStorage.removeItem(prefix + key) } catch { /* Storage is optional. */ } }
 type Rect = { x: number; y: number; width: number; height: number }
 
-export default function Tutorial({ children, mode, layoutReady }: { children: ReactNode; mode: 'static' | 'recorded'; layoutReady: boolean }) {
+export default function Tutorial({ children, mode, layoutReady }: { children: (restartNode: ReactNode) => ReactNode; mode: 'static' | 'recorded'; layoutReady: boolean }) {
   const [active, setActive] = useState(() => read('completed') !== 'true')
   const [language, setLanguage] = useState<Language>(() => read('language') === 'de' ? 'de' : 'en')
   const [index, setIndex] = useState(0)
@@ -139,11 +139,10 @@ export default function Tutorial({ children, mode, layoutReady }: { children: Re
   function move(next: number) { setIndex(next); setEntry(value => value + 1) }
   return <TutorialContext.Provider value={{ panel: active ? step.panel : undefined, entry }}>
     <div className={active && dockHeight !== null ? 'sim-tutorial-shell sim-tutorial-shell--docked' : 'sim-tutorial-shell'} style={{ '--sim-tutorial-space': `${dockHeight ?? 0}px` } as CSSProperties}>
-    {children}
-    <button className="sim-tutorial-restart" ref={restart} type="button" onClick={() => {
+    {children(<button className="sim-tutorial-restart" ref={restart} type="button" onClick={() => {
       opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       write('completed'); move(0); setActive(true)
-    }}>Restart tutorial</button>
+    }}>Restart tutorial</button>)}
     {active && <>
       {target && <div className="sim-tutorial-highlight" aria-hidden="true" style={{ left: target.x - 4, top: target.y - 4, width: target.width + 8, height: target.height + 8 }} />}
       <section ref={popover} className="sim-tutorial" role="region" aria-label="Interactive tutorial" lang={language} style={position}>

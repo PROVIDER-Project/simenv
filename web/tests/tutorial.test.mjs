@@ -234,6 +234,25 @@ for (const viewport of [{ width: 844, height: 390 }, { width: 320, height: 568 }
         const component = page.getByRole('combobox', { name: 'Inspect component' })
         await assertPointerReachable(component)
         await component.selectOption('brazil_farms')
+        await page.keyboard.press('Escape')
+        const restart = page.getByRole('button', { name: 'Restart tutorial', exact: true })
+        assert.equal(await restart.evaluate(el => el === document.activeElement), true, 'dismissal returns focus to header restart')
+        await restart.scrollIntoViewIfNeeded()
+        await assertPointerReachable(restart)
+        assert.equal(await restart.evaluate(el => {
+          const header = el.closest('.sim-frame-heading')
+          if (!header) return false
+          const text = header.querySelector('.sim-frame-subtitle').getBoundingClientRect()
+          const button = el.getBoundingClientRect()
+          const controls = document.querySelector('.sim-playback-sidebar').getBoundingClientRect()
+          return text.bottom <= button.top && button.bottom <= header.getBoundingClientRect().bottom && header.getBoundingClientRect().bottom <= controls.top
+        }), true, 'restart follows heading text before narrow/short flow controls')
+        await restart.click()
+        await tour.getByRole('heading', { name: language === 'de' ? 'Szenario benennen' : 'Name your scenario' }).waitFor()
+        assert.equal(await tour.getByRole('heading').evaluate(el => el === document.activeElement), true)
+        await assertPointerReachable(page.getByRole('textbox', { name: 'Scenario name' }))
+        await page.keyboard.press('Escape')
+        assert.equal(await restart.evaluate(el => el === document.activeElement), true)
       } finally { await browser.close() }
     })
   }

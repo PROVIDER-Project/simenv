@@ -39,21 +39,29 @@ async function geometry(page, desktop) {
       const r = document.querySelector(selector).getBoundingClientRect()
       return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height, width: r.width }
     }
-    return { left: box('.sim-playback-sidebar'), right: box('.sim-configurator'), timeline: box('.sim-timeline'), app: box('.sim-app') }
+    return { left: box('.sim-playback-sidebar'), right: box('.sim-configurator'), timeline: box('.sim-timeline'), app: box('.sim-app'), header: box('.sim-frame-heading'), subtitle: box('.sim-frame-subtitle'), restart: box('.sim-tutorial-restart'), footer: box('.sim-frame-meta') }
   })
-  const { left, right, timeline, app } = boxes
+  const { left, right, timeline, app, header, subtitle, restart, footer } = boxes
   if (desktop) {
+    assert.equal(left.y, app.y + 24, 'left sidebar starts at app top + 24px')
+    assert.equal(right.y, app.y + 24, 'right sidebar starts at app top + 24px')
+    assert.ok(header.x >= left.right + 15 && header.right + 15 <= right.x, 'header stays in center column')
     assert.ok(left.right + 15 <= timeline.x, JSON.stringify(boxes))
     assert.ok(timeline.right + 15 <= right.x, JSON.stringify(boxes))
     assert.ok(timeline.width >= 360, 'minimum usable center width')
     assert.ok(left.height >= app.height - 210, 'timeline must not squeeze sidebar')
-    assert.ok(timeline.y - (app.y + 155) >= 180, 'preserve usable globe above timeline')
+    assert.ok(timeline.y - header.bottom >= 196, 'preserve usable globe below normal-flow header')
+    assert.ok(Math.abs(left.bottom - timeline.bottom) <= 1 && Math.abs(right.bottom - timeline.bottom) <= 1, 'sidebars extend through timeline bottom')
+    assert.ok(footer.y >= timeline.bottom + 15, 'footer follows panels and timeline')
     if (timeline.bottom > app.bottom) {
       assert.equal(await page.locator('.sim-app').evaluate(el => getComputedStyle(el).overflowY), 'auto', 'oversized timeline must scroll instead of clipping')
     }
   } else {
+    assert.ok(header.bottom <= left.y, 'header and restart precede flow controls')
     assert.ok(left.bottom <= timeline.y && timeline.bottom <= right.y, 'flow controls must not overlap')
   }
+  assert.ok(restart.y >= subtitle.bottom, 'restart must follow header text without overlap')
+  assert.ok(restart.bottom <= header.bottom, 'header must contain restart in normal flow')
   const controls = [
     page.getByRole('button', { name: /^(Play|Pause)$/ }),
     page.getByRole('slider', { name: 'Simulation step' }),
@@ -147,6 +155,7 @@ for (const language of ['en', 'de']) {
       await cards.waitFor()
       await reachable(page.getByRole('button', { name: 'Hide indicators', exact: true }))
       await back.click()
+      await cards.waitFor({ state: 'hidden' })
       assert.equal(await cards.isVisible(), false, 'temporary reveal restores responsive preference')
       await next.click()
       await cards.waitFor()
@@ -156,6 +165,7 @@ for (const language of ['en', 'de']) {
       await next.click()
       await cards.waitFor()
       await back.click()
+      await cards.waitFor({ state: 'hidden' })
       assert.equal(await cards.isVisible(), false, 'restore explicit collapsed preference')
       await keyboardToggle(page, 'Show indicators')
       await next.click()
@@ -167,6 +177,7 @@ for (const language of ['en', 'de']) {
       await next.click()
       await cards.waitFor()
       await page.keyboard.press('Escape')
+      await cards.waitFor({ state: 'hidden' })
       assert.equal(await cards.isVisible(), false, 'closing tour releases temporary override')
     } finally { await browser.close() }
   })

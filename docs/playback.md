@@ -34,8 +34,9 @@ naturally without adding an overlay across the globe. On smaller screens the
 sidebar becomes full-width page flow with no nested scrolling. Globe connections
 remain visible in all status states, including gray for unknown upstream status.
 The desktop grid keeps the timeline in the center column between both sidebars;
-the sidebars span the globe and timeline rows instead of being shortened by the
-timeline's height. Narrow or very short application space uses page flow to keep
+the sidebars start 24px from the application top and span the header, globe and
+timeline rows. The title and **Restart tutorial** occupy a normal-flow center
+header. Narrow or very short application space uses page flow to keep
 all controls reachable; see the exact thresholds below.
 
 Interface examples (using the bundled static demo):
@@ -58,7 +59,8 @@ The desktop width budget is **1160 CSS pixels**: 300px left sidebar + 360px
 minimum center column + 420px configurator + two 16px gaps + 48px outer padding.
 The center grows with available width. Below 1160px of available application
 width, or at available height **≤540px**, controls use full-width scrollable page
-flow. A docked tutorial reduces the available application area, so these layout
+flow, with the header and restart button before the controls. A docked tutorial
+reduces the available application area, so these layout
 thresholds can apply even when the browser viewport itself is larger. On desktop,
 both sidebars scroll independently; oversized center content makes the application
 scroll rather than covering adjacent controls or being permanently clipped.
@@ -88,14 +90,17 @@ different layout.
 | State | Capture |
 | --- | --- |
 | Before: clean issue #79 HEAD `6add5ef`, timeline overlaps configurator | [Before medium](responsive-before-medium.png) |
-| After: default collapsed cards, larger unobstructed globe area | [After medium](responsive-after-medium.png) |
-| After: Show indicators, all four cards (application scrolled as needed) | [Expanded medium](responsive-expanded-medium.png) |
+| After: top-aligned side panels, center header, default collapsed cards | [After medium](responsive-after-medium.png) |
+| After: Show indicators, four-card grid at the viewport's lower edge | [Expanded medium](responsive-expanded-medium.png) |
 | Last tutorial step: temporary reveal, English | [English](responsive-tutorial-en-medium.png) |
 | Last tutorial step: temporary reveal, Deutsch | [Deutsch](responsive-tutorial-de-medium.png) |
 
 The before capture is served from a clean detached worktree at **`6add5ef`**, not
 the older issue #75 server used for the historical tutorial screenshots below.
-The after captures use the current responsive followup working tree. Both use
+The four after captures use the **uncommitted top-alignment working tree** on
+`79-interactive-tutorial`, served on port 5179: side panels at 24px from the
+application top and a normal-flow center title/restart header. They include changes
+beyond HEAD `94c2ff6`; that commit alone does not reproduce these images. Both use
 the same **controlled recorded-response fixtures** from `playback-fixtures.mjs`:
 run `first`, scenario 1, paused step 100, component `brazil_farms`, scenario-start
 reference, expanded configurator. These are interface fixtures, not empirical
@@ -120,8 +125,11 @@ SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
 
 The capture script reuses playback fixtures and their browser-setup completion
 seed, checks the expected baseline/default toggle state, and logs panel geometry.
-Visual review confirms baseline overlap, separated after columns and more visible
-globe at the default, plus the expanded cards and readable EN/DE final-step guidance.
+Visual review confirms baseline overlap, top-aligned after side panels, the center
+title/restart header and separated columns, plus the expanded cards and readable
+EN/DE final-step guidance. At this short viewport the expanded grid reaches the
+lower image edge; scroll for its remaining content. Tutorial navigation can scroll
+the sidebar contents while the panel containers still start at 24px.
 The older tutorial/status screenshots remain historical evidence of their stated
 source revisions; they have not been regenerated with the responsive followup.
 

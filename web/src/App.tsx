@@ -100,9 +100,9 @@ export default function App({ source }: { source: PlaybackSource }) {
     return () => controller.abort()
   }, [source, refresh, offset])
 
-  return <Tutorial mode={source.mode} layoutReady={initialLayoutReady || (!loading && !selected)}><main className="sim-app" style={designVars as CSSProperties}>
+  return <Tutorial mode={source.mode} layoutReady={initialLayoutReady || (!loading && !selected)}>{restartNode => <main className="sim-app" style={designVars as CSSProperties}>
     <header className="sim-frame-heading"><p className="sim-frame-eyebrow">PROVIDER · SIMENV / GEOGRAPHY</p>
-      <h1>World supply network</h1><p className="sim-frame-subtitle">Recorded supply-chain playback</p></header>
+      <h1>World supply network</h1><p className="sim-frame-subtitle">Recorded supply-chain playback</p>{restartNode}</header>
     <div className="sim-playback-sidebar">
       <RunSelector runs={runs} selected={selected} scenario={scenario} loading={loading} error={error}
       hasMore={nextOffset < total} onRefresh={refreshRuns} onMore={() => setOffset(nextOffset)}
@@ -117,9 +117,9 @@ export default function App({ source }: { source: PlaybackSource }) {
     </div>
     {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} onLayoutReady={reportLayoutReady}
       indicatorsPreference={indicatorsPreference} onIndicatorsPreference={setIndicatorsPreference} />
-      : <div className="sim-playback-message">Select a completed run for playback.</div>}
+      : <div className="sim-playback-notice"><div className="sim-playback-message">Select a completed run for playback.</div></div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
-  </main></Tutorial>
+  </main>}</Tutorial>
 }
 
 function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady, indicatorsPreference, onIndicatorsPreference }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void; indicatorsPreference: boolean | null; onIndicatorsPreference: (expanded: boolean) => void }) {

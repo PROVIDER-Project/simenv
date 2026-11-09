@@ -15,11 +15,14 @@ the page's full-width scrollable layout without nested panel scrolling.
 The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
 The desktop grid coordinates a 300px left column, at least 360px of center space
 for the timeline, and a 420px configurator, plus two 16px gaps and 48px outer
-padding: a 1160 CSS-pixel minimum width budget. Both sidebars span the globe and
-timeline rows with their own scrolling; the timeline stays between them. Below
+padding: a 1160 CSS-pixel minimum width budget. Both sidebars start 24px from the
+application top and span the header, globe and timeline rows with their own
+scrolling. The title and **Restart tutorial** stay in a normal-flow center header;
+the timeline stays between the sidebars. Below
 1160px of available application width or at 540px available height or less, the
 controls switch to scrollable page flow. Tutorial docking can reduce that
 available application space. Tall expanded content scrolls rather than clipping.
+In page flow, the header and restart button precede the controls.
 
 Network indicator cards default to collapsed at viewport width **≤1500px or
 height ≤800px**, leaving more globe visible; wider **and** taller viewports default
