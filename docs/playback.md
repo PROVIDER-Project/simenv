@@ -33,9 +33,10 @@ share a single bounded scroll area, so collapsing run selection moves impact up
 naturally without adding an overlay across the globe. On smaller screens the
 sidebar becomes full-width page flow with no nested scrolling. Globe connections
 remain visible in all status states, including gray for unknown upstream status.
-The desktop grid reserves the timeline's actual height below the sidebar so it
-cannot cover the scrubber. Very short windows (540px high or less) also use page
-flow to keep all controls reachable.
+The desktop grid keeps the timeline in the center column between both sidebars;
+the sidebars span the globe and timeline rows instead of being shortened by the
+timeline's height. Narrow or very short application space uses page flow to keep
+all controls reachable; see the exact thresholds below.
 
 Interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
@@ -50,6 +51,79 @@ Interface examples (using the bundled static demo):
 
 PostgreSQL and simulation job files have separate named volumes. `docker compose
 -f compose.playback.yml down` keeps both volumes.
+
+### Responsive playback layout
+
+The desktop width budget is **1160 CSS pixels**: 300px left sidebar + 360px
+minimum center column + 420px configurator + two 16px gaps + 48px outer padding.
+The center grows with available width. Below 1160px of available application
+width, or at available height **≤540px**, controls use full-width scrollable page
+flow. A docked tutorial reduces the available application area, so these layout
+thresholds can apply even when the browser viewport itself is larger. On desktop,
+both sidebars scroll independently; oversized center content makes the application
+scroll rather than covering adjacent controls or being permanently clipped.
+
+The four **network indicator cards** start collapsed when viewport width is
+**≤1500px OR height ≤800px**. They start expanded only when both dimensions exceed
+those thresholds. **Show indicators / Hide indicators** toggles the cards, leaving
+play/pause, the step slider and basic step/soy/shock readout available. This changes
+visible globe space, not globe scale or playback time. Recorded playback and
+Disturbance impact still start expanded and retain their separate Hide/Show buttons.
+
+Before an explicit indicator choice, resizing updates the responsive default.
+Either explicit choice then survives resizing and run/scenario changes for the
+current page session; reload resets it. The tutorial's final step temporarily
+reveals the cards and restores the underlying explicit choice or current responsive
+default when you leave the step, finish or dismiss the tour. Hiding cards during
+that step changes only the temporary reveal; revisiting reveals them again.
+
+#### Matched responsive review evidence
+
+All five images use **1275 × 605 CSS pixels**, Chromium device scale factor 1
+(1275 × 605 image pixels). The reported physical screenshot was approximately
+1912 × 907 pixels, consistent with 150% scaling; physical pixels are not the CSS
+layout viewport, so using those physical dimensions as the viewport would test a
+different layout.
+
+| State | Capture |
+| --- | --- |
+| Before: clean issue #79 HEAD `6add5ef`, timeline overlaps configurator | [Before medium](responsive-before-medium.png) |
+| After: default collapsed cards, larger unobstructed globe area | [After medium](responsive-after-medium.png) |
+| After: Show indicators, all four cards (application scrolled as needed) | [Expanded medium](responsive-expanded-medium.png) |
+| Last tutorial step: temporary reveal, English | [English](responsive-tutorial-en-medium.png) |
+| Last tutorial step: temporary reveal, Deutsch | [Deutsch](responsive-tutorial-de-medium.png) |
+
+The before capture is served from a clean detached worktree at **`6add5ef`**, not
+the older issue #75 server used for the historical tutorial screenshots below.
+The after captures use the current responsive followup working tree. Both use
+the same **controlled recorded-response fixtures** from `playback-fixtures.mjs`:
+run `first`, scenario 1, paused step 100, component `brazil_farms`, scenario-start
+reference, expanded configurator. These are interface fixtures, not empirical
+simulation results; no simulation is submitted. Tutorial completion is seeded
+only for the three comparison captures; the last two navigate a fresh tour.
+
+To reproduce, create a detached baseline outside the working tree and start its
+recorded-mode Vite server (the existing issue #79 recorded server stays on 5179):
+
+```bash
+# From the repository root; run once for this baseline location.
+git worktree add --detach /tmp/opencode/simenv79-responsive-baseline 6add5ef
+# From /tmp/opencode/simenv79-responsive-baseline/web:
+npm ci
+VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8079 npm run dev -- --host 127.0.0.1 --port 5181 --strictPort
+# From the followup worktree's web/ directory, in another terminal:
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5181 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-responsive-playback.mjs
+```
+
+The capture script reuses playback fixtures and their browser-setup completion
+seed, checks the expected baseline/default toggle state, and logs panel geometry.
+Visual review confirms baseline overlap, separated after columns and more visible
+globe at the default, plus the expanded cards and readable EN/DE final-step guidance.
+The older tutorial/status screenshots remain historical evidence of their stated
+source revisions; they have not been regenerated with the responsive followup.
 
 ## Interactive tutorial
 
@@ -392,6 +466,13 @@ keyboard focus, blocked storage, non-submitting navigation, selected-run/time
 preservation and responsive target reachability. The static case is skipped
 unless `SIMENV_STATIC_WEB_URL` is supplied. These fixtures do not replace
 real-service simulation acceptance.
+
+Run `npm run test:responsive-playback` from `web/` with `SIMENV_WEB_URL` and
+`SIMENV_TEST_PLAYBACK_ORIGIN` set as in the tutorial setup. This separate
+controlled-fixture suite checks responsive column geometry, control reachability,
+width/height boundary defaults, explicit choices across resizing and selection
+remounts, and temporary EN/DE tutorial indicator reveal/restoration. It needs
+Chromium and a recorded-mode Vite server, not a live database or API.
 
 From `web/`, run `npm run test:playback`. For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run

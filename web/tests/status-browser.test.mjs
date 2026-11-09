@@ -33,6 +33,8 @@ async function pause(page) {
   await page.getByRole('slider', { name: 'Simulation step' }).waitFor()
   const button = page.getByRole('button', { name: 'Pause', exact: true })
   if (await button.isVisible()) await button.click()
+  const show = page.getByRole('button', { name: 'Show indicators', exact: true })
+  if (await show.isVisible()) await show.click()
 }
 
 test('day-zero disturbance, keyboard inspection, recovery and start-mode limitation agree', async () => {

@@ -20,3 +20,5 @@
   .sim-tutorial h2 { font-size: 16px; margin: 6px 0; }
   .sim-tutorial p { margin: 6px 0; }
 }
+.sim-tutorial-shell { position: fixed; inset: 0; container: sim-shell / size; }
+.sim-tutorial-shell--docked { padding-top: var(--sim-tutorial-space); }

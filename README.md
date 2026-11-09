@@ -33,6 +33,16 @@ The workshop cascade is currently locked to soy; API jobs still execute only the
 single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
+Playback uses coordinated left controls, a center timeline, and a right
+configurator when at least 1160 CSS pixels of application width are available;
+narrow or very short layouts use scrollable page flow. Network indicator cards
+start collapsed when the viewport is at most 1500px wide **or** 800px high.
+**Show indicators / Hide indicators** frees globe space without changing playback.
+Until you choose, the default follows resizing; an explicit choice lasts for the
+page session across resizing and run/scenario changes. The tutorial temporarily
+reveals the cards at its last step, then restores the underlying choice/default.
+See [responsive layout and matched review captures](docs/playback.md#responsive-playback-layout).
+
 ### Interactive tutorial
 
 On a first visit, a nine-step tutorial highlights scenario editing, execution,

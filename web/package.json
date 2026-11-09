@@ -11,6 +11,7 @@
     "lint": "eslint src",
     "preview": "vite preview",
     "test:tutorial": "node --test tests/tutorial.test.mjs",
+    "test:responsive-playback": "node --test tests/responsive-playback.test.mjs",
     "test:simulation": "node --test tests/simulation.test.mjs",
     "test:playback": "node --test tests/playback.test.mjs tests/automatic-reference.test.mjs",
     "test:playback-browser": "node --test tests/playback-browser.test.mjs tests/status-browser.test.mjs tests/globe-layout.test.mjs tests/playback-stability.test.mjs tests/map-selection.test.mjs tests/label-selection.test.mjs tests/automatic-reference-browser.test.mjs",

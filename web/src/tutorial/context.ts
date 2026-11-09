@@ -4,9 +4,9 @@ import type { Panel } from './steps'
 export const TutorialContext = createContext<{ panel?: Panel; entry: number }>({ entry: 0 })
 
 /** Reveal only on step entry (or panel mount), never on playback updates. */
-export function useTutorialPanel(panel: Panel, reveal: () => void) {
+export function useTutorialPanel(panel: Panel, reveal: () => void | (() => void)) {
   const request = useContext(TutorialContext)
   useEffect(() => {
-    if (request.panel === panel) reveal()
+    if (request.panel === panel) return reveal()
   }, [request.panel, request.entry, panel, reveal])
 }

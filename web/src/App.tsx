@@ -33,6 +33,8 @@ export default function App({ source }: { source: PlaybackSource }) {
   const [nextOffset, setNextOffset] = useState(0)
   const [impactSlot, setImpactSlot] = useState<HTMLDivElement | null>(null)
   const [initialLayoutReady, setInitialLayoutReady] = useState(false)
+  // Session preference belongs above the keyed playback, not to a run/scenario.
+  const [indicatorsPreference, setIndicatorsPreference] = useState<boolean | null>(null)
   const reportLayoutReady = useCallback(() => setInitialLayoutReady(true), [])
   const selection = useRef('')
   const opening = useRef<AbortController | null>(null)
@@ -113,13 +115,14 @@ export default function App({ source }: { source: PlaybackSource }) {
       }} onScenario={id => { opening.current?.abort(); setScenario(id) }} />
       <div ref={setImpactSlot} />
     </div>
-    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} onLayoutReady={reportLayoutReady} />
+    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} onLayoutReady={reportLayoutReady}
+      indicatorsPreference={indicatorsPreference} onIndicatorsPreference={setIndicatorsPreference} />
       : <div className="sim-playback-message">Select a completed run for playback.</div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
   </main></Tutorial>
 }
 
-function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void }) {
+function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady, indicatorsPreference, onIndicatorsPreference }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void; indicatorsPreference: boolean | null; onIndicatorsPreference: (expanded: boolean) => void }) {
   const [referenceChoice, setReferenceChoice] = useState(source.mode === 'static' ? 'start' : 'auto')
   const automatic = referenceChoice === 'auto'
   const preparation = useAutomaticReference(source, run, scenario, automatic)
@@ -188,6 +191,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutRea
     {playback.frame && playback.scene && <Timeline period={playback.frame.period} minPeriod={playback.scene.min_period}
       maxPeriod={playback.scene.max_period} playing={playback.playing} env={projected?.env ?? null}
       indicators={projected?.indicators}
+      indicatorsPreference={indicatorsPreference} onIndicatorsPreference={onIndicatorsPreference}
       onSeek={playback.seek} onTogglePlay={playback.toggle} />}
     <footer className="sim-frame-meta"><span>Displayed recorded results: {source.name} · {run} · scenario {scenario}</span>
       <p className="sim-frame-honesty">{playback.scene?.honesty_note}</p></footer>

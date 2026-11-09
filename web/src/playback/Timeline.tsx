@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useId, useState } from 'react'
+import { useTutorialPanel } from '../tutorial/context'
 import type { EnvState } from '../data/types'
 import type { MetricStatus } from './status'
 import { formatValue, statusColor, statusLabel } from '../design/status'
@@ -10,6 +12,8 @@ interface TimelineProps {
   playing: boolean
   env: EnvState | null
   indicators?: MetricStatus[]
+  indicatorsPreference: boolean | null
+  onIndicatorsPreference: (expanded: boolean) => void
   onSeek: (period: number) => void
   onTogglePlay: () => void
 }
@@ -24,9 +28,27 @@ export default function Timeline({
   playing,
   env,
   indicators = [],
+  indicatorsPreference,
+  onIndicatorsPreference,
   onSeek,
   onTogglePlay,
 }: TimelineProps) {
+  const [compact, setCompact] = useState(() => matchMedia('(max-width: 1500px), (max-height: 800px)').matches)
+  useEffect(() => {
+    const query = matchMedia('(max-width: 1500px), (max-height: 800px)')
+    const update = () => setCompact(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  const [tutorialExpanded, setTutorialExpanded] = useState<boolean | null>(null)
+  const revealIndicators = useCallback(() => {
+    setTutorialExpanded(true)
+    return () => setTutorialExpanded(null)
+  }, [])
+  useTutorialPanel('indicators', revealIndicators)
+  const expanded = tutorialExpanded ?? indicatorsPreference ?? !compact
+  const indicatorsId = useId()
   const shock = env && Number.isFinite(env.shockScale) ? Math.round(env.shockScale * 100) : null
   return (
     <div data-tutorial="timeline" className="sim-timeline" role="group" aria-label="Playback">
@@ -66,7 +88,11 @@ export default function Timeline({
             </>
           )}
         </div>
-        <div data-tutorial="indicators" className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
+        <button className="sim-indicators-toggle" type="button" aria-expanded={expanded} aria-controls={indicatorsId} onClick={() => {
+          if (tutorialExpanded !== null) setTutorialExpanded(!expanded)
+          else onIndicatorsPreference(!expanded)
+        }}>{expanded ? 'Hide indicators' : 'Show indicators'}</button>
+        <div id={indicatorsId} hidden={!expanded} data-tutorial="indicators" className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
           {indicators.map(metric => <span key={metric.key} data-metric={metric.key} style={{ borderColor: statusColor(metric.score) }}
             tabIndex={0} title={metric.reason} aria-label={`${metric.label}: ${formatValue(metric.current, metric.direction === 'capacity')}. ${statusLabel(metric.score)}. ${metric.reason}`}>
             <span className="sim-network-label">{metric.label}</span><b>{formatValue(metric.current, metric.direction === 'capacity')}</b>

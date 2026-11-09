@@ -38,6 +38,7 @@ async function fixture(page, { blockedScenario } = {}) {
 
 async function pause(page) {
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'Show indicators', exact: true }).click()
   await page.getByRole('region', { name: 'Component status' }).getByText('Supply availability down 50%', { exact: true }).first().waitFor()
 }
 

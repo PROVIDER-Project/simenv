@@ -13,8 +13,23 @@ keeping the central globe clear. Both panels start expanded and have independent
 share one scroll area, including on short windows. On smaller screens they use
 the page's full-width scrollable layout without nested panel scrolling.
 The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
-The timeline's height is reserved separately from the sidebar; very short windows
-also switch to page flow so the scrubber remains clickable.
+The desktop grid coordinates a 300px left column, at least 360px of center space
+for the timeline, and a 420px configurator, plus two 16px gaps and 48px outer
+padding: a 1160 CSS-pixel minimum width budget. Both sidebars span the globe and
+timeline rows with their own scrolling; the timeline stays between them. Below
+1160px of available application width or at 540px available height or less, the
+controls switch to scrollable page flow. Tutorial docking can reduce that
+available application space. Tall expanded content scrolls rather than clipping.
+
+Network indicator cards default to collapsed at viewport width **≤1500px or
+height ≤800px**, leaving more globe visible; wider **and** taller viewports default
+to expanded. **Show indicators / Hide indicators** keeps play/pause, seeking and
+the basic step/soy/shock readout available. The unset preference follows viewport
+resizing. Once explicitly selected, either choice survives resizing and
+run/scenario remounts for this page session; reload resets it. The tutorial's last
+step temporarily reveals indicators and restores the underlying preference/default
+on leaving or closing; hiding them during that step affects only that visit.
+See [matched responsive captures](../docs/playback.md#responsive-playback-layout).
 
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
@@ -80,6 +95,18 @@ storage, freely navigating without submission, exact-run preservation and
 desktop/mobile/short-screen reachability. Without `SIMENV_STATIC_WEB_URL` the
 static-demo case is explicitly skipped. Real-service execution remains covered
 separately by `npm run test:simulation`.
+
+Run the responsive layout/browser check against the recorded-mode server:
+
+```bash
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 npm run test:responsive-playback
+```
+
+This controlled-fixture suite covers column separation, pointer reachability,
+width/height boundaries, collapsed/expanded cards, resize defaults and explicit
+page-session choices across run/scenario remounts, plus temporary tutorial reveal
+and restoration in English/German. It requires Chromium, but no database/API.
 
 ### Workshop disturbance inspection
 
