@@ -51,6 +51,82 @@ Interface examples (using the bundled static demo):
 PostgreSQL and simulation job files have separate named volumes. `docker compose
 -f compose.playback.yml down` keeps both volumes.
 
+## Interactive tutorial
+
+A first visit automatically starts a nine-step tour: scenario name, disruption
+settings, execution/monitoring, completed results, recorded selection, timeline,
+reference/legend, component evidence and network indicators. The popup highlights
+the relevant controls and opens their panel on step entry. **Back/Next** remain
+available even if a target has not loaded or a run has not completed; you can
+continue and return later. The tour never edits inputs, submits a simulation,
+switches the selected run or moves the playback time. Automatic disruption-free
+reference preparation remains normal playback behavior, not a tutorial action.
+
+**Close for session** or Escape dismisses the tour for this page session. Reload
+starts an unfinished tour again at step 1. **Finish** on the last step stores
+completion locally in this browser for this site, suppressing automatic start on
+later visits. The **Restart tutorial** button near the top clears completion and
+starts at step 1, keeping your language. Select **English** or **Deutsch** inside
+the popup to change tutorial text and actions; the choice is remembered locally.
+This does not translate the rest of the interface. Completion and language are
+not account settings or shared between browsers/origins. If `localStorage` is
+blocked, the tutorial degrades gracefully to current-page-session behavior:
+navigation, dismissal and language switching work, but completion and language
+cannot be remembered after reload.
+
+The popup is a labeled, non-modal region. Step entry focuses its heading;
+Tab/Shift+Tab reach both tutorial buttons and application controls, and
+Enter/Space activate buttons. Escape closes and returns focus to the opener or
+**Restart tutorial**. Use native keyboard controls for sliders/selects and
+**Inspect component** as an alternative to globe interaction. Narrow/short
+screens allow scrolling the popup and may dock it above the application with
+space reserved for the highlighted controls.
+
+The tour works in both playback modes, but does not create missing services or
+results. In static mode its selection step explains that the exported demo is
+separate from submitted runs. Executing your inputs needs the simulation API and
+PostgreSQL; viewing the completed job requires recorded playback, both APIs
+sharing the database, and **View results** to open that exact job's scenario 1.
+Existing recordings can be explored without submitting a new job.
+
+### Tutorial review evidence
+
+| State | Desktop (1440 × 1000) | Mobile (390 × 844) |
+| --- | --- | --- |
+| Before: configurator, no tutorial | [Before desktop](tutorial-before-desktop.png) | [Before mobile](tutorial-before-mobile.png) |
+| After: first-visit English popup and scenario-name highlight | [After desktop](tutorial-after-desktop.png) | [After mobile](tutorial-after-mobile.png) |
+
+Impact guidance at step 8, with the same selected component and playback step:
+[English](tutorial-impact-en.png) / [Deutsch](tutorial-impact-de.png). Only the
+tutorial changes language; the surrounding English controls remain visible.
+
+The four static screenshots use the same committed `bundle.json`, paused at
+step 100. Before is the unmodified issue #75 source at commit
+`4b35fce12db40774984fa437144d0b9f13dd4ccc`, served by the existing static server
+on port 5176; after is the issue #79 working tree on port 5180. Mobile captures
+are scrolled to center the scenario-name input, rather than showing page top.
+The capture script asserts byte equality of the two bundles; the captured
+SHA-256 was `0efafdb2224af97984ee0caf86131c0c6493a0c10ebc078855721daaa72713f0`.
+The two impact screenshots use **controlled recorded-response fixtures**, not
+empirical simulation results: run `first`, scenario 1, step 100, component
+`brazil_farms`, explicitly selected scenario-start reference. No simulation is
+submitted by the capture script.
+
+Reproduce from `web/`, with before/after static servers and the issue #79
+recorded-mode server running (see the [tutorial browser setup](../web/README.md#tutorial-browser-check)):
+
+```bash
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5176 \
+SIMENV_STATIC_WEB_URL=http://127.0.0.1:5180 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial.mjs
+```
+
+`SIMENV_TEST_PLAYBACK_ORIGIN` must match the recorded frontend's build/dev API
+origin. Its default is `http://127.0.0.1:8001`; port 8079 requires the override
+above. Playwright Chromium captures these six PNGs at device scale factor 1.
+
 ## Configuration
 
 Compose variables: `SIMENV_BROWSER_HOST` (default `localhost`), `SIMENV_WEB_PORT`
@@ -290,7 +366,8 @@ The static-network images use the committed demo bundle rather than intercepted
 responses. For comparison, the
 [previous overlapping layout](https://github.com/PROVIDER-Project/simenv/blob/f216590f2da88b106c2441af1189bff96f1cc00d/docs/status-disturbed.png)
 documents the interface before the sidebar correction.
-Real-service coverage separately submits and opens both supported cascades.
+Real-service workshop coverage separately submits and opens two edited soy
+configurations and verifies reference creation/reuse.
 
 ## Verification
 
@@ -308,11 +385,20 @@ private inputs, fetches scenario 1 across pages, and compares every identity/val
 to PostgreSQL. Set `PROVIDER_SIMENV_POSTGRES_URL` as well to enable live tick-writer
 checks. CSV parity is separately opt-in via `PROVIDER_SIMENV_PARITY_RUN`.
 
+Run `npm run test:tutorial` from `web/` using the
+[two-server setup and fixture-origin configuration](../web/README.md#tutorial-browser-check).
+It covers first-visit/completion/restart, remembered EN/DE, session dismissal,
+keyboard focus, blocked storage, non-submitting navigation, selected-run/time
+preservation and responsive target reachability. The static case is skipped
+unless `SIMENV_STATIC_WEB_URL` is supplied. These fixtures do not replace
+real-service simulation acceptance.
+
 From `web/`, run `npm run test:playback`. For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
-`npm run test:playback-browser`; only these tests intercept API responses.
+`npm run test:playback-browser`; these browser checks intercept API responses,
+as does the separate tutorial suite.
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
-stack. It submits both cascades, verifies catalogue refresh, opens each exact
+stack. It submits two edited soy configurations, verifies catalogue refresh, opens each exact
 completed run via **View results**, and seeks into a later database page. Status
 browser regressions cover day-0 comparison, recovery, missing/reference failures,
 keyboard inspection, reference switching/refresh, delayed responses, cache eviction

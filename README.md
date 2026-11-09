@@ -33,6 +33,24 @@ The workshop cascade is currently locked to soy; API jobs still execute only the
 single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
+### Interactive tutorial
+
+On a first visit, a nine-step tutorial highlights scenario editing, execution,
+recorded-run selection, time navigation and impact inspection. **English** and
+**Deutsch** inside the popup switch its guidance and remember your language;
+this does not translate the whole interface. Navigate freely with **Back/Next**:
+the tour never edits inputs or submits a simulation. **Close for session** (or
+Escape) dismisses it until reload; unfinished tours restart from the beginning.
+**Finish** remembers completion in this browser for this site, while the top
+**Restart tutorial** button starts again with the remembered language. If browser
+storage is blocked, the tour still works for the current page session but cannot
+remember completion or language after reload.
+
+Static demo playback remains separate from submitted results; viewing your own
+run requires recorded playback. See [tutorial controls, keyboard access and
+review screenshots](docs/playback.md#interactive-tutorial), and the
+[tutorial browser check](web/README.md#tutorial-browser-check).
+
 ### Run a configured scenario from the dashboard
 
 The globe frontend's **PDL configurator** supports **Run simulation**: adjust

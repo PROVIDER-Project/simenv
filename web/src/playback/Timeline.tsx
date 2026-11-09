@@ -29,7 +29,7 @@ export default function Timeline({
 }: TimelineProps) {
   const shock = env && Number.isFinite(env.shockScale) ? Math.round(env.shockScale * 100) : null
   return (
-    <div className="sim-timeline" role="group" aria-label="Playback">
+    <div data-tutorial="timeline" className="sim-timeline" role="group" aria-label="Playback">
       <button
         type="button"
         className="sim-timeline-play"
@@ -66,7 +66,7 @@ export default function Timeline({
             </>
           )}
         </div>
-        <div className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
+        <div data-tutorial="indicators" className="sim-network-indicators" role="group" aria-label="Network indicators" data-period={period}>
           {indicators.map(metric => <span key={metric.key} data-metric={metric.key} style={{ borderColor: statusColor(metric.score) }}
             tabIndex={0} title={metric.reason} aria-label={`${metric.label}: ${formatValue(metric.current, metric.direction === 'capacity')}. ${statusLabel(metric.score)}. ${metric.reason}`}>
             <span className="sim-network-label">{metric.label}</span><b>{formatValue(metric.current, metric.direction === 'capacity')}</b>

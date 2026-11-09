@@ -1,4 +1,6 @@
-export const origin = 'http://127.0.0.1:8001'
+import { dismissInitialTutorial } from './browser-setup.mjs'
+
+export const origin = process.env.SIMENV_TEST_PLAYBACK_ORIGIN || 'http://127.0.0.1:8001'
 export const webUrl = process.env.SIMENV_WEB_URL || 'http://127.0.0.1:5173'
 export function run(id, playable = true) {
   return { id, label: id, started_at: '2026-10-21T12:00:00Z', finished_at: '2026-10-21T12:01:00Z',
@@ -24,7 +26,8 @@ export function page(id, scenario, start, count = 1, metrics = 1) {
       } },
     ] })) }
 }
-export async function mockPlayback(browserPage, { count = 1, metrics = 1, beyondFirst = false } = {}) {
+export async function mockPlayback(browserPage, { count = 1, metrics = 1, beyondFirst = false, tutorial = false } = {}) {
+  if (!tutorial) await dismissInitialTutorial(browserPage)
   const requests = []
   await browserPage.route(`${origin}/**`, async route => {
     const url = new URL(route.request().url())

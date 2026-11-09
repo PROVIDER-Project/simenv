@@ -93,7 +93,7 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
   const edited = submitted && (Object.keys(submitted) as (keyof SimulationSubmission)[]).some(key => submitted[key] !== submission[key])
 
   return (
-    <section className="sim-configurator-section sim-configurator-run" hidden={hidden} aria-label="Simulation execution">
+    <section data-tutorial="execution" className="sim-configurator-section sim-configurator-run" hidden={hidden} aria-label="Simulation execution">
       <h3>Execute this scenario</h3>
       <p className="sim-configurator-copy">
         Run the generated PDL and roster with the selected cascade. Edits after submission apply to the next run.
@@ -112,7 +112,7 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
         </p>
       )}
       {job?.status === 'completed' && onViewResults && <div className="sim-configurator-actions">
-        <button type="button" onClick={() => void view()} disabled={opening}>{opening ? 'Opening results…' : 'View results'}</button>
+        <button data-tutorial="results" type="button" onClick={() => void view()} disabled={opening}>{opening ? 'Opening results…' : 'View results'}</button>
       </div>}
       {openingError && <p className="sim-configurator-run-error" role="alert">{openingError}</p>}
       {job && (

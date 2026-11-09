@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cpus } from 'node:os'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { mockPlayback, webUrl } from './playback-fixtures.mjs'
 
 test('profiles post-response calculation separately from transport and rendering', { timeout: 240000 }, async () => {
@@ -82,6 +83,7 @@ test('profiles an actual recorded run with its persisted nodes and edges', {
       }, true)
     })
     const sceneResponse = page.waitForResponse(response => /\/scenarios\/\d+\/scene$/.test(response.url()))
+    await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_REAL_WEB_URL)
     const recordedScene = await (await sceneResponse).json()
     assert.ok(recordedScene.nodes.length > 1 && recordedScene.edges.length > 0)

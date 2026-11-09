@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { origin, webUrl, run, scene, page as frames } from './playback-fixtures.mjs'
 
 async function workshop(page, { referenceFailure = false } = {}) {
+  await dismissInitialTutorial(page)
   const state = { referenceFailure, delay: null }
   await page.route(`${origin}/**`, async route => {
     const url = new URL(route.request().url())
@@ -325,6 +327,7 @@ test('static demo keeps its start-mode limitation and explains submitted-result 
       id: 'external-job', status: 'completed', label: 'Workshop', error: null,
       progress: { scenario_id: 1, step: 365, scenario_total_steps: 365, completed_steps: 365, total_steps: 365, percent_complete: 100 },
     } }))
+    await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_STATIC_WEB_URL); await pause(page)
     assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'start')
     assert.match(await page.getByRole('region', { name: 'Reference comparison' }).innerText(), /cannot reveal disturbances already present/)

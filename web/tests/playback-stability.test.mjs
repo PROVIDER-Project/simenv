@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { origin, webUrl, run, scene, page as frames } from './playback-fixtures.mjs'
 
 async function fixture(page, { blockedScenario } = {}) {
+  await dismissInitialTutorial(page)
   let release
   const blocked = new Promise(resolve => { release = resolve })
   let requested

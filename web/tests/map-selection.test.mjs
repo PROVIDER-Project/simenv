@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { mockPlayback, origin, webUrl, scene } from './playback-fixtures.mjs'
 
 import { clickMarker } from './globe-browser-utils.mjs'
@@ -52,6 +53,7 @@ test('the shipped static demo displays English node, connection and detail label
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_STATIC_WEB_URL)
     await page.getByRole('button', { name: 'Pause', exact: true }).click()
     const options = await page.getByRole('combobox', { name: 'Inspect component' }).locator('option').allTextContents()

@@ -21,6 +21,66 @@ also switch to page flow so the scrubber remains clickable.
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
 
+### Interactive tutorial
+
+The first visit automatically opens a nine-step highlighted tour from scenario
+name and disruption settings through execution, **View results**, recorded
+selection, timeline, reference/legend, component evidence and network indicators.
+Use **Back/Next** freely, including when a target is not available yet; return
+when its data is ready. The tutorial opens relevant panels on step entry and
+reveals the target, but never changes scenario inputs, submits a simulation,
+chooses another run or seeks playback. **Run simulation** is your explicit action;
+automatic reference preparation is separate, existing playback behavior.
+
+- **Close for session** or Escape dismisses the popup for the current page
+  session. Reload restarts an unfinished tour at step 1, not the previous step.
+- **Finish** on the last step remembers completion in this browser/site so the
+  tutorial stays closed on later visits. **Restart tutorial** near the top
+  clears completion and starts at step 1, retaining the selected language.
+- **English/Deutsch** inside every popup switch the tutorial text and actions;
+  the preference is browser-local. Other interface labels remain in English.
+- If `localStorage` is blocked, guidance, language switching and dismissal still
+  work in the current page session. Completion/language cannot survive reload.
+- The popup is a labeled, non-modal region: Tab/Shift+Tab can reach both its
+  buttons and application controls. Use Enter/Space on buttons, and native
+  keyboard controls on sliders/selects. Step entry focuses the heading; dismissal
+  returns focus to the opener or **Restart tutorial**. Component inspection has
+  a dropdown alternative to globe interaction. Narrow/short screens keep the
+  popup scrollable and may reserve space above the application for it.
+
+In **Static demo (exported values)** the tour explains that submitted runs do not
+replace the demo. Execution needs the simulation API/database, and viewing its
+results requires `VITE_PLAYBACK_API_BASE_URL` and both APIs sharing the database.
+Recorded-mode tour steps can use existing recordings without submitting a job.
+See [tutorial screenshots and provenance](../docs/playback.md#tutorial-review-evidence).
+
+### Tutorial browser check
+
+Install dependencies with `npm ci` and Chromium with
+`npx playwright install --with-deps chromium`. Start a Vite server configured for
+recorded playback, plus a second Vite server with the playback URL unset for the
+static case. From `web/`, for example:
+
+```bash
+# Terminal 1: recorded mode (the responses are intercepted by the test)
+VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8079 npm run dev -- --host 127.0.0.1 --port 5179 --strictPort
+# Terminal 2: static mode; ensure web/.env.local does not supply a playback URL
+VITE_PLAYBACK_API_BASE_URL= npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
+# Terminal 3: browser checks
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_STATIC_WEB_URL=http://127.0.0.1:5180 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 npm run test:tutorial
+```
+
+`SIMENV_TEST_PLAYBACK_ORIGIN` must match the recorded frontend's configured API
+origin (the fixture default is `http://127.0.0.1:8001`; override it for port 8079
+or another custom origin). No real database/API is required for these controlled
+browser fixtures. The suite checks lifecycle, language, keyboard/focus, blocked
+storage, freely navigating without submission, exact-run preservation and
+desktop/mobile/short-screen reachability. Without `SIMENV_STATIC_WEB_URL` the
+static-demo case is explicitly skipped. Real-service execution remains covered
+separately by `npm run test:simulation`.
+
 ### Workshop disturbance inspection
 
 After a simulation completes, **View results** opens that exact run's scenario 1.
@@ -326,8 +386,8 @@ The frontend may submit one additional reference job if none is recorded already
 Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
 to increase the per-run completion wait (default 120000 ms) for a busy API or
 slower hardware. The test assumes the
-API's bundled 365-step-per-scenario template. No API mock is included in the
-application or test sources.
+API's bundled 365-step-per-scenario template. This acceptance check does not
+mock API responses; tutorial and playback browser fixtures are separate.
 
 ---
 

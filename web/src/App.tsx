@@ -18,6 +18,8 @@ import { useAutomaticReference } from './playback/useAutomaticReference'
 import { REFERENCE_LABEL } from './playback/automaticReference'
 import './app.css'
 import './playback/status.css'
+import Tutorial from './tutorial/Tutorial'
+import { useTutorialPanel } from './tutorial/context'
 
 export default function App({ source }: { source: PlaybackSource }) {
   const [runs, setRuns] = useState<RunSummary[]>([])
@@ -30,6 +32,8 @@ export default function App({ source }: { source: PlaybackSource }) {
   const [offset, setOffset] = useState(0)
   const [nextOffset, setNextOffset] = useState(0)
   const [impactSlot, setImpactSlot] = useState<HTMLDivElement | null>(null)
+  const [initialLayoutReady, setInitialLayoutReady] = useState(false)
+  const reportLayoutReady = useCallback(() => setInitialLayoutReady(true), [])
   const selection = useRef('')
   const opening = useRef<AbortController | null>(null)
   const refreshRuns = useCallback(() => { setOffset(0); setRefresh(value => value + 1) }, [])
@@ -94,7 +98,7 @@ export default function App({ source }: { source: PlaybackSource }) {
     return () => controller.abort()
   }, [source, refresh, offset])
 
-  return <main className="sim-app" style={designVars as CSSProperties}>
+  return <Tutorial mode={source.mode} layoutReady={initialLayoutReady || (!loading && !selected)}><main className="sim-app" style={designVars as CSSProperties}>
     <header className="sim-frame-heading"><p className="sim-frame-eyebrow">PROVIDER · SIMENV / GEOGRAPHY</p>
       <h1>World supply network</h1><p className="sim-frame-subtitle">Recorded supply-chain playback</p></header>
     <div className="sim-playback-sidebar">
@@ -109,21 +113,27 @@ export default function App({ source }: { source: PlaybackSource }) {
       }} onScenario={id => { opening.current?.abort(); setScenario(id) }} />
       <div ref={setImpactSlot} />
     </div>
-    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} />
+    {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} onLayoutReady={reportLayoutReady} />
       : <div className="sim-playback-message">Select a completed run for playback.</div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
-  </main>
+  </main></Tutorial>
 }
 
-function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null }) {
+function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void }) {
   const [referenceChoice, setReferenceChoice] = useState(source.mode === 'static' ? 'start' : 'auto')
   const automatic = referenceChoice === 'auto'
   const preparation = useAutomaticReference(source, run, scenario, automatic)
   const playback = usePlayback(source, run, scenario, automatic ? preparation.reference ?? null : referenceChoice)
   const reference = playback.reference
   const comparisonReady = !automatic || (preparation.phase === 'ready' && !!(reference.frame || reference.error))
+  useEffect(() => {
+    const waitingForJob = preparation.phase === 'monitoring' || preparation.phase === 'awaiting-playback'
+    if ((playback.scene && (comparisonReady || waitingForJob || preparation.phase === 'error')) || playback.error) onLayoutReady()
+  }, [playback.scene, playback.error, comparisonReady, preparation.phase, onLayoutReady])
   const [selectedNode, setSelectedNode] = useState('')
   const [impactExpanded, setImpactExpanded] = useState(true)
+  const revealImpact = useCallback(() => setImpactExpanded(true), [])
+  useTutorialPanel('impact', revealImpact)
   const impactControlsId = useId()
   const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const displayScene = useMemo(() => playback.scene ? presentScene(playback.scene) : null, [playback.scene])
@@ -153,6 +163,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
           onClick={() => setImpactExpanded(value => !value)}>{impactExpanded ? 'Hide' : 'Show'}</button>
       </header>
       <div id={impactControlsId} hidden={!impactExpanded}>
+      <div data-tutorial="reference">
         <ReferenceSelector runs={runs} choice={referenceChoice} onChange={setReferenceChoice}
         automaticAvailable={source.mode === 'recorded'}
         explanation={reference.explanation}
@@ -161,6 +172,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot }: { source:
         preparation={automatic && preparation.phase !== 'ready' && preparation.phase !== 'error' ? preparation.message : undefined}
         onRetry={automatic && preparation.phase === 'error' ? preparation.retry : reference.retry} />
       <StatusLegend />
+      </div>
       <StableInspector>
       {displayScene && playback.frame && projected && <StatusPanel scene={displayScene} projected={projected}
         period={playback.frame.period} selected={selectedComponent} onSelect={setSelectedNode}
