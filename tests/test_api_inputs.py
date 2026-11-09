@@ -38,7 +38,9 @@ def complete(api, identity, directory):
         'pdl_sha256': digest(inputs / 'scenario.pdl.yaml'),
         'roster_sha256': digest(roster) if roster.exists() else None,
     }]}
-    (directory / 'output/runs.json').write_text(json.dumps(manifest))
+    (directory / 'output/runs.json').write_text(
+        json.dumps(manifest), encoding='utf-8',
+    )
     api.app.state.store.finish(identity, status='completed')
 
 
@@ -81,13 +83,20 @@ def test_inputs_reject_changed_or_corrupt_execution_evidence(
     complete(inputs_client, identity, directory)
     if damage in ('pdl', 'roster'):
         path = directory / f'input/scenario.{damage}.yaml'
-        path.write_text(path.read_text() + '\n# changed\n')
+        path.write_text(
+            path.read_text(encoding='utf-8') + '\n# changed\n',
+            encoding='utf-8',
+        )
     elif damage == 'manifest':
-        (directory / 'output/runs.json').write_text('invalid JSON')
+        (directory / 'output/runs.json').write_text(
+            'invalid JSON', encoding='utf-8',
+        )
     elif damage == 'missing-manifest':
         (directory / 'output/runs.json').unlink()
     elif damage == 'roster-absence':
-        (directory / 'input/scenario.roster.yaml').write_text(ROSTER)
+        (directory / 'input/scenario.roster.yaml').write_text(
+            ROSTER, encoding='utf-8',
+        )
     else:
         path = directory / 'input/SimulatorScenarios.csv'
         rows = pd.read_csv(path)
@@ -99,7 +108,9 @@ def test_inputs_reject_changed_or_corrupt_execution_evidence(
 def test_inputs_reject_non_json_yaml(inputs_client, tmp_path):
     identity, directory = job(inputs_client, tmp_path)
     path = directory / 'input/scenario.pdl.yaml'
-    path.write_text(PDL + '\nunsupported: !!set {a: null}\n')
+    path.write_text(
+        PDL + '\nunsupported: !!set {a: null}\n', encoding='utf-8',
+    )
     assert inputs_client.get(f'/simulations/{identity}/inputs').status_code == 409
 
 
@@ -132,11 +143,14 @@ def test_inputs_fail_closed_on_unrepresentable_or_malformed_sources(
         rows['farm_size_seed'] = 9007199254740993
         rows.to_csv(executed, index=False)
     elif damage == 'large-document':
-        path.write_text(PDL + '\n#' + 'x' * (8 * 1024 * 1024))
+        path.write_text(
+            PDL + '\n#' + 'x' * (8 * 1024 * 1024), encoding='utf-8',
+        )
     else:
         (directory / 'input/SimulatorScenarios_template.csv').write_text(
             'id,period_num\n0,' + '1' * 140000,
+            encoding='utf-8',
         )
     if damage in ('scenario-null', 'event-shape') or damage.startswith('id-'):
-        path.write_text(yaml.safe_dump(doc))
+        path.write_text(yaml.safe_dump(doc), encoding='utf-8')
     assert inputs_client.get(f'/simulations/{identity}/inputs').status_code == 409
