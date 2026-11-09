@@ -34,8 +34,12 @@ single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
 Playback uses coordinated left controls, a center timeline, and a right
-configurator when at least 1160 CSS pixels of application width are available;
-both side panels start 24px from the application top, beside a normal-flow center
+configurator when at least 1160 CSS pixels of application width are available.
+The configurator is 320px wide through 1500px of available application width
+and 420px above that, giving the flexible center 100px more room on medium screens.
+The left sidebar stays 300px wide and the center retains its 360px minimum.
+The 1160px page-flow threshold remains conservative despite the smaller medium layout budget.
+Both side panels start 24px from the application top, beside a normal-flow center
 header containing the title and **Restart tutorial**. Narrow or very short layouts
 use scrollable page flow, with that header before the controls. Network indicator cards
 start collapsed when the viewport is at most 1500px wide **or** 800px high.

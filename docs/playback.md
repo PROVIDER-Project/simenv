@@ -55,9 +55,15 @@ PostgreSQL and simulation job files have separate named volumes. `docker compose
 
 ### Responsive playback layout
 
-The desktop width budget is **1160 CSS pixels**: 300px left sidebar + 360px
-minimum center column + 420px configurator + two 16px gaps + 48px outer padding.
-The center grows with available width. Below 1160px of available application
+The desktop grid keeps a **300px left sidebar** and a flexible center with a
+**360px minimum**. The configurator is **320px** wide when the named `sim-shell`
+container is **1160–1500 CSS pixels inclusive**, and **420px above 1500px**.
+With two 16px gaps and 48px outer padding, the medium layout's width budget is
+**1060px**, versus 1160px with the wider configurator. The page-flow threshold
+remains conservatively at **1160px**, not the medium layout's exact minimum.
+At 1275px of application width, the center is **575px** wide: the narrower
+configurator gives it 100px more room without changing the left column or center
+minimum. Below 1160px of available application
 width, or at available height **≤540px**, controls use full-width scrollable page
 flow, with the header and restart button before the controls. A docked tutorial
 reduces the available application area, so these layout
@@ -90,17 +96,19 @@ different layout.
 | State | Capture |
 | --- | --- |
 | Before: clean issue #79 HEAD `6add5ef`, timeline overlaps configurator | [Before medium](responsive-before-medium.png) |
-| After: top-aligned side panels, center header, default collapsed cards | [After medium](responsive-after-medium.png) |
+| After: 320px configurator, top-aligned side panels, center header, default collapsed cards | [After medium](responsive-after-medium.png) |
 | After: Show indicators, four-card grid at the viewport's lower edge | [Expanded medium](responsive-expanded-medium.png) |
 | Last tutorial step: temporary reveal, English | [English](responsive-tutorial-en-medium.png) |
 | Last tutorial step: temporary reveal, Deutsch | [Deutsch](responsive-tutorial-de-medium.png) |
 
 The before capture is served from a clean detached worktree at **`6add5ef`**, not
 the older issue #75 server used for the historical tutorial screenshots below.
-The four after captures use the **uncommitted top-alignment working tree** on
-`79-interactive-tutorial`, served on port 5179: side panels at 24px from the
-application top and a normal-flow center title/restart header. They include changes
-beyond HEAD `94c2ff6`; that commit alone does not reproduce these images. Both use
+The four refreshed after captures use the **uncommitted narrower-configurator
+working tree beyond `8254dab`** on `79-interactive-tutorial`, served on port 5179:
+a 320px configurator, 575px center, side panels at 24px from the application top,
+and a normal-flow center title/restart header. They supersede the earlier
+top-alignment captures made beyond `94c2ff6`; neither commit alone reproduces
+these refreshed images. The original before PNG is preserved byte-for-byte. Both use
 the same **controlled recorded-response fixtures** from `playback-fixtures.mjs`:
 run `first`, scenario 1, paused step 100, component `brazil_farms`, scenario-start
 reference, expanded configurator. These are interface fixtures, not empirical
@@ -121,13 +129,16 @@ SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5181 \
 SIMENV_WEB_URL=http://127.0.0.1:5179 \
 SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
   node tests/capture-responsive-playback.mjs
+# Preserve the existing before image after the script regenerates the matched set:
+git -C .. restore -- docs/responsive-before-medium.png
 ```
 
 The capture script reuses playback fixtures and their browser-setup completion
 seed, checks the expected baseline/default toggle state, and logs panel geometry.
-Visual review confirms baseline overlap, top-aligned after side panels, the center
-title/restart header and separated columns, plus the expanded cards and readable
-EN/DE final-step guidance. At this short viewport the expanded grid reaches the
+Visual review confirms top-aligned after side panels, the center title/restart
+header and separated columns, plus readable configurator labels, buttons, inputs
+and range controls within 320px. The expanded cards and EN/DE final-step guidance
+remain readable. At this short viewport the expanded grid reaches the
 lower image edge; scroll for its remaining content. Tutorial navigation can scroll
 the sidebar contents while the panel containers still start at 24px.
 The older tutorial/status screenshots remain historical evidence of their stated

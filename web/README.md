@@ -13,9 +13,13 @@ keeping the central globe clear. Both panels start expanded and have independent
 share one scroll area, including on short windows. On smaller screens they use
 the page's full-width scrollable layout without nested panel scrolling.
 The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
-The desktop grid coordinates a 300px left column, at least 360px of center space
-for the timeline, and a 420px configurator, plus two 16px gaps and 48px outer
-padding: a 1160 CSS-pixel minimum width budget. Both sidebars start 24px from the
+The desktop grid keeps a 300px left column and a flexible center with a 360px
+minimum. In the named `sim-shell` container, the configurator is 320px wide at
+1160–1500 CSS pixels inclusive and 420px above 1500px. With two 16px gaps and
+48px outer padding, the medium layout budget is 1060px (1160px with the wider
+configurator); the page-flow threshold remains conservatively at 1160px.
+At 1275px, the center is 575px wide, gaining the 100px freed by the configurator.
+Both sidebars start 24px from the
 application top and span the header, globe and timeline rows with their own
 scrolling. The title and **Restart tutorial** stay in a normal-flow center header;
 the timeline stays between the sidebars. Below

@@ -20,7 +20,7 @@ async function reachable(locator) {
   assert.equal(await locator.evaluate(el => {
     const r = el.getBoundingClientRect()
     const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-    return r.width > 0 && r.top >= 0 && r.bottom <= innerHeight + 1 && (hit === el || el.contains(hit))
+    return r.width > 0 && r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1 && (hit === el || el.contains(hit))
   }), true, `pointer reachability: ${locator}`)
 }
 
@@ -43,6 +43,7 @@ async function geometry(page, desktop) {
   })
   const { left, right, timeline, app, header, subtitle, restart, footer } = boxes
   if (desktop) {
+    assert.equal(right.width, app.width <= 1500 ? 320 : 420, 'medium screens reserve a narrower configurator column')
     assert.equal(left.y, app.y + 24, 'left sidebar starts at app top + 24px')
     assert.equal(right.y, app.y + 24, 'right sidebar starts at app top + 24px')
     assert.ok(header.x >= left.right + 15 && header.right + 15 <= right.x, 'header stays in center column')
@@ -105,6 +106,31 @@ for (const [width, height, desktop, expanded] of [
     } finally { await browser.close() }
   })
 }
+
+test('medium configurator controls and labels fit the narrower panel', async () => {
+  const { browser, page } = await setup({ width: 1275, height: 605 })
+  try {
+    const panel = page.locator('.sim-configurator')
+    assert.equal((await panel.boundingBox()).width, 320)
+    for (const control of [
+      panel.getByRole('button', { name: 'Hide', exact: true }),
+      panel.getByRole('button', { name: 'Run simulation', exact: true }),
+      panel.getByRole('textbox', { name: 'Scenario name' }),
+      panel.getByRole('slider', { name: 'Brazil drought loss' }),
+      panel.getByRole('checkbox', { name: 'Santos port congestion' }),
+      page.getByRole('button', { name: 'Restart tutorial', exact: true }),
+    ]) await reachable(control)
+    assert.equal(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), true, 'panel must not overflow horizontally')
+    for (const label of await panel.locator('label').all()) {
+      assert.equal(await label.evaluate(el => {
+        const bounds = el.getBoundingClientRect()
+        const panel = el.closest('.sim-configurator').getBoundingClientRect()
+        return el.scrollWidth <= el.clientWidth && bounds.left >= panel.left && bounds.right <= panel.right
+      }), true, `configurator label remains within the panel: ${await label.innerText()}`)
+    }
+    assert.equal(await page.locator('.sim-app').evaluate(el => el.scrollWidth <= el.clientWidth), true)
+  } finally { await browser.close() }
+})
 
 test('responsive defaults follow resizing until explicit preference; both choices survive selection remounts', async () => {
   const { browser, page } = await setup({ width: 1440, height: 1000 })
