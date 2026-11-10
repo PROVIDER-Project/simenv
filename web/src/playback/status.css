@@ -1,0 +1,49 @@
+.sim-status-panel {
+  min-width: 0;
+  padding: 14px; border: 1px solid var(--sim-color-border); border-radius: 14px;
+  background: rgba(6, 15, 28, .94); backdrop-filter: blur(14px);
+  font-size: 12px; line-height: 1.45;
+}
+.sim-status-panel p { margin: 8px 0; }
+.sim-status-panel label { display: grid; gap: 5px; }
+.sim-status-panel select { width: 100%; min-width: 0; }
+.sim-status-panel select, .sim-status-panel button {
+  padding: 8px; background: #0a1b2c; color: #f2f8ff;
+  border: 1px solid #46617b; border-radius: 6px;
+}
+.sim-status-panel button { cursor: pointer; }
+.sim-status-panel :focus-visible { outline: 2px solid #b9e9ff; outline-offset: 3px; }
+.sim-status-panel h2 { margin: 0; font-size: 17px; }
+.sim-status-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sim-status-panel-header + div:not([hidden]) { margin-top: 12px; }
+.sim-status-panel summary { cursor: pointer; padding: 7px 0; }
+.sim-component-status { font-variant-numeric: tabular-nums; }
+.sim-stable-inspector-content { display: flow-root; }
+.sim-status-heading { border-left: 5px solid; padding-left: 9px; min-height: 2.9em; }
+.sim-status-reason { height: 2.9em; overflow: hidden; }
+.sim-status-responsible { min-height: 4.35em; }
+.sim-reference-status { min-height: 2.9em; }
+.sim-status-legend { border-block: 1px solid var(--sim-color-border); margin: 12px 0; }
+.sim-status-scale { display: grid; gap: 6px; }
+.sim-status-scale i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; }
+.sim-metric { border-left: 3px solid; padding-left: 7px; margin-block: 10px; }
+.sim-metric dd { margin: 3px 0; overflow-wrap: anywhere; }
+.sim-metric-values { display: grid; gap: 3px; font-variant-numeric: tabular-nums; }
+.sim-metric-values > span { min-height: 1.45em; }
+.sim-metric code { display: block; color: #a9bdd2; font-size: 10px; }
+.sim-reference-note { color: #b5c7d8; overflow-wrap: anywhere; }
+.sim-network-indicators { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.sim-network-indicators > span {
+  min-width: 0; display: grid; grid-template-rows: 2.5em 1.5em 2.5em;
+  border-left: 4px solid; padding: 4px 8px; background: #081523;
+  font-size: 11px; line-height: 1.25; font-variant-numeric: tabular-nums;
+}
+.sim-network-indicators b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-network-label, .sim-network-indicators small {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sim-network-indicators > span:focus-visible { outline: 2px solid var(--sim-color-accent-bright); }
+@media (max-width: 350px) {
+  .sim-network-indicators { grid-template-columns: minmax(0, 1fr); }
+}

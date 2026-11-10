@@ -3,9 +3,8 @@ import Globe, { type GlobeMethods } from 'react-globe.gl'
 import type { Marker, ResolvedEdge } from '../data/gazetteer'
 import { arc as arcTok, color, globe as globeTok, marker as markerTok, texture } from '../design/tokens'
 import { arcApex } from './geo'
+import { statusColor } from '../design/status'
 import './labels.css'
-
-const SELECTED_MARKER_ID = 'brazil_farms'
 
 type LabelKind = 'node' | 'edge'
 type ArcLayer = 'halo' | 'glow' | 'core'
@@ -19,6 +18,7 @@ interface Anchor {
   text: string
   kind: LabelKind
   illustrative: boolean
+  nodeId?: string
 }
 
 /** One rendered arc. Each edge expands into a halo/glow/core stack for the glow. */
@@ -29,43 +29,26 @@ interface ArcDatum {
   startLng: number
   endLat: number
   endLng: number
-  intensity: number
+  intensity: number | null
 }
 
-/** A marker with its current (quantised) playback intensity baked in. */
+/** A marker with its current playback intensity baked in. */
 interface PointDatum extends Marker {
-  intensity: number
-}
-
-/**
- * Disruption is a near-step function, so intensity is quantised and the arc/point
- * data is memoised on a signature of those quantised values. The data reference
- * then only changes when disruption actually changes (a handful of times across a
- * whole run) — three-globe reuses arc materials in between, so the dash animation
- * runs uninterrupted instead of restarting every step.
- */
-const INTENSITY_STEP = 0.1
-
-function quantise(value: number): number {
-  return Math.round(Math.min(1, Math.max(0, value)) / INTENSITY_STEP) * INTENSITY_STEP
+  intensity: number | null
 }
 
 interface GlobeViewProps {
   markers: Marker[]
   edges: ResolvedEdge[]
   /** Per-node 0..1 disruption intensity for the current playback period. */
-  markerIntensity?: Record<string, number>
+  markerIntensity?: Record<string, number | null>
   /** Per-edge 0..1 disruption intensity for the current playback period. */
-  edgeIntensity?: Record<string, number>
+  edgeIntensity?: Record<string, number | null>
+  selectedNode?: string
+  onSelectNode?: (id: string) => void
 }
 
-type Rgb = readonly [number, number, number]
-
-const NO_INTENSITY: Record<string, number> = {}
-
-function mix(a: Rgb | readonly number[], b: Rgb, t: number): [number, number, number] {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
-}
+const NO_INTENSITY: Record<string, number | null> = {}
 
 function rgba([r, g, b]: [number, number, number], alpha: number): string {
   return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alpha})`
@@ -80,19 +63,9 @@ function hexToRgb(hex: string): [number, number, number] {
   ]
 }
 
-function baseMarkerColor(marker: Marker): string {
-  if (marker.id === SELECTED_MARKER_ID) return color.text
-  if (marker.role === 'producer') return color.positive
-  if (!marker.hasRecordedData) return color.muted
-  if (marker.illustrative) return color.warning
-  return color.text
-}
-
-/** Marker colour tinted toward the disruption red by the current intensity. */
+/** Selection and geographic annotations never override simulation status fill. */
 function colorForPoint(marker: PointDatum): string {
-  const base = baseMarkerColor(marker)
-  if (marker.intensity <= 0.001) return base
-  return rgba(mix(hexToRgb(base), arcTok.hot, Math.min(1, marker.intensity) * 0.9), 1)
+  return statusColor(marker.intensity)
 }
 
 const ARC_LAYERS: ArcLayer[] = ['halo', 'glow', 'core']
@@ -101,11 +74,10 @@ function arcSpec(layer: ArcLayer) {
   return layer === 'halo' ? arcTok.halo : layer === 'glow' ? arcTok.glow : arcTok.core
 }
 
-/** Arc layer colour, lerped teal → red by the edge intensity. */
-function colorForArc(datum: ArcDatum): string[] {
+/** A constant status color per layer. Arrays denote multi-stop gradients. */
+function colorForArc(datum: ArcDatum): string {
   const spec = arcSpec(datum.layer)
-  const t = Math.min(1, datum.intensity) * 0.85
-  return spec.teal.map((teal) => rgba(mix(teal, arcTok.hot, t), spec.alpha))
+  return rgba(hexToRgb(statusColor(datum.intensity)), spec.alpha)
 }
 
 /**
@@ -122,6 +94,8 @@ export default function GlobeView({
   edges,
   markerIntensity = NO_INTENSITY,
   edgeIntensity = NO_INTENSITY,
+  selectedNode,
+  onSelectNode,
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const [size, setSize] = useState({
@@ -147,6 +121,7 @@ export default function GlobeView({
         text: marker.label,
         kind: 'node',
         illustrative: marker.illustrative,
+        nodeId: marker.nodeId,
       })
     }
     for (const edge of edges) {
@@ -170,14 +145,12 @@ export default function GlobeView({
     return output
   }, [markers, edges])
 
-  // Signatures of the quantised intensities. useMemo compares deps by value, so a
-  // new-but-identical signature string keeps the previous data reference — the
-  // globe only rebuilds when disruption actually changes.
-  const markerSig = markers.map((m) => quantise(markerIntensity[m.nodeId] ?? 0)).join(',')
-  const edgeSig = edges.map((e) => quantise(edgeIntensity[e.id] ?? 0)).join(',')
+  // Exact semantic values preserve threshold boundaries and unknown states.
+  const markerSig = markers.map(m => String(markerIntensity[m.nodeId] ?? null)).join(',')
+  const edgeSig = edges.map(e => String(edgeIntensity[e.id] ?? null)).join(',')
 
   const pointData = useMemo<PointDatum[]>(
-    () => markers.map((marker) => ({ ...marker, intensity: quantise(markerIntensity[marker.nodeId] ?? 0) })),
+    () => markers.map((marker) => ({ ...marker, intensity: markerIntensity[marker.nodeId] ?? null })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [markers, markerSig],
   )
@@ -193,7 +166,7 @@ export default function GlobeView({
           startLng: edge.startLng,
           endLat: edge.endLat,
           endLng: edge.endLng,
-          intensity: quantise(edgeIntensity[edge.id] ?? 0),
+          intensity: edgeIntensity[edge.id] ?? null,
         })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,8 +174,8 @@ export default function GlobeView({
   )
 
   const selectedMarker = useMemo(
-    () => markers.find((marker) => marker.id === SELECTED_MARKER_ID) ?? markers[0],
-    [markers],
+    () => markers.find((marker) => marker.nodeId === selectedNode),
+    [markers, selectedNode],
   )
 
   // The native html layer positions and centres the OUTER node on the projected
@@ -212,14 +185,25 @@ export default function GlobeView({
     const anchor = datum as Anchor
     const outer = document.createElement('div')
     outer.className = `sim-anchor sim-anchor--${anchor.kind}`
-    const label = document.createElement('div')
+    const label = anchor.kind === 'node' ? document.createElement('button') : document.createElement('div')
     label.className = `sim-label sim-label--${anchor.kind}${
       anchor.illustrative ? ' sim-label--illustrative' : ''
     }`
     label.textContent = anchor.text
+    const nodeId = anchor.nodeId
+    if (label instanceof HTMLButtonElement && nodeId) {
+      label.type = 'button'
+      label.setAttribute('aria-label', `Select ${anchor.text}`)
+      label.title = anchor.text
+      label.addEventListener('pointerdown', event => event.stopPropagation())
+      label.addEventListener('click', event => {
+        event.stopPropagation()
+        onSelectNode?.(nodeId)
+      })
+    }
     outer.appendChild(label)
     return outer
-  }, [])
+  }, [onSelectNode])
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current
@@ -231,8 +215,7 @@ export default function GlobeView({
     )
 
     const controls = globe.controls()
-    controls.autoRotate = true
-    controls.autoRotateSpeed = globeTok.autoRotateSpeed
+    controls.autoRotate = false
     controls.enableDamping = true
     controls.dampingFactor = 0.08
     controls.minDistance = globe.getGlobeRadius() * 1.38
@@ -265,10 +248,12 @@ export default function GlobeView({
         pointAltitude={markerTok.altitude}
         pointRadius={(datum: object) => {
           const point = datum as PointDatum
-          const base = point.id === SELECTED_MARKER_ID ? markerTok.selectedRadius : markerTok.radius
-          return base * (1 + Math.min(1, point.intensity) * 0.7)
+          return point.nodeId === selectedNode ? markerTok.selectedRadius : markerTok.radius
         }}
         pointResolution={18}
+        // Decorative connection layers must not steal clicks from node icons.
+        pointerEventsFilter={(_object, data) => !(data && 'edgeId' in data && 'layer' in data)}
+        onPointClick={datum => onSelectNode?.((datum as PointDatum).nodeId)}
         pointsMerge={false}
         pointsTransitionDuration={0}
         ringsData={selectedMarker ? [selectedMarker] : []}

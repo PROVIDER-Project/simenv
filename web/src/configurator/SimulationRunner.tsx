@@ -5,19 +5,24 @@ interface SimulationRunnerProps {
   submission: SimulationSubmission
   hidden: boolean
   onCompleted?: (runId: string) => void
+  onViewResults?: (runId: string) => Promise<void>
 }
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export default function SimulationRunner({ submission, hidden, onCompleted }: SimulationRunnerProps) {
+export default function SimulationRunner({ submission, hidden, onCompleted, onViewResults }: SimulationRunnerProps) {
   const notified = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [job, setJob] = useState<SimulationJob | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [monitoringError, setMonitoringError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [submitted, setSubmitted] = useState<SimulationSubmission | null>(null)
+  const [opening, setOpening] = useState(false)
+  const [openingError, setOpeningError] = useState<string | null>(null)
+  const openGeneration = useRef(0)
   const submissionController = useRef<AbortController | null>(null)
   const active = job?.status === 'queued' || job?.status === 'running'
   const id = job?.id
@@ -29,7 +34,7 @@ export default function SimulationRunner({ submission, hidden, onCompleted }: Si
     }
   }, [job, onCompleted])
 
-  useEffect(() => () => submissionController.current?.abort(), [])
+  useEffect(() => () => { submissionController.current?.abort(); openGeneration.current++ }, [])
 
   useEffect(() => {
     if (!id || !active) return
@@ -56,13 +61,16 @@ export default function SimulationRunner({ submission, hidden, onCompleted }: Si
   }, [id, active, retry])
 
   const run = async () => {
-    if (submissionController.current || active) return
+    if (submissionController.current || active || opening) return
     const controller = new AbortController()
     submissionController.current = controller
     setSubmitting(true)
     setSubmissionError(null)
     setMonitoringError(null)
     setJob(null)
+    setSubmitted({ ...submission })
+    setOpeningError(null)
+    openGeneration.current++
     try {
       const next = await submitSimulation(submission, controller.signal)
       if (!controller.signal.aborted) setJob(next)
@@ -74,14 +82,27 @@ export default function SimulationRunner({ submission, hidden, onCompleted }: Si
     }
   }
 
+  const view = async () => {
+    if (!job || job.status !== 'completed' || opening || !onViewResults) return
+    const generation = ++openGeneration.current
+    setOpening(true); setOpeningError(null)
+    try { await onViewResults(job.id) }
+    catch (error) { if (openGeneration.current === generation) setOpeningError(message(error)) }
+    finally { if (openGeneration.current === generation) setOpening(false) }
+  }
+  const edited = submitted && (Object.keys(submitted) as (keyof SimulationSubmission)[]).some(key => submitted[key] !== submission[key])
+
   return (
     <section className="sim-configurator-section sim-configurator-run" hidden={hidden} aria-label="Simulation execution">
       <h3>Execute this scenario</h3>
       <p className="sim-configurator-copy">
         Run the generated PDL and roster with the selected cascade. Edits after submission apply to the next run.
       </p>
+      {submitted && <p className="sim-configurator-copy">{edited
+        ? 'Unsubmitted edits for the next run. Displayed recorded results and the submitted job retain their original inputs.'
+        : 'Controls match the last submitted inputs. The globe displays the recorded run named in its results caption.'}</p>}
       <div className="sim-configurator-actions">
-        <button type="button" onClick={() => void run()} disabled={submitting || active}>
+        <button type="button" onClick={() => void run()} disabled={submitting || active || opening}>
           {submitting ? 'Submitting…' : 'Run simulation'}
         </button>
       </div>
@@ -90,6 +111,10 @@ export default function SimulationRunner({ submission, hidden, onCompleted }: Si
           {submissionError} If the connection failed, check API job history before submitting again; the run may have been accepted.
         </p>
       )}
+      {job?.status === 'completed' && onViewResults && <div className="sim-configurator-actions">
+        <button type="button" onClick={() => void view()} disabled={opening}>{opening ? 'Opening results…' : 'View results'}</button>
+      </div>}
+      {openingError && <p className="sim-configurator-run-error" role="alert">{openingError}</p>}
       {job && (
         <div className="sim-configurator-run-status" role="status" aria-live="polite">
           <p><strong>{job.label || 'Simulation'}</strong> · {job.status}</p>
