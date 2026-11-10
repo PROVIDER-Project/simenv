@@ -92,7 +92,7 @@ def test_process_diagnostics_are_registered_for_recording():
     for role in ("processor", "feed_manufacturer"):
         assert _PROPS_BY_ROLE[role] == (
             "quantity_available", "unit_price", "input_received",
-            "input_processed", "unused_input", "stock",
+            "input_processed", "unused_input", "stock", "orders_placed",
         )
     for name in ("input_received", "input_processed", "unused_input"):
         assert db_schema.METRICS_BY_NAME[name].unit == "input units per period"

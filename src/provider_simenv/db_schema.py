@@ -68,12 +68,12 @@ METRICS = (
     ),
     Metric(
         "feed_received", "feed units per period",
-        "Feed collected from upstream traders, split evenly across active "
-        "consumers.",
+        "Feed delivered by upstream traders this period.",
     ),
     Metric(
         "livestock_output", "output units per period",
-        "Livestock produced, proportional to feed_received.",
+        "Livestock produced from the feed used this period, at most the "
+        "consumer's baseline need.",
     ),
     Metric(
         "active", "flag, 1.0 or 0.0",
@@ -111,7 +111,7 @@ METRICS = (
     ),
     Metric(
         "input_received", "input units per period",
-        "The process's equal-share upstream input offer; not settled purchases.",
+        "Input delivered by suppliers this period.",
     ),
     Metric(
         "input_processed", "input units per period",
@@ -126,6 +126,11 @@ METRICS = (
         "stock", "units held",
         "What the agent holds this period before passing anything on. "
         "Processes hold input units, all other roles their output good.",
+    ),
+    Metric(
+        "orders_placed", "units ordered per period",
+        "What the agent ordered from its suppliers this period, to be "
+        "delivered in the next one.",
     ),
 )
 

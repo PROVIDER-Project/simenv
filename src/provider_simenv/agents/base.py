@@ -23,6 +23,7 @@ class SupplyChainAgent(Agent):
         self._apply_result(self._implementation.setup({}))
         self.origin = ""
         self.binding = {}
+        self.orders_placed = 0.0
 
     def _setup_input(self):
         return self._state()
@@ -63,6 +64,7 @@ class SupplyChainAgent(Agent):
         self._step_sources = {}
         self._step_buyers = {}
         self._spare = 0.0
+        self.orders_placed = 0.0
         if self._implementation.requires_observations(data["state"]):
             data, sources = self._step_context()
         self._apply_result(self._implementation.step(data), sources)
@@ -84,6 +86,7 @@ class SupplyChainAgent(Agent):
                 entry["quantity"] for entry in result["deliveries"]))
         for entry in result.get("orders", []):
             self.model.place_order(self, (sources or {})[entry["key"]], entry["quantity"])
+            self.orders_placed += entry["quantity"]
         for update in result.get("upstream_updates", []):
             source = (sources or {})[update["key"]]
             for name, value in update.items():

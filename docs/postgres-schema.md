@@ -218,13 +218,14 @@ section 4 explains why they never change in place.
 | `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader | output units per period | How much of its output good the agent has ready this period. |
 | `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader | currency per output unit | The agent's asking price this period. `0.0` when it has nothing to sell. |
 | `storage_utilization` | wholesaler | ratio, 0.0-1.0 | Stock divided by storage capacity. |
-| `feed_received` | consumer | feed units per period | Feed collected from upstream traders, split evenly across active consumers. |
-| `livestock_output` | consumer | output units per period | Livestock produced, proportional to `feed_received`. |
+| `feed_received` | consumer | feed units per period | Feed delivered by upstream traders this period. |
+| `livestock_output` | consumer | output units per period | Livestock produced from the feed used this period, at most the consumer's baseline need. |
 | `active` | producer, consumer | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
-| `input_received` | processor, feed_manufacturer | input units per period | Equal-share upstream input offer; not settled purchases. |
+| `input_received` | processor, feed_manufacturer | input units per period | Input delivered by suppliers this period. |
 | `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
 | `unused_input` | processor, feed_manufacturer | input units per period | Input left after processing this period. It carries into the next period as stock. |
 | `stock` | producer, wholesaler, processor, feed_manufacturer, feed_trader | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. |
+| `orders_placed` | consumer, wholesaler, processor, feed_manufacturer, feed_trader | units ordered per period | What the agent ordered from its suppliers this period, to be delivered in the next one. |
 
 "Output units" are the units of whatever good the agent sells, so `quantity_available` for a
 producer is raw soy and for a feed trader is compound feed. The metric is the same; the good
@@ -292,11 +293,11 @@ One view per role, each with one column per metric that role carries:
 | View | Metric columns |
 |---|---|
 | `sim_producer_view` | `quantity_available`, `unit_price`, `active`, `stock` |
-| `sim_consumer_view` | `feed_received`, `livestock_output`, `active` |
-| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization`, `stock` |
-| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock` |
-| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock` |
-| `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock` |
+| `sim_consumer_view` | `feed_received`, `livestock_output`, `active`, `orders_placed` |
+| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization`, `stock`, `orders_placed` |
+| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
+| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
+| `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock`, `orders_placed` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,
