@@ -33,6 +33,44 @@ The workshop cascade is currently locked to soy; API jobs still execute only the
 single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
+Playback uses coordinated left controls, a center timeline, and a right
+configurator when at least 1160 CSS pixels of application width are available.
+The configurator is 320px wide through 1500px of available application width
+and 420px above that, giving the flexible center 100px more room on medium screens.
+The left sidebar stays 300px wide and the center retains its 360px minimum.
+The 1160px page-flow threshold remains conservative despite the smaller medium layout budget.
+Both side panels start 24px from the application top, beside a normal-flow center
+header containing the title and **Restart tutorial**. Narrow or very short layouts
+use scrollable page flow, with that header before the controls. Network indicator cards
+start collapsed when the viewport is at most 1500px wide **or** 800px high.
+**Show indicators / Hide indicators** frees globe space without changing playback.
+Until you choose, the default follows resizing; an explicit choice lasts for the
+page session across resizing and run/scenario changes. The tutorial temporarily
+reveals the cards at its last step, then restores the underlying choice/default.
+See [responsive layout and matched review captures](docs/playback.md#responsive-playback-layout).
+
+### Interactive tutorial
+
+On a first visit, a nine-step tutorial highlights scenario editing, execution,
+recorded-run selection, time navigation and impact inspection. **English** and
+**Deutsch** inside the popup switch its guidance and remember your language;
+this does not translate the whole interface. Navigate freely with **Back/Next**:
+the tour never edits inputs or submits a simulation. On step 3, explicitly clicking
+**Run simulation** advances to step 4 once the job is accepted, even while queued.
+On step 4, **View results** advances to step 5 only after successfully opening that
+job's scenario 1. Errors leave the step unchanged; pending actions cannot advance
+an old step after manual navigation, restart or close. **Close for session** (or
+Escape) dismisses it until reload; unfinished tours restart from the beginning.
+**Finish** remembers completion in this browser for this site, while the top
+**Restart tutorial** button starts again with the remembered language. If browser
+storage is blocked, the tour still works for the current page session but cannot
+remember completion or language after reload.
+
+Static demo playback remains separate from submitted results; viewing your own
+run requires recorded playback. See [tutorial controls, keyboard access and
+review screenshots](docs/playback.md#interactive-tutorial), and the
+[tutorial browser check](web/README.md#tutorial-browser-check).
+
 ### Run a configured scenario from the dashboard
 
 The globe frontend's **PDL configurator** supports **Run simulation**: adjust

@@ -22,7 +22,7 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
   const node = scene.nodes.find(item => item.id === selected)
   const status = projected.nodes[selected]
   return <section aria-label="Component status" className="sim-component-status" data-period={period}>
-    <label>Inspect component<select value={selected} onChange={event => onSelect(event.target.value)}>
+    <label data-tutorial="component">Inspect component<select value={selected} onChange={event => onSelect(event.target.value)}>
       {scene.nodes.map(item => <option key={item.id} value={item.id}>{item.label} · {statusLabel(projected.nodes[item.id]?.score ?? null)}</option>)}
     </select></label>
     {node && status && <>

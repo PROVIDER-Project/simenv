@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTutorialPanel } from '../tutorial/context'
 import type { BundleMeta } from '../data/types'
 import SimulationRunner from './SimulationRunner'
 import {
@@ -67,7 +68,9 @@ function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
 }
 
 export default function ScenarioConfigurator({ meta, onCompleted, onViewResults }: ScenarioConfiguratorProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 900)
+  const reveal = useCallback(() => setCollapsed(false), [])
+  useTutorialPanel('configurator', reveal)
   const [notice, setNotice] = useState<string>('')
   const [exporting, setExporting] = useState<'copy-pdl' | 'download-pdl' | 'copy-roster' | 'download-roster' | null>(
     null,
@@ -76,10 +79,6 @@ export default function ScenarioConfigurator({ meta, onCompleted, onViewResults 
     ...defaultScenarioConfig,
     scenarioName: meta.scenario && meta.scenario !== 'scenario-1' ? meta.scenario : defaultScenarioConfig.scenarioName,
   }))
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth <= 900) setCollapsed(true)
-  }, [])
 
   const pdl = useMemo(() => buildPdl(config), [config])
   const roster = useMemo(() => buildRosterSidecar(config), [config])
@@ -145,7 +144,7 @@ export default function ScenarioConfigurator({ meta, onCompleted, onViewResults 
             Tune a first-pass disruption scenario inside the globe view and export a runnable PDL package.
           </p>
 
-          <label className="sim-configurator-text-field">
+          <label className="sim-configurator-text-field" data-tutorial="scenario">
             <span>Scenario name</span>
             <input
               type="text"
@@ -173,7 +172,7 @@ export default function ScenarioConfigurator({ meta, onCompleted, onViewResults 
 
           {config.cascadeId === 'soy_crisis_cascade' ? (
             <>
-              <section className="sim-configurator-section">
+              <section className="sim-configurator-section" data-tutorial="disruption">
                 <h3>Origin shock</h3>
                 <RangeField
                   label="Brazil drought loss"

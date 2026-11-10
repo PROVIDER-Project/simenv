@@ -33,9 +33,11 @@ share a single bounded scroll area, so collapsing run selection moves impact up
 naturally without adding an overlay across the globe. On smaller screens the
 sidebar becomes full-width page flow with no nested scrolling. Globe connections
 remain visible in all status states, including gray for unknown upstream status.
-The desktop grid reserves the timeline's actual height below the sidebar so it
-cannot cover the scrubber. Very short windows (540px high or less) also use page
-flow to keep all controls reachable.
+The desktop grid keeps the timeline in the center column between both sidebars;
+the sidebars start 24px from the application top and span the header, globe and
+timeline rows. The title and **Restart tutorial** occupy a normal-flow center
+header. Narrow or very short application space uses page flow to keep
+all controls reachable; see the exact thresholds below.
 
 Interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
@@ -50,6 +52,206 @@ Interface examples (using the bundled static demo):
 
 PostgreSQL and simulation job files have separate named volumes. `docker compose
 -f compose.playback.yml down` keeps both volumes.
+
+### Responsive playback layout
+
+The desktop grid keeps a **300px left sidebar** and a flexible center with a
+**360px minimum**. The configurator is **320px** wide when the named `sim-shell`
+container is **1160–1500 CSS pixels inclusive**, and **420px above 1500px**.
+With two 16px gaps and 48px outer padding, the medium layout's width budget is
+**1060px**, versus 1160px with the wider configurator. The page-flow threshold
+remains conservatively at **1160px**, not the medium layout's exact minimum.
+At 1275px of application width, the center is **575px** wide: the narrower
+configurator gives it 100px more room without changing the left column or center
+minimum. Below 1160px of available application
+width, or at available height **≤540px**, controls use full-width scrollable page
+flow, with the header and restart button before the controls. A docked tutorial
+reduces the available application area, so these layout
+thresholds can apply even when the browser viewport itself is larger. On desktop,
+both sidebars scroll independently; oversized center content makes the application
+scroll rather than covering adjacent controls or being permanently clipped.
+
+The four **network indicator cards** start collapsed when viewport width is
+**≤1500px OR height ≤800px**. They start expanded only when both dimensions exceed
+those thresholds. **Show indicators / Hide indicators** toggles the cards, leaving
+play/pause, the step slider and basic step/soy/shock readout available. This changes
+visible globe space, not globe scale or playback time. Recorded playback and
+Disturbance impact still start expanded and retain their separate Hide/Show buttons.
+
+Before an explicit indicator choice, resizing updates the responsive default.
+Either explicit choice then survives resizing and run/scenario changes for the
+current page session; reload resets it. The tutorial's final step temporarily
+reveals the cards and restores the underlying explicit choice or current responsive
+default when you leave the step, finish or dismiss the tour. Hiding cards during
+that step changes only the temporary reveal; revisiting reveals them again.
+
+#### Matched responsive review evidence
+
+All five images use **1275 × 605 CSS pixels**, Chromium device scale factor 1
+(1275 × 605 image pixels). The reported physical screenshot was approximately
+1912 × 907 pixels, consistent with 150% scaling; physical pixels are not the CSS
+layout viewport, so using those physical dimensions as the viewport would test a
+different layout.
+
+| State | Capture |
+| --- | --- |
+| Before: clean issue #79 HEAD `6add5ef`, timeline overlaps configurator | [Before medium](responsive-before-medium.png) |
+| After: 320px configurator, top-aligned side panels, center header, default collapsed cards | [After medium](responsive-after-medium.png) |
+| After: Show indicators, four-card grid at the viewport's lower edge | [Expanded medium](responsive-expanded-medium.png) |
+| Last tutorial step: temporary reveal, English | [English](responsive-tutorial-en-medium.png) |
+| Last tutorial step: temporary reveal, Deutsch | [Deutsch](responsive-tutorial-de-medium.png) |
+
+The before capture is served from a clean detached worktree at **`6add5ef`**, not
+the older issue #75 server used for the historical tutorial screenshots below.
+The four refreshed after captures use the **uncommitted narrower-configurator
+working tree beyond `8254dab`** on `79-interactive-tutorial`, served on port 5179:
+a 320px configurator, 575px center, side panels at 24px from the application top,
+and a normal-flow center title/restart header. They supersede the earlier
+top-alignment captures made beyond `94c2ff6`; neither commit alone reproduces
+these refreshed images. The original before PNG is preserved byte-for-byte. Both use
+the same **controlled recorded-response fixtures** from `playback-fixtures.mjs`:
+run `first`, scenario 1, paused step 100, component `brazil_farms`, scenario-start
+reference, expanded configurator. These are interface fixtures, not empirical
+simulation results; no simulation is submitted. Tutorial completion is seeded
+only for the three comparison captures; the last two navigate a fresh tour.
+
+To reproduce, create a detached baseline outside the working tree and start its
+recorded-mode Vite server (the existing issue #79 recorded server stays on 5179):
+
+```bash
+# From the repository root; run once for this baseline location.
+git worktree add --detach /tmp/opencode/simenv79-responsive-baseline 6add5ef
+# From /tmp/opencode/simenv79-responsive-baseline/web:
+npm ci
+VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8079 npm run dev -- --host 127.0.0.1 --port 5181 --strictPort
+# From the followup worktree's web/ directory, in another terminal:
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5181 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-responsive-playback.mjs
+# Preserve the existing before image after the script regenerates the matched set:
+git -C .. restore -- docs/responsive-before-medium.png
+```
+
+The capture script reuses playback fixtures and their browser-setup completion
+seed, checks the expected baseline/default toggle state, and logs panel geometry.
+Visual review confirms top-aligned after side panels, the center title/restart
+header and separated columns, plus readable configurator labels, buttons, inputs
+and range controls within 320px. The expanded cards and EN/DE final-step guidance
+remain readable. At this short viewport the expanded grid reaches the
+lower image edge; scroll for its remaining content. Tutorial navigation can scroll
+the sidebar contents while the panel containers still start at 24px.
+The older tutorial/status screenshots remain historical evidence of their stated
+source revisions; they have not been regenerated with the responsive followup.
+
+## Interactive tutorial
+
+A first visit automatically starts a nine-step tour: scenario name, disruption
+settings, execution/monitoring, completed results, recorded selection, timeline,
+reference/legend, component evidence and network indicators. The popup highlights
+the relevant controls and opens their panel on step entry. **Back/Next** remain
+available even if a target has not loaded or a run has not completed; you can
+continue and return later. The tour never edits inputs, submits a simulation,
+switches the selected run or moves the playback time. Automatic disruption-free
+reference preparation remains normal playback behavior, not a tutorial action.
+
+At step 3, explicitly clicking **Run simulation** advances to step 4 when the API
+accepts the job, even while queued; it does not wait for completion. At step 4,
+**View results** advances to step 5 only after successfully opening that exact
+job's scenario 1. Submission or results-opening errors leave the step unchanged.
+Manual navigation, restart or close invalidates pending auto-advance from the old
+step entry, even if you return to the same step. **Back/Next** remain freely
+available without submitting a job or opening results.
+
+**Close for session** or Escape dismisses the tour for this page session. Reload
+starts an unfinished tour again at step 1. **Finish** on the last step stores
+completion locally in this browser for this site, suppressing automatic start on
+later visits. The **Restart tutorial** button near the top clears completion and
+starts at step 1, keeping your language. Select **English** or **Deutsch** inside
+the popup to change tutorial text and actions; the choice is remembered locally.
+This does not translate the rest of the interface. Completion and language are
+not account settings or shared between browsers/origins. If `localStorage` is
+blocked, the tutorial degrades gracefully to current-page-session behavior:
+navigation, dismissal and language switching work, but completion and language
+cannot be remembered after reload.
+
+The popup is a labeled, non-modal region. Step entry focuses its heading;
+Tab/Shift+Tab reach both tutorial buttons and application controls, and
+Enter/Space activate buttons. Escape closes and returns focus to the opener or
+**Restart tutorial**. Use native keyboard controls for sliders/selects and
+**Inspect component** as an alternative to globe interaction. Narrow/short
+screens allow scrolling the popup and may dock it above the application with
+space reserved for the highlighted controls.
+
+The tour works in both playback modes, but does not create missing services or
+results. In static mode its selection step explains that the exported demo is
+separate from submitted runs. Executing your inputs needs the simulation API and
+PostgreSQL; viewing the completed job requires recorded playback, both APIs
+sharing the database, and **View results** to open that exact job's scenario 1.
+Existing recordings can be explored without submitting a new job.
+
+### Tutorial review evidence
+
+Current step 3/4 guidance at **1275 × 605**, device scale factor 1:
+
+| State | Capture |
+| --- | --- |
+| Step 3, English: automatic advance explained; Run simulation highlighted before explicit submission | [Execution guidance](tutorial-execution-auto-advance.png) |
+| Step 4, Deutsch: reached automatically after accepted submission; completed View results button highlighted | [Results guidance](tutorial-results-auto-advance.png) |
+
+These two captures use the issue #79 working tree based on `37dfe1d`, including
+the uncommitted auto-advance changes, served on port 5179. They are **mocked
+browser fixtures, not real simulation results**. The script uses the existing
+recorded-response fixture (initial run `first`, scenario 1), explicitly clicks
+**Run simulation**, and intercepts submission with HTTP 202 and a completed job
+`second`. It captures step 4 before clicking **View results**, then verifies that
+clicking it advances to step 5 with run `second`, scenario 1 selected. No request
+is submitted to a real simulation service. Older captures below predate this copy.
+
+Reproduce only these two PNGs from `web/` with the current recorded-mode Vite
+server running (no baseline or static server needed):
+
+```bash
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial-auto-advance.mjs
+```
+
+| State | Desktop (1440 × 1000) | Mobile (390 × 844) |
+| --- | --- | --- |
+| Before: configurator, no tutorial | [Before desktop](tutorial-before-desktop.png) | [Before mobile](tutorial-before-mobile.png) |
+| After: first-visit English popup and scenario-name highlight | [After desktop](tutorial-after-desktop.png) | [After mobile](tutorial-after-mobile.png) |
+
+Impact guidance at step 8, with the same selected component and playback step:
+[English](tutorial-impact-en.png) / [Deutsch](tutorial-impact-de.png). Only the
+tutorial changes language; the surrounding English controls remain visible.
+
+The four static screenshots use the same committed `bundle.json`, paused at
+step 100. Before is the unmodified issue #75 source at commit
+`4b35fce12db40774984fa437144d0b9f13dd4ccc`, served by the existing static server
+on port 5176; after is the issue #79 working tree on port 5180. Mobile captures
+are scrolled to center the scenario-name input, rather than showing page top.
+The capture script asserts byte equality of the two bundles; the captured
+SHA-256 was `0efafdb2224af97984ee0caf86131c0c6493a0c10ebc078855721daaa72713f0`.
+The two impact screenshots use **controlled recorded-response fixtures**, not
+empirical simulation results: run `first`, scenario 1, step 100, component
+`brazil_farms`, explicitly selected scenario-start reference. No simulation is
+submitted by the capture script.
+
+Reproduce from `web/`, with before/after static servers and the issue #79
+recorded-mode server running (see the [tutorial browser setup](../web/README.md#tutorial-browser-check)):
+
+```bash
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5176 \
+SIMENV_STATIC_WEB_URL=http://127.0.0.1:5180 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial.mjs
+```
+
+`SIMENV_TEST_PLAYBACK_ORIGIN` must match the recorded frontend's build/dev API
+origin. Its default is `http://127.0.0.1:8001`; port 8079 requires the override
+above. Playwright Chromium captures these six PNGs at device scale factor 1.
 
 ## Configuration
 
@@ -290,7 +492,8 @@ The static-network images use the committed demo bundle rather than intercepted
 responses. For comparison, the
 [previous overlapping layout](https://github.com/PROVIDER-Project/simenv/blob/f216590f2da88b106c2441af1189bff96f1cc00d/docs/status-disturbed.png)
 documents the interface before the sidebar correction.
-Real-service coverage separately submits and opens both supported cascades.
+Real-service workshop coverage separately submits and opens two edited soy
+configurations and verifies reference creation/reuse.
 
 ## Verification
 
@@ -308,11 +511,27 @@ private inputs, fetches scenario 1 across pages, and compares every identity/val
 to PostgreSQL. Set `PROVIDER_SIMENV_POSTGRES_URL` as well to enable live tick-writer
 checks. CSV parity is separately opt-in via `PROVIDER_SIMENV_PARITY_RUN`.
 
+Run `npm run test:tutorial` from `web/` using the
+[two-server setup and fixture-origin configuration](../web/README.md#tutorial-browser-check).
+It covers first-visit/completion/restart, remembered EN/DE, session dismissal,
+keyboard focus, blocked storage, non-submitting navigation, selected-run/time
+preservation and responsive target reachability. The static case is skipped
+unless `SIMENV_STATIC_WEB_URL` is supplied. These fixtures do not replace
+real-service simulation acceptance.
+
+Run `npm run test:responsive-playback` from `web/` with `SIMENV_WEB_URL` and
+`SIMENV_TEST_PLAYBACK_ORIGIN` set as in the tutorial setup. This separate
+controlled-fixture suite checks responsive column geometry, control reachability,
+width/height boundary defaults, explicit choices across resizing and selection
+remounts, and temporary EN/DE tutorial indicator reveal/restoration. It needs
+Chromium and a recorded-mode Vite server, not a live database or API.
+
 From `web/`, run `npm run test:playback`. For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
-`npm run test:playback-browser`; only these tests intercept API responses.
+`npm run test:playback-browser`; these browser checks intercept API responses,
+as does the separate tutorial suite.
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
-stack. It submits both cascades, verifies catalogue refresh, opens each exact
+stack. It submits two edited soy configurations, verifies catalogue refresh, opens each exact
 completed run via **View results**, and seeks into a later database page. Status
 browser regressions cover day-0 comparison, recovery, missing/reference failures,
 keyboard inspection, reference switching/refresh, delayed responses, cache eviction

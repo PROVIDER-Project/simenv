@@ -135,6 +135,7 @@
 
 .sim-configurator-field input[type='range'] {
   width: 100%;
+  margin-inline: 0;
   accent-color: var(--sim-color-accent);
 }
 

@@ -1,0 +1,23 @@
+.sim-tutorial-restart { display: block; margin-top: 10px; }
+.sim-tutorial, .sim-tutorial-restart { font: 13px/1.45 system-ui, sans-serif; color: #e9f5ff; background: #0b1b2d; border: 1px solid #75caff; border-radius: 8px; }
+.sim-tutorial-restart { padding: 6px 12px; cursor: pointer; }
+.sim-tutorial { position: fixed; z-index: 30; width: min(350px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 16px; box-shadow: 0 8px 32px #000a; }
+.sim-tutorial h2 { font-size: 18px; margin: 10px 0; }
+.sim-tutorial p { margin: 10px 0; }
+.sim-tutorial button { cursor: pointer; background: #19334b; color: #eff8ff; border: 1px solid #7196ad; border-radius: 5px; padding: 6px 9px; font: inherit; }
+.sim-tutorial button:disabled { opacity: .45; cursor: default; }
+.sim-tutorial button[aria-pressed="true"] { background: #285d7f; border-color: #b3e5ff; }
+.sim-tutorial :focus-visible, .sim-tutorial-restart:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.sim-tutorial-bar, .sim-tutorial-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.sim-tutorial-bar > div { display: flex; gap: 4px; }
+.sim-tutorial-highlight { position: fixed; z-index: 25; border: 2px solid #8edcff; border-radius: 7px; box-shadow: 0 0 12px #59bfff77; pointer-events: none; }
+.sim-tutorial-shell--docked .sim-app { top: var(--sim-tutorial-space); }
+.sim-tutorial-shell--docked .sim-tutorial { width: calc(100vw - 16px); max-height: min(42dvh, 240px); }
+.sim-tutorial-shell--docked .sim-tutorial-actions { position: sticky; bottom: -10px; padding: 6px 0; background: #0b1b2d; }
+@media (max-width: 900px) {
+  .sim-tutorial { font-size: 12px; padding: 10px; }
+  .sim-tutorial h2 { font-size: 16px; margin: 6px 0; }
+  .sim-tutorial p { margin: 6px 0; }
+}
+.sim-tutorial-shell { position: fixed; inset: 0; container: sim-shell / size; }
+.sim-tutorial-shell--docked { padding-top: var(--sim-tutorial-space); }

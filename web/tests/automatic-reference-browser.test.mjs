@@ -1,12 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { origin, webUrl, run, scene, page as frames } from './playback-fixtures.mjs'
 
 test('frontend creates one empty-events reference, waits for playable data and reuses it', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await dismissInitialTutorial(page)
     const source = { pdl: { scenario: { name: 'Disturbed' }, entities: [], events: [{ id: 'drought' }],
       cascades: [{ id: 'soy_crisis_cascade', timeline: [{ at: 0, event: 'drought' }] }] }, roster: { economics: { example: 1 } },
       cascade: 'soy_crisis_cascade', parameters: { period_num: 300, farm_size_seed: 42 },
