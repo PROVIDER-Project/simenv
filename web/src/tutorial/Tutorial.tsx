@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { TutorialContext } from './context'
+import { TutorialContext, type TutorialAction } from './context'
 import { steps, type Language } from './steps'
 import './tutorial.css'
 
@@ -9,10 +9,8 @@ function write(key: string, value?: string) { try { if (value) localStorage.setI
 type Rect = { x: number; y: number; width: number; height: number }
 
 export default function Tutorial({ children, mode, layoutReady }: { children: (restartNode: ReactNode) => ReactNode; mode: 'static' | 'recorded'; layoutReady: boolean }) {
-  const [active, setActive] = useState(() => read('completed') !== 'true')
+  const [{ active, index, entry }, setTour] = useState(() => ({ active: read('completed') !== 'true', index: 0, entry: 0 }))
   const [language, setLanguage] = useState<Language>(() => read('language') === 'de' ? 'de' : 'en')
-  const [index, setIndex] = useState(0)
-  const [entry, setEntry] = useState(0)
   const [target, setTarget] = useState<Rect | null>(null)
   const [position, setPosition] = useState({ left: 8, top: 8 })
   const [dockHeight, setDockHeight] = useState<number | null>(null)
@@ -23,7 +21,7 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
   const step = steps[index]
   const de = language === 'de'
   const close = useCallback(() => {
-    setActive(false)
+    setTour(current => ({ ...current, active: false, entry: current.entry + 1 }))
     const element = opener.current
     ;(element?.isConnected ? element : restart.current)?.focus({ preventScroll: true })
   }, [])
@@ -136,12 +134,18 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
     return () => { cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect(); document.removeEventListener('scroll', schedule, true); window.removeEventListener('resize', viewportResize) }
   }, [active, step, entry, layoutReady])
 
-  function move(next: number) { setIndex(next); setEntry(value => value + 1) }
-  return <TutorialContext.Provider value={{ panel: active ? step.panel : undefined, entry }}>
+  function move(next: number) { setTour(current => ({ ...current, index: next, entry: current.entry + 1 })) }
+  function completeAction(action: TutorialAction) {
+    if (!active || step.id !== action) return
+    setTour(current => current.active && steps[current.index].id === action && current.entry === entry
+      ? { active: true, index: current.index + 1, entry: current.entry + 1 }
+      : current)
+  }
+  return <TutorialContext.Provider value={{ panel: active ? step.panel : undefined, entry, completeAction }}>
     <div className={active && dockHeight !== null ? 'sim-tutorial-shell sim-tutorial-shell--docked' : 'sim-tutorial-shell'} style={{ '--sim-tutorial-space': `${dockHeight ?? 0}px` } as CSSProperties}>
     {children(<button className="sim-tutorial-restart" ref={restart} type="button" onClick={() => {
       opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      write('completed'); move(0); setActive(true)
+      write('completed'); setTour(current => ({ active: true, index: 0, entry: current.entry + 1 }))
     }}>Restart tutorial</button>)}
     {active && <>
       {target && <div className="sim-tutorial-highlight" aria-hidden="true" style={{ left: target.x - 4, top: target.y - 4, width: target.width + 8, height: target.height + 8 }} />}

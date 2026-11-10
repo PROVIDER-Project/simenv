@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
-import { mockPlayback, webUrl } from './playback-fixtures.mjs'
+import { mockPlayback, webUrl, origin, run } from './playback-fixtures.mjs'
 
 async function setup(viewport = { width: 1440, height: 1000 }, storageFails = false) {
   const browser = await chromium.launch({ headless: true })
@@ -117,12 +117,12 @@ test('missing completed-results target is acquired after explicit execution, exa
     assert.equal(submissions, 0, 'tour navigation never submits a simulation')
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click()
     await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
+    await assertStep(tour, 4)
     await page.waitForFunction(() => !document.querySelector('.sim-tutorial [role="status"]'))
     await page.getByRole('button', { name: 'View results', exact: true }).click()
     await page.waitForFunction(() => document.querySelector('[aria-label="Recorded run"]').value === 'second')
-    await tour.getByRole('heading', { name: 'Open the completed run' }).waitFor()
+    await tour.getByRole('heading', { name: 'Choose recorded playback' }).waitFor()
     assert.equal(submissions, 1)
-    await tour.getByRole('button', { name: 'Next', exact: true }).click()
     await page.getByRole('combobox', { name: 'Recorded run', exact: true }).selectOption('first')
     await tour.getByRole('heading', { name: 'Choose recorded playback' }).waitFor()
     await page.getByRole('combobox', { name: 'Recorded run', exact: true }).selectOption('second')
@@ -194,6 +194,149 @@ async function assertPointerReachable(locator) {
     return r.top >= 0 && r.bottom <= innerHeight + 1 && (hit === element || element.contains(hit))
   }, await locator.elementHandle())
 }
+
+const completedJob = { id: 'second', label: 'Submitted example', status: 'completed', error: null,
+  progress: { scenario_id: 1, step: 300, scenario_total_steps: 300, completed_steps: 300, total_steps: 300, percent_complete: 100 } }
+const queuedJob = { ...completedJob, status: 'queued', progress: { scenario_id: null, step: 0, scenario_total_steps: 300, completed_steps: 0, total_steps: 300, percent_complete: 0 } }
+
+async function moveTo(tour, step, language = 'en') {
+  const current = Number((await tour.locator('.sim-tutorial-bar > span').innerText()).split(' / ')[0])
+  for (let i = current; i < step; i++) await tour.getByRole('button', { name: language === 'de' ? 'Weiter' : 'Next', exact: true }).click()
+  for (let i = current; i > step; i--) await tour.getByRole('button', { name: language === 'de' ? 'Zurück' : 'Back', exact: true }).click()
+}
+async function assertStep(tour, step) {
+  await tour.locator('.sim-tutorial-bar > span').filter({ hasText: `${step} / 9` }).waitFor()
+  assert.equal(await tour.locator('.sim-tutorial-bar > span').innerText(), `${step} / 9`)
+}
+async function prepareCompleted(page) {
+  await page.route('**/api/simulations', route => route.fulfill({ status: 202, json: completedJob }))
+  const refreshed = page.waitForResponse(response => response.url().startsWith(`${origin}/runs`))
+  await page.getByRole('button', { name: 'Run simulation', exact: true }).click()
+  await refreshed
+  await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
+}
+async function holdResponse(page, url, json) {
+  let release, entered
+  const gate = new Promise(resolve => { release = resolve })
+  const started = new Promise(resolve => { entered = resolve })
+  await page.route(url, async route => { entered(); await gate; await route.fulfill({ json }) })
+  return { started, release }
+}
+
+for (const language of ['en', 'de']) {
+  test(`accepted queued execution and successful exact View results each advance once ${language}`, async () => {
+    const { browser, page, tour } = await setup()
+    try {
+      if (language === 'de') await tour.getByRole('button', { name: 'Deutsch', exact: true }).click()
+      await moveTo(tour, 3, language)
+      let submissions = 0
+      await page.route('**/api/simulations', route => { submissions++; return route.fulfill({ status: 202, json: queuedJob }) })
+      const poll = await holdResponse(page, '**/api/simulations/second', completedJob)
+      await page.getByRole('button', { name: 'Run simulation', exact: true }).click()
+      await assertStep(tour, 4)
+      assert.match(await page.getByRole('region', { name: 'Simulation execution' }).innerText(), /queued/)
+      await poll.started
+      poll.release()
+      await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
+      await assertStep(tour, 4)
+      await page.getByRole('button', { name: 'View results', exact: true }).click()
+      await assertStep(tour, 5)
+      assert.equal(await page.getByRole('combobox', { name: 'Recorded run', exact: true }).inputValue(), 'second')
+      assert.equal(await page.getByRole('combobox', { name: 'Recorded scenario', exact: true }).inputValue(), '1')
+      assert.equal(submissions, 1)
+    } finally { await browser.close() }
+  })
+}
+
+test('failed execution and results stay on their steps; successful retries advance', async () => {
+  const { browser, page, tour } = await setup()
+  try {
+    await moveTo(tour, 3)
+    await page.route('**/api/simulations', route => route.fulfill({ status: 503, json: { detail: 'Submission unavailable' } }))
+    await page.getByRole('button', { name: 'Run simulation', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'Submission unavailable' }).waitFor()
+    await assertStep(tour, 3)
+    await prepareCompleted(page)
+    await assertStep(tour, 4)
+    await page.route(`${origin}/runs?*`, route => route.fulfill({ status: 503, json: { detail: 'Results unavailable' } }))
+    await page.getByRole('button', { name: 'View results', exact: true }).click()
+    await page.getByRole('alert').waitFor()
+    await assertStep(tour, 4)
+    await page.unroute(`${origin}/runs?*`)
+    await page.getByRole('button', { name: 'View results', exact: true }).click()
+    await assertStep(tour, 5)
+  } finally { await browser.close() }
+})
+
+for (const action of ['execution', 'results']) {
+  for (const navigation of ['next', 'revisit', 'restart', 'close', 'finish', 'outside']) {
+    test(`pending ${action} cannot advance after ${navigation}`, async () => {
+      const { browser, page, tour } = await setup()
+      try {
+        const step = action === 'execution' ? 3 : 4
+        if (action === 'results') await prepareCompleted(page)
+        await moveTo(tour, navigation === 'outside' ? step - 1 : step)
+        const pending = await holdResponse(page, action === 'execution' ? '**/api/simulations' : `${origin}/runs?*`, action === 'execution' ? completedJob : { items: [run('first'), run('second')], total: 2 })
+        const button = page.getByRole('button', { name: action === 'execution' ? 'Run simulation' : 'View results', exact: true })
+        // Keyboard activation also exercises actions outside the highlighted step.
+        await button.focus(); await button.press('Enter')
+        await pending.started
+        await assertStep(tour, navigation === 'outside' ? step - 1 : step)
+        let expected = step
+        if (navigation === 'outside') await moveTo(tour, step)
+        else if (navigation === 'next') { await moveTo(tour, step + 1); expected++ }
+        else if (navigation === 'revisit') { await moveTo(tour, step - 1); await moveTo(tour, step) }
+        else if (navigation === 'restart') {
+          await page.getByRole('button', { name: 'Restart tutorial', exact: true }).focus()
+          await page.getByRole('button', { name: 'Restart tutorial', exact: true }).press('Enter')
+          await moveTo(tour, step)
+        } else if (navigation === 'finish') {
+          await moveTo(tour, 9)
+          await tour.getByRole('button', { name: 'Finish', exact: true }).click()
+        } else await tour.getByRole('button', { name: 'Close for session', exact: true }).click()
+        pending.release()
+        await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
+        if (action === 'results') await page.waitForFunction(() => document.querySelector('[aria-label="Recorded run"]').value === 'second')
+        if (navigation === 'close' || navigation === 'finish') assert.equal(await tour.count(), 0)
+        else await assertStep(tour, expected)
+      } finally { await browser.close() }
+    })
+  }
+}
+
+test('results superseded by manual recorded run selection do not advance', async () => {
+  const { browser, page, tour } = await setup()
+  try {
+    await prepareCompleted(page)
+    await moveTo(tour, 4)
+    const pending = await holdResponse(page, `${origin}/runs?*`, { items: [run('first'), run('second')], total: 2 })
+    await page.getByRole('button', { name: 'View results', exact: true }).click()
+    await pending.started
+    const selector = page.getByRole('combobox', { name: 'Recorded run', exact: true })
+    await selector.focus(); await selector.selectOption('second')
+    pending.release()
+    // Aborting the real fetch rejects before App's post-fetch selection check.
+    await page.getByRole('alert').waitFor()
+    await assertStep(tour, 4)
+    assert.equal(await selector.inputValue(), 'second')
+  } finally { await browser.close() }
+})
+
+test('job polling completion never advances execution entered after submission', async () => {
+  const { browser, page, tour } = await setup()
+  try {
+    await moveTo(tour, 2)
+    await page.route('**/api/simulations', route => route.fulfill({ status: 202, json: queuedJob }))
+    const poll = await holdResponse(page, '**/api/simulations/second', completedJob)
+    const button = page.getByRole('button', { name: 'Run simulation', exact: true })
+    await button.focus(); await button.press('Enter')
+    await poll.started
+    await moveTo(tour, 3)
+    poll.release()
+    await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
+    await assertStep(tour, 3)
+  } finally { await browser.close() }
+})
 
 for (const viewport of [{ width: 844, height: 390 }, { width: 320, height: 568 }]) {
   for (const language of ['en', 'de']) {

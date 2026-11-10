@@ -54,6 +54,12 @@ reveals the target, but never changes scenario inputs, submits a simulation,
 chooses another run or seeks playback. **Run simulation** is your explicit action;
 automatic reference preparation is separate, existing playback behavior.
 
+- At step 3, explicitly clicking **Run simulation** advances to step 4 once the
+  API accepts the job, including queued jobs. At step 4, **View results** advances
+  to step 5 only after successfully opening that exact job's scenario 1. Errors
+  keep the current step. Pending actions from an earlier step entry are ignored
+  after manual navigation, restart or close, even if you return to that step.
+  **Back/Next** still work without submitting or opening results.
 - **Close for session** or Escape dismisses the popup for the current page
   session. Reload restarts an unfinished tour at step 1, not the previous step.
 - **Finish** on the last step remembers completion in this browser/site so the

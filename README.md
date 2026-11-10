@@ -55,7 +55,11 @@ On a first visit, a nine-step tutorial highlights scenario editing, execution,
 recorded-run selection, time navigation and impact inspection. **English** and
 **Deutsch** inside the popup switch its guidance and remember your language;
 this does not translate the whole interface. Navigate freely with **Back/Next**:
-the tour never edits inputs or submits a simulation. **Close for session** (or
+the tour never edits inputs or submits a simulation. On step 3, explicitly clicking
+**Run simulation** advances to step 4 once the job is accepted, even while queued.
+On step 4, **View results** advances to step 5 only after successfully opening that
+job's scenario 1. Errors leave the step unchanged; pending actions cannot advance
+an old step after manual navigation, restart or close. **Close for session** (or
 Escape) dismisses it until reload; unfinished tours restart from the beginning.
 **Finish** remembers completion in this browser for this site, while the top
 **Restart tutorial** button starts again with the remembered language. If browser

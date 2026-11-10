@@ -155,6 +155,14 @@ continue and return later. The tour never edits inputs, submits a simulation,
 switches the selected run or moves the playback time. Automatic disruption-free
 reference preparation remains normal playback behavior, not a tutorial action.
 
+At step 3, explicitly clicking **Run simulation** advances to step 4 when the API
+accepts the job, even while queued; it does not wait for completion. At step 4,
+**View results** advances to step 5 only after successfully opening that exact
+job's scenario 1. Submission or results-opening errors leave the step unchanged.
+Manual navigation, restart or close invalidates pending auto-advance from the old
+step entry, even if you return to the same step. **Back/Next** remain freely
+available without submitting a job or opening results.
+
 **Close for session** or Escape dismisses the tour for this page session. Reload
 starts an unfinished tour again at step 1. **Finish** on the last step stores
 completion locally in this browser for this site, suppressing automatic start on
@@ -183,6 +191,31 @@ sharing the database, and **View results** to open that exact job's scenario 1.
 Existing recordings can be explored without submitting a new job.
 
 ### Tutorial review evidence
+
+Current step 3/4 guidance at **1275 × 605**, device scale factor 1:
+
+| State | Capture |
+| --- | --- |
+| Step 3, English: automatic advance explained; Run simulation highlighted before explicit submission | [Execution guidance](tutorial-execution-auto-advance.png) |
+| Step 4, Deutsch: reached automatically after accepted submission; completed View results button highlighted | [Results guidance](tutorial-results-auto-advance.png) |
+
+These two captures use the issue #79 working tree based on `37dfe1d`, including
+the uncommitted auto-advance changes, served on port 5179. They are **mocked
+browser fixtures, not real simulation results**. The script uses the existing
+recorded-response fixture (initial run `first`, scenario 1), explicitly clicks
+**Run simulation**, and intercepts submission with HTTP 202 and a completed job
+`second`. It captures step 4 before clicking **View results**, then verifies that
+clicking it advances to step 5 with run `second`, scenario 1 selected. No request
+is submitted to a real simulation service. Older captures below predate this copy.
+
+Reproduce only these two PNGs from `web/` with the current recorded-mode Vite
+server running (no baseline or static server needed):
+
+```bash
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial-auto-advance.mjs
+```
 
 | State | Desktop (1440 × 1000) | Mobile (390 × 844) |
 | --- | --- | --- |

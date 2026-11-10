@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { inspectSimulation, submitSimulation, type SimulationJob, type SimulationSubmission } from './simulationApi'
+import { useTutorialAction } from '../tutorial/context'
 
 interface SimulationRunnerProps {
   submission: SimulationSubmission
@@ -13,6 +14,8 @@ function message(error: unknown): string {
 }
 
 export default function SimulationRunner({ submission, hidden, onCompleted, onViewResults }: SimulationRunnerProps) {
+  const completeExecution = useTutorialAction('execution')
+  const completeResults = useTutorialAction('results')
   const notified = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [job, setJob] = useState<SimulationJob | null>(null)
@@ -73,7 +76,10 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
     openGeneration.current++
     try {
       const next = await submitSimulation(submission, controller.signal)
-      if (!controller.signal.aborted) setJob(next)
+      if (!controller.signal.aborted) {
+        setJob(next)
+        completeExecution()
+      }
     } catch (error) {
       if (!controller.signal.aborted) setSubmissionError(message(error))
     } finally {
@@ -86,7 +92,10 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
     if (!job || job.status !== 'completed' || opening || !onViewResults) return
     const generation = ++openGeneration.current
     setOpening(true); setOpeningError(null)
-    try { await onViewResults(job.id) }
+    try {
+      await onViewResults(job.id)
+      if (openGeneration.current === generation) completeResults()
+    }
     catch (error) { if (openGeneration.current === generation) setOpeningError(message(error)) }
     finally { if (openGeneration.current === generation) setOpening(false) }
   }
