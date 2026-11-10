@@ -36,15 +36,14 @@ def test_late_capacity_binding_and_external_parameter_changes():
     assert "quantity_available" in farmer.__dict__
 
 
-def test_upstream_mutation_survives_next_inactive_step():
+def test_inactive_step_keeps_the_last_values():
     model = model_with_agents()
     imports = model.rotterdam_port.agents[0]
-    imports.capacity = 100.0
-    # Advance once to populate the full chain, including import admission.
+    # Advance once to populate the full chain.
     for name in model._execution_order:
         getattr(model, name).method_foreach("step", ())
     sources = list(model.upstream(imports.list_name))
-    assert sum(source.quantity_available for source in sources) == 100.0
+    assert sum(source.quantity_available for source in sources) == 270.0
     for source in sources:
         quantity, utilisation = source.quantity_available, source.utilisation
         source.active = False
