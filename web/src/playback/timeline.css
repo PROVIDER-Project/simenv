@@ -36,6 +36,19 @@
   background: rgba(67, 183, 255, 0.26);
 }
 
+.sim-timeline-transport { flex: none; display: grid; gap: 4px; }
+.sim-timeline-buttons { display: flex; align-items: center; gap: 3px; }
+.sim-timeline-small {
+  width: 24px; height: 24px; padding: 0; flex: none;
+  border: 1px solid var(--sim-color-border); border-radius: 5px;
+  background: rgba(67, 183, 255, 0.12); color: var(--sim-color-text);
+  font: 600 16px/1 var(--sim-font-mono); cursor: pointer;
+}
+.sim-timeline-small:disabled { opacity: .4; cursor: default; }
+.sim-timeline-small:hover:not(:disabled) { background: rgba(67, 183, 255, .26); }
+.sim-timeline button:focus-visible { outline: 2px solid var(--sim-color-accent-bright); outline-offset: 2px; }
+.sim-timeline-speed { width: 35px; text-align: center; font: 500 10px/1 var(--sim-font-mono); font-variant-numeric: tabular-nums; }
+
 .sim-timeline-track {
   flex: 1;
   min-width: 0;
@@ -91,6 +104,8 @@
 
   .sim-timeline-readout {
     font-size: 10px;
-    gap: 7px;
+    gap: 4px;
   }
+
+  .sim-timeline-sep { display: none; }
 }

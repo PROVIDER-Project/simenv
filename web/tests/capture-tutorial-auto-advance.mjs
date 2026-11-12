@@ -20,9 +20,9 @@ try {
   await page.goto(webUrl)
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
   const tour = page.getByRole('region', { name: 'Interactive tutorial' })
-  for (let i = 0; i < 2; i++) await tour.getByRole('button', { name: 'Next', exact: true }).click()
-  async function capture(step, target, filename) {
-    assert.equal(await tour.locator('.sim-tutorial-bar > span').innerText(), `${step} / 9`)
+  while (await tour.getAttribute('data-step') !== 'execution') await tour.getByRole('button', { name: 'Next', exact: true }).click()
+  async function capture(target, filename) {
+    assert.equal(await tour.getAttribute('data-step'), target)
     await page.waitForFunction(id => {
       const target = document.querySelector(`[data-tutorial="${id}"]`)
       const highlight = document.querySelector('.sim-tutorial-highlight')
@@ -33,17 +33,17 @@ try {
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(500)
     await page.screenshot({ path: `../docs/${filename}.png` })
-    console.log(`Captured ${filename}.png: step ${step}, mocked fixtures, 1275x605`)
+    console.log(`Captured ${filename}.png: ${target}, mocked fixtures, 1275x605`)
   }
   await tour.getByRole('heading', { name: 'Execute and monitor', exact: true }).waitFor()
-  await capture(3, 'execution', 'tutorial-execution-auto-advance')
+  await capture('execution', 'tutorial-execution-auto-advance')
   assert.equal(submissions, 0)
   await page.getByRole('button', { name: 'Run simulation', exact: true }).click()
   await tour.getByRole('heading', { name: 'Open the completed run', exact: true }).waitFor()
   await page.getByRole('button', { name: 'View results', exact: true }).waitFor()
   await tour.getByRole('button', { name: 'Deutsch', exact: true }).click()
   await tour.getByRole('heading', { name: 'Abgeschlossenen Lauf öffnen', exact: true }).waitFor()
-  await capture(4, 'results', 'tutorial-results-auto-advance')
+  await capture('results', 'tutorial-results-auto-advance')
   await page.getByRole('button', { name: 'View results', exact: true }).click()
   await tour.getByRole('heading', { name: 'Aufzeichnung auswählen', exact: true }).waitFor()
   assert.equal(await page.getByRole('combobox', { name: 'Recorded run', exact: true }).inputValue(), 'second')

@@ -21,7 +21,8 @@ configurator); the page-flow threshold remains conservatively at 1160px.
 At 1275px, the center is 575px wide, gaining the 100px freed by the configurator.
 Both sidebars start 24px from the
 application top and span the header, globe and timeline rows with their own
-scrolling. The title and **Restart tutorial** stay in a normal-flow center header;
+scrolling. **Restart tutorial** shares the title row in a normal-flow center
+header, anchored to its right edge, 16px from the desktop configurator;
 the timeline stays between the sidebars. Below
 1160px of available application width or at 540px available height or less, the
 controls switch to scrollable page flow. Tutorial docking can reduce that
@@ -43,11 +44,33 @@ See [matched responsive captures](../docs/playback.md#responsive-playback-layout
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
 
+### Playback controls
+
+The timeline's compact **− / +** buttons (**Slower playback / Faster playback**)
+select **0.25×, 0.5×, 1×, 2× or 4×**, default **1×**. The nominal delay per recorded
+step is **60 ms / speed** (240, 120, 60, 30 or 15 ms); loading/rendering can slow
+the observed pace. Changing speed preserves the current playing/paused state and
+changes viewing pace only. The preference lives above keyed playback remounts,
+so it survives run/scenario changes for this page session; reload resets it to 1×.
+The slower/faster button is disabled at its respective preset limit.
+
+**Previous simulation step / Next simulation step** move one step backward/forward
+and always pause, even at the first/last step or while buffering. Each click
+adjusts the latest requested target, including an automatic target still loading,
+rather than the last displayed frame; repeated clicks accumulate or reverse that
+request. Targets clamp to the scene's recorded minimum/maximum without wrapping.
+Measurements and colors hold together until the requested pair is ready, and
+loading does not resume playback after a manual step. Autoplay retains its
+last-to-first wrap. The slider also pauses when seeking.
+
 ### Interactive tutorial
 
-The first visit automatically opens a nine-step highlighted tour from scenario
+The first visit automatically opens an eleven-step highlighted tour from scenario
 name and disruption settings through execution, **View results**, recorded
-selection, timeline, reference/legend, component evidence and network indicators.
+selection, timeline, speed, manual stepping, reference/legend, component evidence
+and network indicators. Steps 7 and 8 explain speed and stepping in English and
+Deutsch; component guidance covers recorded originator metrics, temporary sea-arc
+colors and unavailable local port measurements.
 Use **Back/Next** freely, including when a target is not available yet; return
 when its data is ready. The tutorial opens relevant panels on step entry and
 reveals the target, but never changes scenario inputs, submits a simulation,
@@ -71,7 +94,8 @@ automatic reference preparation is separate, existing playback behavior.
   work in the current page session. Completion/language cannot survive reload.
 - The popup is a labeled, non-modal region: Tab/Shift+Tab can reach both its
   buttons and application controls. Use Enter/Space on buttons, and native
-  keyboard controls on sliders/selects. Step entry focuses the heading; dismissal
+  keyboard controls on sliders/selects. Step entry focuses the static heading
+  without a textbox-like outline; buttons retain visible keyboard focus. Dismissal
   returns focus to the opener or **Restart tutorial**. Component inspection has
   a dropdown alternative to globe interaction. Narrow/short screens keep the
   popup scrollable and may reserve space above the application for it.
@@ -129,8 +153,8 @@ next run**; they do not change the displayed recorded results.
 
 The **Disturbance impact** panel provides a shared traffic-light legend, a
 **Reference condition** selector, and a keyboard-accessible **Inspect component**
-list (including unplaced/unrecorded components). Globe marker clicks select the
-same details. Details show the strongest metric/agent, individual current and
+list (including unplaced/unrecorded components and all ports). Globe marker clicks
+select the same details. Details show the strongest metric/agent, individual current and
 reference values, percentage changes, and missing-data explanations. Pooled
 components and multi-agent strongest-status aggregation are explicit.
 
@@ -181,10 +205,23 @@ including when coordinates come from the fallback gazetteer.
   Processing input offered/processed are optional decrease indicators;
   unused input is diagnostic only. Historical metrics absent on both sides are
   unsupported rather than invented.
-- Connections inherit source status only, labeled **inferred upstream status**.
-  Network-average transport utilization does not measure a particular port/route.
+- Ports, markers, labels and route geometry are preserved, including
+  **Santos → Rotterdam** and **Paranaguá → Hamburg**. A **temporary color-only
+  override** applies to a sea edge whose source is an explicitly unrecorded
+  transport: all incoming edges must be non-sea links from the same single
+  recorded wholesaler. It uses that originator's assessment unchanged, without
+  recursive traversal. Unsupported, mixed, ambiguous or return paths stay gray.
+  Other arcs, including Argentina/US, retain immediate-source coloring.
+  All ports remain inspectable; unrecorded ports keep gray markers and unavailable
+  local measurements. Inspect the originator's recorded asking price, supply
+  availability and storage/handling pressure for the sea-arc color's evidence,
+  not a measurement of local congestion. **Remove this override and restore proper
+  local transport-metric coloring once missing port/route recordings are fixed.**
+  Raw scenes, recordings, reference matching and API responses remain unchanged;
+  no port values are invented.
   The timeline synchronizes soy/feed prices, soy supply and average transport
-  utilization with playback. Placement annotations and selection rings are separate.
+  utilization with playback. The last is network-wide, not a route measurement.
+  Placement annotations and selection rings are separate.
 
 Playback presents current/reference measurements as one matched pair. If a page
 is still loading, the displayed step, colors and values hold together until the

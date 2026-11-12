@@ -15,7 +15,7 @@ interface Failure { key: object; message: string }
 const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
 /** Current/reference measurements are committed as one coherent display snapshot. */
-export function usePlayback(source: PlaybackSource, runId: string, scenarioId: number, choice: ReferenceChoice = 'start') {
+export function usePlayback(source: PlaybackSource, runId: string, scenarioId: number, choice: ReferenceChoice = 'start', speed = 1) {
   const [initialRetry, setInitialRetry] = useState(0)
   const [referenceRetry, setReferenceRetry] = useState(0)
   const [retry, setRetry] = useState(0)
@@ -93,14 +93,21 @@ export function usePlayback(source: PlaybackSource, runId: string, scenarioId: n
       active.cache.prefetch(nextPage)
       resource?.loader.prefetch(nextPage)
     }
-    const timer = window.setTimeout(() => setTarget(next), 60)
+    const timer = window.setTimeout(() => setTarget(next), 60 / speed)
     return () => window.clearTimeout(timer)
-  }, [playing, valid, active, buffering, error, target, resource])
+  }, [playing, valid, active, buffering, error, target, resource, speed])
 
   const seek = useCallback((period: number) => {
     setPlaying(false); setTarget(period); setRetry(value => value + 1)
   }, [])
+  const step = useCallback((direction: -1 | 1) => {
+    setPlaying(false)
+    if (!active) return
+    setTarget(period => Math.max(active.scene.min_period, Math.min(active.scene.max_period, period + direction)))
+    setRetry(value => value + 1)
+  }, [active])
   return { scene: active?.scene ?? null, baseline: active?.baseline ?? null, frame, playing, buffering, error, seek,
+    step,
     retryPlayback: () => active ? setRetry(value => value + 1) : setInitialRetry(value => value + 1),
     toggle: () => setPlaying(value => !value),
     reference: { frame: referenceFrame, loading: buffering,

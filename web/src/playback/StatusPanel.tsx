@@ -9,7 +9,8 @@ export function StatusLegend() {
     <details><summary>Thresholds &amp; metric rules</summary>
     <p>Relative adverse change: green through 5%, amber at 20%, red at 50%, interpolated between anchors. Capacity: green below 80%, amber at 80%, red at 95%. Illustrative workshop thresholds, pending domain calibration.</p>
     <p>Overview = strongest applicable metric of the strongest individual agent. Incomplete evidence is labeled; healthy evidence plus missing comparisons is gray.</p>
-    <p>Connections: inferred upstream status, inherited from their source only. Gray sources give gray connections. Network-average transport utilization does not measure individual ports or routes.</p>
+    <p>Connections normally inherit their immediate source’s status. Temporary workaround for missing port/route recordings: ocean arcs from an unrecorded transport component use its single directly connected recorded grain originator’s status when all incoming links are non-ocean links from that originator. Port-to-port geometry and labels stay unchanged; port markers and measured details remain unavailable. Inspect the originator for the contributing metric and agent.</p>
+    <p>Remove this color override once local transport data is recorded. Arc colors are upstream inference, not measured port or route conditions; local disruptions may remain invisible when originator conditions stay normal. Unsupported or ambiguous sources keep ordinary source coloring. The target is never used, and network-average transport utilization does not measure individual ports or routes.</p>
     <p>Lower availability alone does not prove unmet demand. Storage/handling pressure is not production utilization or persistent warehouse inventory. Geographic placement annotations and selection rings are separate from status.</p>
     </details>
   </section>

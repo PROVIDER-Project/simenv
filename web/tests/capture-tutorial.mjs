@@ -49,7 +49,7 @@ try {
   await page.goto(webUrl)
   await pause(page)
   const tour = page.getByRole('region', { name: 'Interactive tutorial' })
-  for (let i = 0; i < 7; i++) await tour.getByRole('button', { name: 'Next', exact: true }).click()
+  while (await tour.getAttribute('data-step') !== 'component') await tour.getByRole('button', { name: 'Next', exact: true }).click()
   await page.getByRole('combobox', { name: 'Reference condition' }).selectOption('start')
   await page.getByRole('combobox', { name: 'Inspect component' }).selectOption('brazil_farms')
   await page.locator('.sim-playback-sidebar').evaluate(el => { el.scrollTop += 320 })
