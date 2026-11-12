@@ -3,10 +3,11 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { readFile } from 'node:fs/promises'
 
-await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
+await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/staticPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
 const { createPlaybackBuffer } = await import('../.test-build/playback/buffer.js')
 const { projectFrame } = await import('../.test-build/playback/frame.js')
-const { parseFramePage } = await import('../.test-build/data/httpPlaybackSource.js')
+const { parseFramePage, createHttpPlaybackSource } = await import('../.test-build/data/httpPlaybackSource.js')
+const { createStaticPlaybackSource } = await import('../.test-build/data/staticPlaybackSource.js')
 const { referenceCompatibility } = await import('../.test-build/playback/reference.js')
 const { createReferenceLoader } = await import('../.test-build/playback/referenceLoader.js')
 const { presentScene, entityDisplayName } = await import('../.test-build/data/presentation.js')
@@ -160,96 +161,124 @@ test('shipped presentation preserves all ports, edges, labels and marker geometr
   assert.equal(referenceCompatibility(raw, { ...display, scenario_id: 0 }), null)
 })
 
-test('temporary ocean coloring reuses the exact originator assessment without changing port measurements or frames', () => {
+const transportNormal = { effective_capacity: 1000, quantity_available: 70, unit_price: 100, utilisation: .7, active: 1, capacity: 1000 }
+const transport = (values = transportNormal, role = 'land_transport', id = 'port', agentId = 3) => agent(values, agentId, role, id)
+
+test('transport capacity loss colors the local port and outgoing arc independently of its wholesaler', () => {
   const scene = displayFixture()
-  const reference = [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')]
-  for (const [values, score, coverage] of [
-    [{ ...normal, storage_utilization: .2 }, 0, 'complete'],
-    [{ ...normal, quantity_available: 50, storage_utilization: .2 }, 1, 'complete'],
-    [{ quantity_available: 50 }, 1, 'partial'],
-    [{}, null, 'unavailable'],
-    [null, null, 'unavailable'],
-  ]) {
-    const current = values ? [agent(values, 7, 'wholesaler', 'a')] : []
+  scene.nodes[1].hasRecordedData = true
+  const origin = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const reference = [origin, transport()]
+  for (const [effective_capacity, score] of [[200, 1], [0, 1], [800, .5], [1000, 0]]) {
+    const current = [origin, transport({ ...transportNormal, effective_capacity })]
     const original = structuredClone({ scene, current, reference })
     const result = projection(current, reference, scene)
-    assert.equal(result.edges['port->x'], result.nodes.a)
+    assert.equal(result.markerIntensity.port, score)
     assert.equal(result.edgeIntensity['port->x'], score)
-    assert.equal(result.edges['port->x'].coverage, coverage)
-    assert.equal(result.nodes.port.score, null)
-    assert.equal(result.markerIntensity.port, null)
-    assert.equal(result.markerIntensity.x, null)
-    assert.deepEqual(result.nodes.port.agents, [])
-    if (score === 1) {
-      assert.equal(result.edges['port->x'].winner.metric.key, 'quantity_available')
-      assert.equal(result.edges['port->x'].winner.agent.agent_id, 7)
-    }
+    assert.equal(result.edges['port->x'], result.nodes.port)
+    assert.equal(result.markerIntensity.a, 0)
+    assert.equal(result.markerIntensity.x, null, 'source evidence does not fabricate downstream harm')
+    assert.equal(result.nodes.port.coverage, 'complete')
+    assert.equal(result.nodes.port.winner.metric.key, 'effective_capacity')
+    assert.equal(result.nodes.port.winner.agent.agent_id, 3)
     assert.deepEqual({ scene, current, reference }, original)
   }
+  const result = projection([agent({ ...origin.values, quantity_available: 50 }, 7, 'wholesaler', 'a'), transport()], reference, scene)
+  assert.equal(result.markerIntensity.a, 1)
+  assert.equal(result.edgeIntensity['a->port'], 1)
+  assert.equal(result.markerIntensity.port, 0)
+  assert.equal(result.edgeIntensity['port->x'], 0)
 })
 
-test('one-hop ocean coloring accepts duplicate links from one recorded originator and explicit transport roles', () => {
-  const state = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
-  const base = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
-  for (const role of ['land_transport', 'sea_transport', 'port']) {
-    const scene = displayFixture()
-    scene.nodes[1].role = role
-    scene.edges.push({ ...connection('a', 'port'), id: 'duplicate-feeder' })
-    const result = projection([state], [base], scene)
-    assert.equal(result.edges['port->x'], result.nodes.a)
-    assert.equal(result.edgeIntensity['port->x'], 1)
-    assert.equal(result.edges['a->port'], result.nodes.a, 'ordinary feeder coloring is unchanged')
+test('both transport roles score output, price, utilization and participation with nominal capacity diagnostic only', () => {
+  for (const role of ['land_transport', 'sea_transport']) {
+    for (const [changes, score, key] of [
+      [{ quantity_available: 35 }, 1, 'quantity_available'],
+      [{ unit_price: 120 }, .5, 'unit_price'],
+      [{ utilisation: .79 }, 0, 'effective_capacity'],
+      [{ utilisation: .8 }, .5, 'utilisation'],
+      [{ utilisation: .95 }, 1, 'utilisation'],
+      [{ active: 0 }, 1, 'active'],
+      [{ capacity: 0 }, 0, 'effective_capacity'],
+    ]) {
+      const result = projection([transport({ ...transportNormal, ...changes }, role)], [transport(transportNormal, role)]).nodes.port
+      assert.equal(result.score, score, `${role}: ${JSON.stringify(changes)}`)
+      assert.equal(result.winner.metric.key, key)
+      const metrics = result.agents[0].metrics
+      assert.equal(metrics.find(metric => metric.key === 'quantity_available').label, 'Transport output available')
+      assert.equal(metrics.find(metric => metric.key === 'unit_price').label, 'Transport output asking price')
+      assert.equal(metrics.find(metric => metric.key === 'capacity').score, null)
+    }
   }
 })
 
-test('unsupported or ambiguous incoming evidence leaves ordinary immediate-source coloring intact', () => {
-  const unsupported = [
-    scene => { scene.nodes[1].hasRecordedData = true },
-    scene => { delete scene.nodes[1].hasRecordedData },
-    scene => { scene.nodes[1].role = 'processor' },
-    scene => { scene.nodes[0].role = 'producer' },
-    scene => { scene.nodes[0].hasRecordedData = false },
-    scene => { delete scene.nodes[0].hasRecordedData },
-    scene => { scene.edges[0].isSeaCrossing = true },
-    scene => { scene.edges[1].isSeaCrossing = false },
-    scene => { delete scene.edges[0].isSeaCrossing },
-    scene => { scene.edges.push(connection('missing', 'port')) },
-    scene => { scene.edges[0].source = 'missing' },
-    scene => { scene.edges[1].target = 'a' },
-    scene => { scene.edges.push(connection('port', 'port')) },
-    scene => { scene.edges.shift() },
-    scene => { scene.nodes.push(component('branch')); scene.edges.push(connection('branch', 'port')) },
-    scene => { scene.nodes.push(component('b', 'wholesaler')); scene.edges.push(connection('b', 'port')) },
-    scene => { scene.edges.push(seaConnection('a', 'port', 'mixed-mode-feeder')) },
-  ]
-  const state = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
-  const base = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
-  for (const change of unsupported) {
-    const scene = displayFixture()
-    change(scene)
-    const result = projection([state], [base], scene)
-    const ocean = scene.edges.find(edge => edge.id === 'port->x')
-    assert.equal(result.edges[ocean.id], result.nodes.port, change.toString())
-    assert.equal(result.edges[ocean.id].score, null)
+test('transport missing and zero comparisons preserve adverse partial evidence without inventing healthy status', () => {
+  for (const [values, reference, score, coverage] of [
+    [{ ...transportNormal, effective_capacity: 0 }, transportNormal, 1, 'complete'],
+    [transportNormal, { ...transportNormal, effective_capacity: 0 }, null, 'partial'],
+    [{ ...transportNormal, effective_capacity: 0 }, { ...transportNormal, effective_capacity: 0 }, null, 'partial'],
+    [{ ...transportNormal, unit_price: 0 }, transportNormal, null, 'partial'],
+    [{ effective_capacity: 200 }, transportNormal, 1, 'partial'],
+    [{ quantity_available: 70 }, transportNormal, null, 'partial'],
+    [transportNormal, null, null, 'partial'],
+    [{ utilisation: .95 }, null, 1, 'partial'],
+    [{ active: 0 }, null, 1, 'partial'],
+    [{}, transportNormal, null, 'unavailable'],
+  ]) {
+    const result = projection([transport(values)], reference ? [transport(reference)] : null).nodes.port
+    assert.equal(result.score, score, JSON.stringify({ values, reference }))
+    assert.equal(result.coverage, coverage)
+  }
+  for (const reference of [transport(transportNormal, 'sea_transport'), transport(transportNormal, 'land_transport', 'port', 4)]) {
+    assert.equal(projection([transport()], [reference]).nodes.port.score, null, 'reference identity must match exactly')
   }
 })
 
-test('ocean workaround never traverses ancestors, borrows target or network evidence, or overrides a recorded source', () => {
+test('historical ports and missing local agents never borrow wholesaler, target, hidden sea or network status', () => {
   const scene = displayFixture()
-  scene.nodes.push(component('farm'))
-  scene.edges.push(connection('farm', 'a'))
-  const farm = agent({ ...normal, quantity_available: 50 }, 0, 'producer', 'farm')
-  const target = agent({ ...normal, quantity_available: 50 }, 0, 'producer', 'x')
-  const environment = agent({ transport_utilisation: 1 }, 0, 'environment', 'environment')
-  const result = projection([farm, target, environment], [agent(normal, 0, 'producer', 'farm')], scene)
-  assert.equal(result.nodes.farm.score, 1)
-  assert.equal(result.edges['port->x'], result.nodes.a)
-  assert.equal(result.edgeIntensity['port->x'], null, 'missing immediate originator evidence is not bypassed')
-  scene.nodes[1].hasRecordedData = true
-  const port = agent(normal, 0, 'producer', 'port')
-  const known = projection([farm, port], [agent(normal, 0, 'producer', 'farm'), port], scene)
-  assert.equal(known.edges['port->x'], known.nodes.port)
-  assert.equal(known.edgeIntensity['port->x'], 0, 'recorded source assessments remain authoritative')
+  const origin = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const others = [origin, transport({ ...transportNormal, effective_capacity: 0 }, 'sea_transport', 'sea_transport_port__x'),
+    transport({ ...transportNormal, utilisation: 1 }, 'land_transport', 'x'),
+    agent({ transport_utilisation: 1 }, 0, 'environment', 'environment')]
+  for (const recorded of [false, true]) {
+    scene.nodes[1].hasRecordedData = recorded
+    const current = recorded ? others : [...others, transport()]
+    const result = projection(current, [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a'), ...others.slice(1), transport()], scene)
+    assert.equal(result.nodes.a.score, 1)
+    assert.equal(result.markerIntensity.port, null)
+    assert.equal(result.edgeIntensity['port->x'], null)
+    assert.equal(result.edges['port->x'], result.nodes.port)
+    if (!recorded) assert.deepEqual(result.nodes.port.agents, [], 'historical metadata is not bypassed')
+  }
+  const currentScene = { ...scene, scenario_id: 1, min_period: 0, max_period: 10 }
+  const historical = structuredClone({ ...currentScene, scenario_id: 0 })
+  historical.nodes[1].hasRecordedData = false
+  assert.match(referenceCompatibility(currentScene, historical), /structure/)
+})
+
+test('HTTP and static consumers retain transport measurements through local-source projection', async t => {
+  const localScene = { ...displayFixture(), run_id: 'r', scenario_id: 1, min_period: 0, max_period: 1, pdl: 'fixture.pdl.yaml', honesty_note: 'Fixture' }
+  localScene.nodes[1].hasRecordedData = true
+  const reference = { period: 0, agents: [transport()] }
+  const current = { period: 1, agents: [transport({ ...transportNormal, effective_capacity: 200, unit_price: 100.123456789012345 })] }
+  const page = { run_id: 'r', scenario_id: 1, start: 0, next_start: null, frames: [reference, current] }
+  const bundle = { nodes: localScene.nodes, edges: localScene.edges,
+    meta: { pdl: 'fixture.pdl.yaml', scenario: 'fixture', ticks: 2, generatedAt: 'recorded', honestyNote: 'Fixture' },
+    ticks: page.frames.map(frame => ({ period: frame.period, nodeId: 'port', values: frame.agents[0].values })),
+    env: page.frames.map(frame => ({ period: frame.period, soyPrice: 10, feedPrice: 20, shockScale: 1, droughtSeverity: 0, totalSoySupply: 100, transportUtilisation: .7, currentStep: frame.period })) }
+  const original = structuredClone({ localScene, page, bundle })
+  t.mock.method(globalThis, 'fetch', async url => new Response(JSON.stringify(url === '/bundle.json' ? bundle : url.endsWith('/scene') ? localScene : page)))
+  for (const [source, runId] of [[createHttpPlaybackSource('http://fixture'), 'r'], [createStaticPlaybackSource(), 'demo']]) {
+    const parsedScene = await source.getScene(runId, 1)
+    const parsedPage = await source.getFrames(runId, 1, 0, 2)
+    const result = projectFrame(parsedScene, parsedPage.frames[1], parsedPage.frames[0])
+    assert.equal(result.markerIntensity.port, 1)
+    assert.equal(result.edgeIntensity['port->x'], 1)
+    assert.equal(result.nodes.port.agents[0].metrics.find(metric => metric.key === 'unit_price').current, 100.123456789012345)
+    assert.equal(result.nodes.port.winner.metric.key, 'effective_capacity')
+    assert.deepEqual(parsedScene.edges, localScene.edges)
+  }
+  assert.deepEqual({ localScene, page, bundle }, original)
 })
 
 test('wire validation preserves precision and rejects nonfinite and duplicate agent states', () => {

@@ -150,6 +150,59 @@ The static globe bundle retains its existing public fields and valid JSON;
 recorded-run playback exposes the raw additional metrics. See
 [database schema](postgres-schema.md).
 
+### Santos capacity investigation (Issue #84)
+
+The missing port data was an observability omission: the collector's role map
+excluded both `land_transport` and `sea_transport`. Those agents already executed
+their transport decisions and capacity constraints. Both CSV and PostgreSQL now
+record `quantity_available`, `unit_price`, `utilisation`, `capacity`,
+`effective_capacity` and `active` for each individual transport agent. This change
+adds recording and local status evidence; **it does not change the economic
+equations or routing rules**.
+
+`effective_capacity = capacity * effective("capacity")` is a read-only adapter
+property: nominal capacity multiplied by the resolved own-entity supply effect.
+It is shock-adjusted, **not active-adjusted**, and is not new mutable
+provider-owned state. `active` records participation separately. Transport
+`quantity_available` is output available after handling/admission, not a queued
+shipment count; `unit_price` is an output asking price, not a transaction price.
+Recorded `utilisation` is output divided by effective capacity, with zero at a
+zero ceiling. Nominal capacity is diagnostic, not a congestion score.
+
+In the default illustrative configuration, Santos has **500 units/step** nominal
+capacity. Brazil offers 100 units/step and the fixed Santos route weight is 0.7:
+its route offer is **100 × 0.7 = 70**. A 40% drought loss reduces Brazil's offer
+to 60, making the route offer **60 × 0.7 = 42**. An **80% capacity reduction**
+leaves **500 × 0.2 = 100** units/step. Both 70 and 42 fit beneath that ceiling,
+so the capacity shock alone does not reduce their output. Without drought,
+utilization rises from **70/500 = 14%** to **70/100 = 70%**, below the absolute
+80% amber threshold. With drought it is **42/100 = 42%**. Missing recordings
+explained the absent local evidence, not the lack of a binding throughput effect.
+
+The controlled onset/recovery regression in `tests/test_transport_recording.py`
+isolates this capacity shock from other disruptions. At Brazil yield **100**,
+Santos output stays **70** and EU feed-distributor output stays **240**. As a
+positive control, setting Brazil yield to **200** raises the Santos offer to
+**140**. The same shock then binds: Santos output falls **140 → 100**, utilization
+reaches **100%**, EU feed-distributor output falls **320 → 288**, and feed price
+increases; output and price recover after the shock expires. These are controlled
+model checks, not calibrated predictions or changes to the shipped defaults.
+
+The UI can therefore show a severe **80% local capacity impairment** while
+throughput and downstream output remain unchanged. Effective-capacity and output
+decreases and price increases are reference-relative; utilization is an absolute
+pressure measurement. The strongest evidence determines status, not a claim that
+every metric or downstream stage deteriorated. All arcs inherit their immediate
+source component; derived sea agents remain recorded without separate map nodes.
+See [playback rules](playback.md#connections-and-workshop-results).
+
+Route weights remain fixed rather than reallocating exports dynamically around
+a congested port. There is no shipment queue, waiting-time model or carried
+backlog, and `transit_steps` adds no delay. Capacity impairment, utilization and
+realized throughput loss must be interpreted separately. Historical runs cannot
+gain measurements they never recorded: execute a new run for local port data;
+re-exporting does not backfill it or regenerate the committed default demo.
+
 ## Explicit limits and future PDL fields
 
 - No persistent inventory, purchase/sale settlement, energy quantity bottleneck,

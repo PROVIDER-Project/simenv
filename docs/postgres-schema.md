@@ -1,10 +1,11 @@
 # PROVIDER simenv — PostgreSQL schema
 
 **Status:** contract, agreed 2026-09-22, normalized 2026-09-29;
-processing diagnostics appended 2026-11-02.
+processing diagnostics appended 2026-11-02; transport recording added for Issue #84.
 **Audience:** anyone joining this database to another schema, including the customer-side
 Schnittstelle, plus the simenv maintainers.
-**Companion:** `docs/pdl-derived-architecture.md` explains why the shape is PDL-independent.
+**Companions:** [Economic models](economic-models.md) explains metric semantics;
+[Database playback](playback.md) documents raw HTTP frames and UI interpretation.
 
 ---
 
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS sim_agent (
 | `agent_key` | `integer` | Surrogate key, assigned by the database. Only `sim_tick` refers to it. |
 | `run_id` | `text` | The run this agent belongs to. References `sim_run`. |
 | `entity_id` | `text` | PDL entity id, e.g. `brazil_farms`. `environment` for the environment row. |
-| `role` | `text` | `producer`, `consumer`, `wholesaler`, `processor`, `feed_manufacturer`, `feed_trader`, or `environment`. |
+| `role` | `text` | `producer`, `consumer`, `wholesaler`, `processor`, `feed_manufacturer`, `feed_trader`, `land_transport`, `sea_transport`, or `environment`. |
 | `agent_id` | `integer` | Index of the agent within its own entity list, zero-based. **Unique only within `entity_id`**, never globally. `0` for the environment. |
 
 **What identifies an agent is `(run_id, entity_id, agent_id)`.** `agent_key` is a shorthand for
@@ -121,8 +122,13 @@ and so is the set of role views in section 7.
 collide with the environment's own row. The unique constraint surfaces that as an error rather
 than merging them silently, but no PDL should use the name.
 
-**Sea-transport and port agents are not recorded.** They carry no tracked metrics, get no
-`sim_agent` row and emit no values, on this path and on the CSV path alike.
+**Land-transport (including port) and sea-transport agents are recorded in new
+runs.** Each gets its own `sim_agent` identity and six metrics on both the database
+and CSV paths. Derived sea entities use names such as
+`sea_transport_santos_port__rotterdam_port`. They need no separate map node to
+have raw measurements. Historical runs that omitted these roles remain without
+their rows; schema initialization and re-export do not backfill them. Execute a
+new run to obtain local transport evidence.
 
 ---
 
@@ -198,8 +204,8 @@ has no such metric", not as a gap in the data.
 
 **The row count is proportional to the PDL and recorded metrics.** Each period
 adds one value per recorded property of each recorded agent, plus environment
-properties. Processing roles now carry five metrics rather than two; the
-catalogue has 16 metrics. Actor counts derive from the loaded roster.
+properties. Processing roles carry five metrics and transport roles carry six;
+the catalogue has 19 metrics. Actor counts derive from the loaded roster.
 
 ---
 
@@ -215,19 +221,32 @@ section 4 explains why they never change in place.
 
 | `name` | Roles | `unit` | Meaning |
 |---|---|---|---|
-| `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader | output units per period | How much of its output good the agent has ready this period. |
-| `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader | currency per output unit | The agent's asking price this period. `0.0` when it has nothing to sell. |
+| `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | output units per period | How much of its output good the agent has ready this period; transport output available after handling/admission, not queued shipments. |
+| `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | currency per output unit | The agent's output asking price this period. `0.0` when it has nothing to sell; not a transaction price. |
 | `storage_utilization` | wholesaler | ratio, 0.0-1.0 | Stock divided by storage capacity. |
 | `feed_received` | consumer | feed units per period | Feed collected from upstream traders, split evenly across active consumers. |
 | `livestock_output` | consumer | output units per period | Livestock produced, proportional to `feed_received`. |
-| `active` | producer, consumer | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
+| `active` | producer, consumer, land_transport, sea_transport | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
 | `input_received` | processor, feed_manufacturer | input units per period | Equal-share upstream input offer; not settled purchases. |
 | `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
 | `unused_input` | processor, feed_manufacturer | input units per period | Offered input not processed this period; not carried inventory. |
+| `utilisation` | land_transport, sea_transport | ratio, 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. |
+| `capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity before the current supply effect. |
+| `effective_capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity multiplied by its resolved supply effect. |
 
 "Output units" are the units of whatever good the agent sells, so `quantity_available` for a
 producer is raw soy and for a feed trader is compound feed. The metric is the same; the good
 follows the role.
+
+Transport `effective_capacity` is a read-only adapter property:
+`capacity * effective("capacity")`. It measures the shock-adjusted physical
+ceiling, **not an active-adjusted ceiling**; participation is recorded separately.
+It adds observability without changing the standalone agent's economic equations
+or mutable state. Capacity loss need not reduce output when the ceiling still
+exceeds the offered volume. See the
+[Santos investigation](economic-models.md#santos-capacity-investigation-issue-84).
+Individual `utilisation` and the environment's network-average
+`transport_utilisation` are different metrics.
 
 ### Environment metrics
 
@@ -296,6 +315,8 @@ One view per role, each with one column per metric that role carries:
 | `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
 | `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
 | `sim_feed_trader_view` | `quantity_available`, `unit_price` |
+| `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
+| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,
@@ -330,6 +351,42 @@ exposes recorded diagnostics; static bundle export selects its existing public
 properties independently and does not export missing diagnostics as NaN. See
 [Economic models](economic-models.md) for throughput and offer semantics.
 
+Both transport views are created additively during schema initialization. They
+retain **one row per individual agent per period**, including derived sea agents;
+neither the database views nor the playback API average agents together.
+
+### Static bundle aggregation
+
+The static exporter (`python -m provider_simenv.export_bundle`) independently
+collapses agents in each visible roster list into one node/period. PostgreSQL and
+CSV exports use the same rules, with numeric aggregates rounded to four decimals:
+
+- Sum `quantity_available`, `capacity` and `effective_capacity` (and the existing
+  consumer output/feed quantities). A transport quantity/capacity total is `null`
+  if any recorded contributor lacks that value; a subtotal cannot establish a
+  component's capacity loss. Other roles retain their existing partial sums.
+- Arithmetic mean `unit_price` (not quantity-weighted), and mean wholesaler
+  `storage_utilization`.
+- Transport `utilisation` is **effective-capacity weighted**:
+  `sum(utilisation_i * effective_capacity_i) / sum(effective_capacity_i)`.
+  A missing utilization or effective-capacity value for any recorded member, a
+  missing required column, or nonpositive total effective capacity yields JSON
+  `null`, not a fabricated zero. Zero utilization with positive capacity is valid.
+- Boolean-any `active`: true if any present member is active, false if all present
+  members are inactive, `null` if none has an activity value. Other absent columns
+  stay absent and all-null numeric columns yield `null`; entirely missing transport
+  series do not produce invented ticks.
+
+These aggregates lose individual identities: summed capacity/quantity can hide a
+constrained member, mean price is not a settled market price, weighted utilization
+can hide a saturated member, and boolean-any activity can hide individual exits
+or missing activity values. Some non-weighted aggregates can use only present
+values when coverage is partial. Use raw role views or database playback for
+individual-agent evidence and strongest-agent status. Derived sea agents are
+recorded but collapsed out of static scene nodes/ticks into endpoint-to-endpoint
+edges; each edge's UI color uses the immediate visible source, not that hidden
+agent. The committed default demo bundle is not regenerated by this change.
+
 ### Changing a view
 
 `CREATE OR REPLACE VIEW` can only append columns at the end. The column order of each role view
@@ -345,7 +402,7 @@ the customer's own, may later depend on ours, and a cascade would drop them sile
 
 **Stable.** Breaking any of these is a versioned change, announced:
 
-- The names of `sim_run`, `sim_tick_readable` and the seven `sim_<role>_view` views, their
+- The names of `sim_run`, `sim_tick_readable` and the nine `sim_<role>_view` views, their
   column names, types and meanings.
 - The run id format and the fact that one run id spans every scenario in that invocation.
 - `(run_id, id_scenario, entity_id, agent_id, metric, period)` identifying at most one row of

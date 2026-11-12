@@ -121,6 +121,19 @@ METRICS = (
         "unused_input", "input units per period",
         "Offered input not processed this period; not carried inventory.",
     ),
+    Metric(
+        "utilisation", "ratio, 0.0-1.0",
+        "Transport output divided by its effective capacity; zero when "
+        "effective capacity is zero.",
+    ),
+    Metric(
+        "capacity", "output units per period",
+        "Nominal transport capacity before the current supply effect.",
+    ),
+    Metric(
+        "effective_capacity", "output units per period",
+        "Nominal transport capacity multiplied by its resolved supply effect.",
+    ),
 )
 
 METRICS_BY_NAME = {m.name: m for m in METRICS}

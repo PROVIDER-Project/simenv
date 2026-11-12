@@ -1,6 +1,6 @@
 # Database playback
 
-![Recorded playback with the expanded left panel at step 150 (static demo)](playback-preview.png)
+![Historical playback interface with the expanded left panel at step 150 (static demo)](playback-preview.png)
 
 [View or download the full-size screenshot](playback-preview.png).
 
@@ -40,7 +40,7 @@ header, anchored to the header's right edge at the 16px configurator gutter.
 Narrow or very short application space uses page flow to keep
 all controls reachable; see the exact thresholds below.
 
-Interface examples (using the bundled static demo):
+Historical interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
 [mobile layout](playback-selector-mobile.png).
 
@@ -110,18 +110,23 @@ that step changes only the temporary reveal; revisiting reveals them again.
 
 #### Workshop controls review evidence (Issue #82)
 
-These matched captures compare clean main **`d5f02ab`** with the Issue #82
+These historical matched captures compare clean main **`d5f02ab`** with the Issue #82
 interface at Chromium device scale factor 1. Each uses a **controlled API
 fixture**, paused period **100**, run `first`, scenario 1, reference `first` / 0,
 and collapsed indicators. They demonstrate interface behavior, not empirical
 simulation results.
+
+The lane captures document the former temporary originator-color override and
+unrecorded-port behavior, **not the current local transport status rules**.
+Issue #84 removes that override and records local transport evidence in new runs;
+these screenshots retain their original provenance.
 
 | State | Before | After |
 | --- | --- | --- |
 | 1275×605: title-row restart and compact timeline | [Before](screenshots/issue82/compact-desktop-before.png) | [After](screenshots/issue82/compact-desktop-after.png) |
 | 320×568: compact mobile timeline | [Before](screenshots/issue82/compact-mobile-before.png) | [After](screenshots/issue82/compact-mobile-after.png) |
 | Focused first tutorial heading | [Before](screenshots/issue82/first-tutorial-desktop-before.png) | [After](screenshots/issue82/first-tutorial-desktop-after.png) |
-| 1440×900: preserved ports and sea routes, temporary originator-based arc color; local port status unavailable | [Before](screenshots/issue82/lane-ports-desktop-before.png) | [After](screenshots/issue82/lane-ports-desktop-after.png) |
+| Historical 1440×900: preserved ports and sea routes, temporary originator-based arc color; local port status unavailable | [Before](screenshots/issue82/lane-ports-desktop-before.png) | [After](screenshots/issue82/lane-ports-desktop-after.png) |
 
 Timeline dimensions remain **575×96.3px** on desktop and **292×91px** on mobile,
 with one readout row. All four new buttons are at least **24×24px**. Mobile
@@ -135,9 +140,11 @@ New tutorial guidance is also captured in both languages:
 [German stepping](screenshots/issue82/tutorial-stepping-de-mobile.png).
 The same directory includes both viewport variants of each step/language.
 
-To reproduce, serve a detached `d5f02ab` worktree on port 5192 and the current
-worktree on 5182, both with
-`VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001`. From the current `web/`:
+For the historical comparison, the detached `d5f02ab` worktree was served on port
+5192 and the Issue #82 worktree on 5182, both with
+`VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001`. The command below uses whichever
+source is served at those URLs; current source does not reproduce the historical
+originator-color behavior. From `web/`:
 
 ```bash
 SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5192 \
@@ -230,9 +237,10 @@ A first visit automatically starts an eleven-step tour: scenario name, disruptio
 settings, execution/monitoring, completed results, recorded selection, timeline,
 speed, manual stepping, reference/legend, component evidence and network
 indicators. Steps 7 and 8 provide English/Deutsch speed and stepping guidance;
-component evidence at step 10 explains recorded originator price, quantity and
-storage/handling metrics, temporary originator-based sea-arc colors and unavailable
-local port measurements. Execution/results retain their existing step positions
+component evidence at step 10 explains local effective capacity, transport output,
+asking price and utilization, immediate-source arc colors, and why capacity loss
+can be severe without reduced output. Historical missing measurements remain
+unavailable. Execution/results retain their existing step positions
 and auto-advance rules. The popup highlights the relevant
 controls and opens their panel on step entry. **Back/Next** remain
 available even if a target has not loaded or a run has not completed; you can
@@ -391,6 +399,28 @@ Frames contain `period` and `agents`. Each agent contains `entity_id`, `agent_id
 averaging, rounding, downsampling, or interpolation. Flags remain numeric 0/1.
 JSON numbers retain the database's double precision and agents stay distinct.
 
+New runs include individual `land_transport` and `sea_transport` agents with
+`quantity_available`, `unit_price`, `utilisation`, `capacity`, `active` and
+`effective_capacity`. Ports were missing from recordings because the collector
+omitted both transport roles, not because those agents failed to execute. The
+role views are `sim_land_transport_view` and `sim_sea_transport_view`. Effective
+capacity is read-only nominal capacity multiplied by the resolved supply effect;
+it is shock-adjusted, not active-adjusted. Participation is separate. See the
+[metric catalogue and exporter rules](postgres-schema.md#static-bundle-aggregation).
+
+Database frames preserve derived sea-agent measurements even though the geographic
+scene collapses those agents into connections, without separate map nodes or
+inspector choices. Static export instead aggregates visible roster lists: quantity
+and capacities are summed, price is an arithmetic mean, utilization is weighted by
+effective capacity, and activity is boolean-any. Missing utilization/weight inputs
+or a nonpositive total effective capacity yield `null`. These list aggregates can
+hide individual constraints, saturation or exits; raw playback retains the agents.
+
+Historical absent recordings stay unavailable. A schema upgrade, reload or
+re-export cannot create measurements that were never stored: **execute a new run**
+for local transport data and use a compatible recorded reference. The committed
+default static bundle is not regenerated by this change.
+
 Globe colours are display-only assessments using the fixed workshop rules below.
 They never mutate or replace measurements, and do not depend on page-cache contents
 or full-run minimum/maximum values.
@@ -440,11 +470,12 @@ and reference compatibility checks are unaffected.
 | --- | --- | --- | --- | --- |
 | Prices | Relative increase | through 5% | 20% | 50% and above |
 | Availability / output | Relative decrease | through 5% | 20% | 50% and above |
-| Capacity pressure | Absolute recorded fraction | below 80% | 80% | 95% and above |
+| Effective transport capacity | Relative decrease | through 5% | 20% | 50% and above |
+| Utilization / storage pressure | Absolute recorded fraction | below 80% | 80% | 95% and above |
 | Participation | Recorded `active` | active | — | inactive |
 
 Relative colors interpolate green–amber from 5–20% and amber–red from 20–50%.
-Capacity is green below 80%, then interpolates amber–red from 80–95%. Improvements
+Utilization is green below 80%, then interpolates amber–red from 80–95%. Improvements
 return toward green. These are initial workshop defaults pending domain review,
 centrally configured in `web/src/playback/status.ts`; shared palette/interpolation
 live in `web/src/design/`. Selection rings and illustrative placement labels do
@@ -462,11 +493,19 @@ utilization without a recorded capacity denominator. Storage pressure is not
 production utilization or persistent inventory, and low quantity alone does not
 establish unmet demand.
 
+Both transport roles compare **effective capacity** and **output available** for
+relative decreases and **output asking price** for relative increases. Recorded
+`utilisation` uses the absolute 80%/95% pressure anchors and `active` is evaluated
+directly. Nominal `capacity` is diagnostic only. An 80% effective-capacity decline
+is severe even if output is unchanged and utilization remains below 80%; that is
+evidence of local impairment, not proof of throughput loss or downstream harm.
+See the [Santos investigation and binding positive control](economic-models.md#santos-capacity-investigation-issue-84).
+
 Gray means missing measurements, unusable references, incompatible identities,
 or insufficient evidence. Relative references must be positive: zero-to-zero is
 unknown, not healthy. Zero current availability against a positive reference is
 a severe decline. Zero price is **no quote / no contributing volume**, not recovery.
-Inactivity and absolute capacity remain evaluable even if references fail.
+Inactivity and absolute utilization remain evaluable even if references fail.
 Known adverse evidence with missing comparisons retains its color and is labeled
 **Incomplete evidence**; green-only evidence with missing comparisons is gray.
 Expected-agent checks use the first-frame census; the API has no independent
@@ -541,30 +580,34 @@ support and playback of historical energy runs remain supported.
 All ports, markers, connection labels and route geometry stay as before. The
 shipped scene retains **16 nodes, 16 edges and 16 markers**, including
 **Santos → Rotterdam** and **Paranaguá → Hamburg**. Ports remain in both the map
-and **Inspect component**; unrecorded ports have gray markers and **Unavailable**
-local measurements.
+and **Inspect component**. New recordings include their local transport metrics;
+historical unrecorded ports have gray markers and **Unavailable** local measurements.
 
-A **temporary, one-hop color-only override** lets a sea edge use a recorded grain
-originator's assessment unchanged when its source is an explicitly unrecorded
-transport (`hasRecordedData: false`; `land_transport`, `sea_transport` or legacy
-`port`) and **all** incoming edges are non-sea links from the **same single
-distinct recorded wholesaler**. Unsupported, mixed or ambiguous inputs and return
-paths remain unknown/gray. There is no recursive search or separate inference UI.
-Other connections, including Argentina/US intercontinental arcs, retain their
-immediate-source coloring.
+**Every connection inherits its immediate source component's assessment.** The
+temporary grain-originator color override has been removed. Santos → Rotterdam
+uses Santos's recorded port evidence; it never borrows Brazil grain-originator,
+destination, hidden sea-agent or network-average evidence. Argentina/US arcs
+likewise use their immediate visible sources. A hidden derived sea agent can have
+its own raw measurements and status evidence without a separate geographic node;
+its assessment does not replace that of the collapsed arc's visible source.
+Historical unrecorded source ports and their outgoing connections remain gray.
 
-Inspect the recorded originator for asking price, supply availability and
-storage/handling pressure, including current/reference values and strongest
-metric/agent. Its assessment supplies the eligible sea-arc color, not a measured
-local port condition or congestion level. **Remove this temporary override and
-restore proper local transport-metric coloring once the missing port/route
-recordings are fixed.** No port values are invented; raw source scenes,
-recordings, reference matching and API responses remain unchanged. Unsubmitted
-configurator edits do not affect recorded colors.
+Inspect a port for effective capacity, output available, output asking price,
+utilization, participation and the contributing metric/individual agent. With
+default Brazil output **100**, Santos's fixed **0.7** share offers **70** (or
+**60 × 0.7 = 42** during the illustrated drought). An 80% reduction of nominal
+capacity **500** still leaves **100**: capacity status can be severe while output
+is unchanged. The controlled yield-200 positive control instead offers **140**,
+falls to **100**, and reduces EU feed-distributor output **320 → 288**. These
+are model mechanics, not calibrated congestion predictions. Fixed route weights,
+no shipment queue/backlog and no transit delay remain model limitations; the
+recording change does not alter the equations. See the
+[full investigation](economic-models.md#santos-capacity-investigation-issue-84).
+Unsubmitted configurator edits do not affect recorded colors.
 
 The four synchronized timeline indicators remain soy price, feed price, total soy
-supply and average transport utilization. The last is network-wide; individual
-route/port utilization is not recorded.
+supply and average transport utilization. The last is network-wide and cannot
+substitute for the newly recorded individual port/sea-transport utilization.
 
 After completion, **View results** searches catalogue pages for the submitted ID
 and opens its scenario 1. It never substitutes the newest run. Errors retain the
@@ -574,6 +617,19 @@ displayed recorded results; later configurator changes are **Unsubmitted edits
 for the next run**, separate from the submitted input snapshot.
 
 ### Review screenshots
+
+Issue #84's [matched before/after evidence](screenshots/issue84/README.md)
+shows Santos [before recording](screenshots/issue84/santos-capacity-loss-Before113f3b8.png),
+[during recorded capacity loss](screenshots/issue84/santos-capacity-loss-AfterIssue84.png)
+and [after recovery](screenshots/issue84/santos-recovered-AfterIssue84.png).
+These controlled API fixtures demonstrate local port/ocean colors and unchanged
+output; they are not empirical simulation results. The linked guide records the
+fixture measurements and reproduction command.
+
+These screenshots are historical interface evidence from the revisions/fixtures
+described below, separately from Issue #84's new local transport measurements.
+Capture commands use the source served at their URLs; current source may produce
+different guidance and status evidence.
 
 - [Automatic reference preparing](automatic-reference-preparing.png) — the
   frontend's separate job can still be running at 100%; no comparison is shown.
@@ -643,8 +699,9 @@ remounts, and temporary EN/DE tutorial indicator reveal/restoration. It needs
 Chromium and a recorded-mode Vite server, not a live database or API.
 
 From `web/`, run `npm run test:playback`. Its regressions cover preserved port
-topology, the temporary one-hop sea-arc color override and conservative exclusions,
-alongside immediate-source connection colors and missing evidence.
+topology, local transport capacity/output/price/utilization/participation status,
+immediate-source colors for every connection, historical missing evidence, and
+transport measurements through both HTTP and static consumers.
 For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
 `npm run test:playback-browser`; these browser checks intercept API responses,
@@ -661,8 +718,9 @@ clamping/pausing at nonzero boundaries. For a custom frontend/API origin, set
 `SIMENV_WEB_URL` and `SIMENV_TEST_PLAYBACK_ORIGIN` as in the
 [tutorial browser setup](../web/README.md#tutorial-browser-check).
 Status browser fixtures also check preserved port markers/route geometry,
-temporary originator-based ocean renderer colors and honest port/originator
-details through disturbance, recovery and missing evidence.
+local port marker/ocean renderer colors independent of originator and hidden
+sea-agent status, and honest details through disturbance, recovery, zero capacity
+and missing evidence.
 
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
 stack. It submits two edited soy configurations, verifies catalogue refresh, opens each exact
