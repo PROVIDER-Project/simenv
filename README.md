@@ -41,13 +41,15 @@ buffering. Repeated clicks adjust the pending target and clamp to the recorded
 range; autoplay still wraps from the last step to the first. See
 [playback controls](docs/playback.md#playback-controls).
 
-Brazil–Europe lanes can show **inferred upstream status** through explicitly
-unrecorded transport nodes, using the nearest recorded sources on each path.
-Port details keep local measurements unavailable and separately explain outgoing
-connection inference with source/path, metric and agent evidence. This does not
-measure local port conditions or use network averages or unsubmitted configurator
-edits; a local transport disruption can remain invisible if upstream evidence is
-normal. See [connection rules](docs/playback.md#connections-and-workshop-results).
+The globe uniformly simplifies eligible export routes to **recorded grain
+originator → destination** arcs, matching the Argentina/US presentation. An
+explicitly unrecorded transport node is bypassed only when all incoming edges
+are non-sea links from recorded wholesalers and all outgoing edges are sea links
+to retained destinations. Bypassed ports are hidden on the map and in the
+inspector. Arc colors use their displayed source's status; inspect the originator
+for recorded price, quantity and storage/handling metrics. No local port data is
+invented, and source scenes, recordings and API responses stay unchanged. See
+[connection rules](docs/playback.md#connections-and-workshop-results).
 
 Playback uses coordinated left controls, a center timeline, and a right
 configurator when at least 1160 CSS pixels of application width are available.

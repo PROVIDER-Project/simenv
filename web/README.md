@@ -69,8 +69,8 @@ The first visit automatically opens an eleven-step highlighted tour from scenari
 name and disruption settings through execution, **View results**, recorded
 selection, timeline, speed, manual stepping, reference/legend, component evidence
 and network indicators. Steps 7 and 8 explain speed and stepping in English and
-Deutsch; component guidance also explains upstream connection inference and
-unavailable local transport measurements.
+Deutsch; component guidance covers recorded originator metrics and arc source
+colors.
 Use **Back/Next** freely, including when a target is not available yet; return
 when its data is ready. The tutorial opens relevant panels on step entry and
 reveals the target, but never changes scenario inputs, submits a simulation,
@@ -153,8 +153,8 @@ next run**; they do not change the displayed recorded results.
 
 The **Disturbance impact** panel provides a shared traffic-light legend, a
 **Reference condition** selector, and a keyboard-accessible **Inspect component**
-list (including unplaced/unrecorded components). Globe marker clicks select the
-same details. Details show the strongest metric/agent, individual current and
+list (including retained unplaced/unrecorded components). Globe marker clicks
+select the same details. Details show the strongest metric/agent, individual current and
 reference values, percentage changes, and missing-data explanations. Pooled
 components and multi-agent strongest-status aggregation are explicit.
 
@@ -205,23 +205,21 @@ including when coordinates come from the fallback gazetteer.
   Processing input offered/processed are optional decrease indicators;
   unused input is diagnostic only. Historical metrics absent on both sides are
   unsupported rather than invented.
-- Connections show **inferred upstream status**. Recorded sources retain their
-  own status; only transport nodes explicitly marked `hasRecordedData: false`
-  (`land_transport`, `sea_transport`, legacy `port`) are traversed upstream to
-  the nearest recorded source on each path. Missing recorded evidence is never
-  bypassed. Branches use strongest evidence; adverse partial evidence survives,
-  while healthy evidence with unresolved branches stays gray. Unknown nodes,
-  cycles and paths reaching the connection's destination are explained as
-  unresolved; there is no target fallback.
-  Unrecorded ports keep unavailable local measurements/gray markers. Their
-  details separately show outgoing **Connection inference**, source/path,
-  metric/agent and current/reference evidence. Thus Brazil–Europe lanes can show
-  upstream disruption without claiming a measured local port condition. A local
-  transport disruption can remain invisible when upstream conditions stay normal.
-  The pure resolver (`src/playback/connections.ts`) does not mutate measurements
-  or use network averages or unsubmitted configurator settings for lane colors.
+- The display uniformly simplifies eligible export routes to **recorded grain
+  originator → destination** arcs, matching Argentina/US. In one pass, it bypasses
+  an explicitly unrecorded transport node only if all incoming edges are non-sea
+  links from recorded wholesalers and all outgoing edges are sea links to
+  retained destinations. Bypassed ports disappear from both map and inspector;
+  other routes remain as supplied. Brazil's originator therefore connects
+  directly to Rotterdam/Hamburg instead of via Santos/Paranaguá.
+  Each connection uses its displayed source's status. Inspect the originator's
+  recorded asking price, supply availability and storage/handling pressure;
+  these do not measure local port or route conditions. Retained unrecorded nodes
+  still have unavailable local measurements. Source scenes, recordings, reference
+  matching and API responses are unchanged; no port values are invented.
   The timeline synchronizes soy/feed prices, soy supply and average transport
-  utilization with playback. Placement annotations and selection rings are separate.
+  utilization with playback. The last is network-wide, not a route measurement.
+  Placement annotations and selection rings are separate.
 
 Playback presents current/reference measurements as one matched pair. If a page
 is still loading, the displayed step, colors and values hold together until the

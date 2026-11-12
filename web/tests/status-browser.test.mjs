@@ -51,10 +51,13 @@ async function oceanRendererState(page) {
     }
     const props = find(fiber.stateNode?.current ?? fiber)
     if (!props) throw new Error('Mounted globe renderer props not found')
-    const ocean = props.arcsData.filter(datum => datum.edgeId === 'ocean')
-    const port = props.pointsData.find(datum => datum.nodeId === 'santos_port')
+    const ocean = props.arcsData.filter(datum => datum.edgeId === 'display:["brazil_wholesaler","rotterdam_port",true]')
+    const port = props.pointsData.find(datum => datum.nodeId === 'rotterdam_port')
     return { ocean: ocean.map(datum => ({ layer: datum.layer, intensity: datum.intensity, color: props.arcColor(datum) })),
       port: { intensity: port.intensity, color: props.pointColor(port) },
+      exportPorts: props.pointsData.filter(datum => ['santos_port', 'paranagua_port'].includes(datum.nodeId)).length,
+      markerCount: props.pointsData.length, edgeCount: new Set(props.arcsData.map(datum => datum.edgeId)).size,
+      endpoints: ocean.length ? [ocean[0].startLat, ocean[0].startLng, ocean[0].endLat, ocean[0].endLng] : [],
       period: document.querySelector('[aria-label="Component status"]').dataset.period,
       indicatorPeriod: document.querySelector('[aria-label="Network indicators"]').dataset.period }
   })
@@ -277,7 +280,7 @@ test('unplaced components remain keyboard-inspectable with unavailable measured 
   } finally { await browser.close() }
 })
 
-test('port-sourced ocean renderer colors and details agree without inventing local measurements', async () => {
+test('display ocean routes start at the originator and share its measured status and details', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -285,13 +288,21 @@ test('port-sourced ocean renderer colors and details agree without inventing loc
     await page.route(`${origin}/runs/*/scenarios/*/scene`, route => {
       const parts = new URL(route.request().url()).pathname.split('/')
       const result = scene(parts[2], Number(parts[4]))
-      result.nodes.push(...[
-        ['santos_port', 'Workshop export port'], ['rotterdam_port', 'Workshop import port'],
-      ].map(([id, label]) => ({ id, label, role: 'land_transport', entityIds: [id], placements: [], hasRecordedData: false })))
+      const ports = [
+        ['santos_port', 'Workshop export port'], ['paranagua_port', 'Workshop secondary port'],
+        ['rotterdam_port', 'Workshop import port'], ['hamburg_port', 'Workshop secondary import'],
+      ].map(([id, label]) => ({ id, label, role: 'land_transport', entityIds: [id], placements: [], hasRecordedData: false }))
+      // Put an omitted component first to exercise initial selection validation.
+      result.nodes = [...ports.slice(0, 2), ...result.nodes, {
+        id: 'brazil_wholesaler', label: 'Brazil grain originator', role: 'wholesaler', entityIds: ['brazil_wholesaler'], hasRecordedData: true,
+        placements: [{ entityId: 'brazil_wholesaler', label: 'Brazil grain originator', lat: -23, lng: -47, illustrative: true }],
+      }, ...ports.slice(2)]
       result.edges = [
-        { id: 'farm-port', source: 'brazil_farms', target: 'santos_port', isSeaCrossing: false },
+        { id: 'farm-originator', source: 'brazil_farms', target: 'brazil_wholesaler', isSeaCrossing: false },
+        { id: 'originator-port', source: 'brazil_wholesaler', target: 'santos_port', isSeaCrossing: false },
+        { id: 'originator-secondary', source: 'brazil_wholesaler', target: 'paranagua_port', isSeaCrossing: false },
         { id: 'ocean', source: 'santos_port', target: 'rotterdam_port', isSeaCrossing: true },
-        { id: 'return', source: 'santos_port', target: 'brazil_farms', isSeaCrossing: false },
+        { id: 'secondary-ocean', source: 'paranagua_port', target: 'hamburg_port', isSeaCrossing: true },
       ]
       return route.fulfill({ json: result })
     })
@@ -303,25 +314,20 @@ test('port-sourced ocean renderer colors and details agree without inventing loc
         frame.agents[0].values = scenario === 1 && frame.period >= 280 ? {}
           : { unit_price: 100, quantity_available: scenario === 1 && frame.period < 200 ? 50 : 100, active: 1 }
         frame.agents[1].values.transport_utilisation = 1
+        frame.agents.push({ entity_id: 'brazil_wholesaler', agent_id: 7, role: 'wholesaler', values: { ...frame.agents[0].values, storage_utilization: .2 } })
       }
       return route.fulfill({ json: result })
     })
     await page.goto(webUrl); await pause(page)
-    await page.getByRole('combobox', { name: 'Inspect component' }).selectOption('santos_port')
+    const selector = page.getByRole('combobox', { name: 'Inspect component' })
+    assert.equal(await selector.inputValue(), 'brazil_farms', 'selection falls back to a retained display component')
+    assert.equal(await selector.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 0)
+    await selector.selectOption('brazil_wholesaler')
     const details = page.getByRole('region', { name: 'Component status' })
-    await details.getByText('No measurements recorded for this component', { exact: true }).waitFor()
-    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
-    assert.match(await details.innerText(), /across 0 recorded agents/)
-    const inferenceRegions = details.getByRole('region', { name: 'Connection inference' })
-    const inferred = inferenceRegions.filter({ has: page.getByRole('heading', { name: 'Connection inference: Workshop export port → Workshop import port', exact: true }) })
-    const cyclic = inferenceRegions.filter({ has: page.getByRole('heading', { name: 'Connection inference: Workshop export port → Brazil farms', exact: true }) })
-    await inferred.getByText('Severe', { exact: true }).waitFor()
-    assert.match(await inferred.innerText(), /Brazil farms → Workshop export port/)
-    assert.match(await inferred.innerText(), /Supply availability.*quantity_available/)
-    assert.match(await inferred.innerText(), /Current: 50/)
-    assert.match(await inferred.innerText(), /Reference: 100/)
-    assert.match(await inferred.innerText(), /not measured port or route conditions/i)
-    assert.equal(await inferred.locator('code').filter({ hasText: 'utilisation' }).count(), 0)
+    await details.getByText('Severe', { exact: true }).waitFor()
+    assert.match(await details.locator('.sim-status-responsible').innerText(), /Supply availability · agent 7 \(wholesaler\)/)
+    assert.match(await details.locator('.sim-metric').filter({ hasText: 'quantity_available' }).innerText(), /Current: 50.*Reference: 100/s)
+    assert.equal(await details.getByRole('region', { name: 'Connection inference' }).count(), 0)
     for (const [period, score, label, rgb] of [
       [0, 1, 'Severe', '255,96,80'],
       [250, 0, 'Near reference / low pressure', '81,227,165'],
@@ -330,21 +336,22 @@ test('port-sourced ocean renderer colors and details agree without inventing loc
     ]) {
       await page.getByRole('slider', { name: 'Simulation step' }).fill(String(period))
       await page.waitForFunction(step => document.querySelector('[aria-label="Component status"]')?.dataset.period === String(step), period)
-      assert.equal(await inferred.locator('strong').first().innerText(), label)
-      assert.equal(await cyclic.locator('strong').first().innerText(), 'Unavailable')
-      assert.match(await cyclic.innerText(), /reaches this connection’s destination/)
-      assert.equal(await cyclic.locator('code').count(), 0, 'the destination is not presented as upstream metric evidence')
-      assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), label)
       const rendered = await oceanRendererState(page)
       assert.equal(rendered.period, String(period))
       assert.equal(rendered.indicatorPeriod, String(period))
       assert.deepEqual(rendered.port, { intensity: null, color: '#8793A3' })
+      assert.equal(rendered.exportPorts, 0)
+      assert.deepEqual(rendered.endpoints, [-23, -47, 51.95, 4.14], 'ocean geometry begins at the originator, not Santos')
       assert.deepEqual(rendered.ocean, [
         { layer: 'halo', intensity: score, color: `rgba(${rgb},0.16)` },
         { layer: 'glow', intensity: score, color: `rgba(${rgb},0.34)` },
         { layer: 'core', intensity: score, color: `rgba(${rgb},0.92)` },
-      ], 'the actual port-sourced ocean layers receive the inferred color, including unavailable gray')
+      ], 'display ocean layers inherit only their immediate originator, including unavailable gray')
     }
+    await selector.selectOption('rotterdam_port')
+    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+    assert.match(await details.innerText(), /No measurements recorded for this component/)
   } finally { await browser.close() }
 })
 
@@ -425,6 +432,15 @@ test('static demo keeps its start-mode limitation and explains submitted-result 
     } }))
     await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_STATIC_WEB_URL); await pause(page)
+    const components = page.getByRole('combobox', { name: 'Inspect component' })
+    assert.equal(await components.locator('option').count(), 14)
+    assert.equal(await components.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 0)
+    const displayed = await oceanRendererState(page)
+    assert.equal(displayed.markerCount, 14)
+    assert.equal(displayed.edgeCount, 14)
+    assert.equal(displayed.exportPorts, 0)
+    assert.deepEqual(displayed.endpoints, [-23, -47, 51.95, 4.14])
+    assert.deepEqual(displayed.port, { intensity: null, color: '#8793A3' })
     assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'start')
     assert.match(await page.getByRole('region', { name: 'Reference comparison' }).innerText(), /cannot reveal disturbances already present/)
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click()

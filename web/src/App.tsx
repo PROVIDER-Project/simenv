@@ -139,11 +139,11 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutRea
   const revealImpact = useCallback(() => setImpactExpanded(true), [])
   useTutorialPanel('impact', revealImpact)
   const impactControlsId = useId()
-  const selectedComponent = selectedNode || playback.scene?.nodes[0]?.id || ''
   const displayScene = useMemo(() => playback.scene ? presentScene(playback.scene) : null, [playback.scene])
+  const selectedComponent = displayScene?.nodes.some(node => node.id === selectedNode) ? selectedNode : displayScene?.nodes[0]?.id || ''
   const scene = useMemo(() => displayScene ? resolveScene(displayScene.nodes, displayScene.edges) : null, [displayScene])
-  const projected = useMemo(() => comparisonReady && playback.scene && playback.frame
-    ? projectFrame(playback.scene, playback.frame, reference.frame, playback.baseline) : null, [comparisonReady, playback.scene, playback.frame, playback.baseline, reference.frame])
+  const projected = useMemo(() => comparisonReady && displayScene && playback.frame
+    ? projectFrame(displayScene, playback.frame, reference.frame, playback.baseline) : null, [comparisonReady, displayScene, playback.frame, playback.baseline, reference.frame])
   const selectFromMap = useCallback((id: string) => {
     setSelectedNode(id); setImpactExpanded(true)
   }, [])

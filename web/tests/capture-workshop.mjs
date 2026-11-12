@@ -3,8 +3,9 @@
 // current:       VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001 npm run dev -- --port 5182
 // SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5192 SIMENV_WEB_URL=http://127.0.0.1:5182 \
 //   node tests/capture-workshop.mjs
+// Add --lane-only to refresh just the matched originator-route pair.
 // All images are explicitly labeled controlled API fixtures, not simulation runs.
-// Assertions run after capture so a geometry failure still leaves review evidence.
+// Geometry assertions run after capture; lane captures require the expected topology.
 import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -64,19 +65,28 @@ async function capture(page, name, label) {
   console.log(`Screenshot: ${path}`)
 }
 
-// Capture-only graph: real placed farm -> unrecorded export port -> EU port.
-// Both ports remain explicitly unrecorded in the matched before/after fixture.
+// Capture-only graph: recorded farm -> recorded wholesaler -> unrecorded Brazil
+// export ports -> EU ports. Both versions receive exactly the same source graph.
+// The shipped originator identity/role makes only the Brazil export ports eligible
+// for the conservative display collapse; no port measurements are supplied.
 // Status/renderer behavior is covered separately by status-browser.test.mjs.
 async function laneFixture(page) {
   await page.route(`${origin}/runs/*/scenarios/*/scene`, route => {
     const parts = new URL(route.request().url()).pathname.split('/')
     const result = scene(parts[2], Number(parts[4]))
+    result.nodes.push({ id: 'brazil_wholesaler', label: 'Brazil grain originator', role: 'wholesaler',
+      entityIds: ['brazil_wholesaler'], hasRecordedData: true,
+      placements: [{ entityId: 'brazil_wholesaler', label: 'Brazil grain originator', lat: -23, lng: -47, illustrative: true }] })
     for (const [id, label, lat, lng] of [
-      ['santos_port', 'Workshop export port', -24, -46], ['rotterdam_port', 'Workshop import port', 52, 4],
+      ['santos_port', 'Port of Santos', -23.96, -46.33], ['paranagua_port', 'Port of Paranaguá', -25.52, -48.51],
+      ['rotterdam_port', 'Port of Rotterdam', 51.95, 4.14], ['hamburg_port', 'Port of Hamburg', 53.55, 9.99],
     ]) result.nodes.push({ id, label, role: 'land_transport', entityIds: [id], hasRecordedData: false,
       placements: [{ entityId: id, label, lat, lng, illustrative: false }] })
-    result.edges = [{ id: 'farm-port', source: 'brazil_farms', target: 'santos_port', isSeaCrossing: false },
-      { id: 'ocean', source: 'santos_port', target: 'rotterdam_port', isSeaCrossing: true }]
+    result.edges = [{ id: 'farm-originator', source: 'brazil_farms', target: 'brazil_wholesaler', isSeaCrossing: false },
+      { id: 'originator-santos', source: 'brazil_wholesaler', target: 'santos_port', isSeaCrossing: false },
+      { id: 'originator-paranagua', source: 'brazil_wholesaler', target: 'paranagua_port', isSeaCrossing: false },
+      { id: 'santos-rotterdam', source: 'santos_port', target: 'rotterdam_port', isSeaCrossing: true },
+      { id: 'paranagua-hamburg', source: 'paranagua_port', target: 'hamburg_port', isSeaCrossing: true }]
     return route.fulfill({ json: result })
   })
   await page.route(`${origin}/runs/*/scenarios/*/frames*`, route => {
@@ -84,7 +94,9 @@ async function laneFixture(page) {
     const scenario = Number(parts[4])
     const result = frames(parts[2], scenario, Number(url.searchParams.get('start')))
     for (const frame of result.frames) {
-      frame.agents[0].values = { unit_price: 100, quantity_available: scenario === 1 ? 50 : 100, active: 1 }
+      frame.agents[0].values = { unit_price: 100, quantity_available: 100, active: 1 }
+      frame.agents.push({ entity_id: 'brazil_wholesaler', agent_id: 0, role: 'wholesaler',
+        values: { unit_price: 100, quantity_available: scenario === 1 ? 50 : 100, storage_utilization: .4 } })
     }
     return route.fulfill({ json: result })
   })
@@ -92,6 +104,7 @@ async function laneFixture(page) {
 
 async function main() {
   const baselineUrl = process.env.SIMENV_BASELINE_WEB_URL || 'http://127.0.0.1:5192'
+  const laneOnly = process.argv.includes('--lane-only')
   await mkdir(output, { recursive: true })
   const browser = await chromium.launch({ headless: true })
   const failures = []
@@ -106,7 +119,7 @@ async function main() {
     return page
   }
   try {
-    for (const [size, viewport] of sizes) {
+    for (const [size, viewport] of laneOnly ? [] : sizes) {
       const measurements = {}
       for (const [version, url] of [['before', baselineUrl], ['after', webUrl]]) {
         const page = await setup(url, viewport)
@@ -129,7 +142,7 @@ async function main() {
       if (size === 'desktop') check(() => assert.ok(Math.abs(after.configurator.x - after.restart.right - 16) <= 1, 'restart anchors 16px from configurator'))
     }
     // First-step heading stays focused in both captures: outline difference is real.
-    for (const [version, url] of [['before', baselineUrl], ['after', webUrl]]) {
+    for (const [version, url] of laneOnly ? [] : [['before', baselineUrl], ['after', webUrl]]) {
       const page = await setup(url, sizes[0][1])
       await page.getByRole('button', { name: 'Restart tutorial', exact: true }).click()
       const heading = page.getByRole('region', { name: 'Interactive tutorial' }).getByRole('heading')
@@ -142,7 +155,7 @@ async function main() {
       await capture(page, `first-tutorial-desktop-${version}`, `${version === 'before' ? 'd5f02ab BEFORE' : 'Issue82 AFTER'} · focused first heading · 1275×605`)
       await page.close()
     }
-    for (const [size, viewport] of sizes) {
+    for (const [size, viewport] of laneOnly ? [] : sizes) {
       const page = await setup(webUrl, viewport)
       await page.getByRole('button', { name: 'Restart tutorial', exact: true }).click()
       const tour = page.getByRole('region', { name: 'Interactive tutorial' })
@@ -155,13 +168,23 @@ async function main() {
     }
     for (const [version, url] of [['before', baselineUrl], ['after', webUrl]]) {
       const page = await setup(url, sizes[0][1], true)
-      await page.getByRole('combobox', { name: 'Inspect component' }).selectOption('santos_port')
+      const inspector = page.getByRole('combobox', { name: 'Inspect component' })
+      // Refuse to capture an after image until the core display projection is live.
+      for (const port of ['santos_port', 'paranagua_port']) {
+        assert.equal(await inspector.locator(`option[value="${port}"]`).count(), version === 'before' ? 1 : 0,
+          `${version}: bypassed Brazil ports must match the expected display topology`)
+      }
+      await inspector.selectOption('brazil_wholesaler')
       const details = page.getByRole('region', { name: 'Component status' })
-      if (version === 'after') await details.getByRole('region', { name: 'Connection inference' }).waitFor()
-      // Keep the local Unavailable heading and actual lane visible in both
-      // versions; the current view separately explains the upstream inference.
-      await details.locator('h3').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
-      await capture(page, `lane-inferred-desktop-${version}`, `${version === 'before' ? 'd5f02ab BEFORE' : 'Issue82 AFTER'} · unrecorded ports, local measurements unavailable · 1275×605`)
+      await details.getByRole('heading', { name: 'Brazil grain originator · step 100' }).waitFor()
+      const quantity = details.locator('.sim-metric').filter({ hasText: 'quantity_available' })
+      assert.match(await quantity.innerText(), /Current: 50\s+Reference: 100/)
+      const storage = details.locator('.sim-metric').filter({ hasText: 'storage_utilization' })
+      assert.match(await storage.innerText(), /Current: 40\.0%\s+Reference: 40\.0%/)
+      assert.equal(await details.getByText('Incomplete evidence', { exact: true }).count(), 0)
+      // Show all three measured source metrics beside the matched routes.
+      await details.locator('summary').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+      await capture(page, `lane-originator-desktop-${version}`, `${version === 'before' ? 'd5f02ab BEFORE · via Brazil ports' : 'PR83 AFTER · direct originator arcs'} · measured Brazil wholesaler · 1275×605`)
       console.log(`Lane ${version} details: ${await details.innerText()}`)
       await page.close()
     }
