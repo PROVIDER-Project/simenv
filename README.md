@@ -41,15 +41,16 @@ buffering. Repeated clicks adjust the pending target and clamp to the recorded
 range; autoplay still wraps from the last step to the first. See
 [playback controls](docs/playback.md#playback-controls).
 
-The globe uniformly simplifies eligible export routes to **recorded grain
-originator → destination** arcs, matching the Argentina/US presentation. An
-explicitly unrecorded transport node is bypassed only when all incoming edges
-are non-sea links from recorded wholesalers and all outgoing edges are sea links
-to retained destinations. Bypassed ports are hidden on the map and in the
-inspector. Arc colors use their displayed source's status; inspect the originator
-for recorded price, quantity and storage/handling metrics. No local port data is
-invented, and source scenes, recordings and API responses stay unchanged. See
-[connection rules](docs/playback.md#connections-and-workshop-results).
+The globe preserves all ports, markers and route geometry. A **temporary,
+color-only override** lets a sea arc from an explicitly unrecorded transport use
+the recorded grain originator's status only when all incoming links are non-sea
+and identify the same single recorded wholesaler. Unrecorded ports stay
+inspectable and gray, with local measurements unavailable. Inspect the originator
+for recorded price, quantity and storage/handling metrics; the arc color does not measure
+local congestion. **Remove this override and restore local transport-metric
+coloring once missing port/route recordings are fixed.** Other arcs retain their
+immediate-source coloring; raw scenes, references and API responses are unchanged.
+See [connection rules](docs/playback.md#connections-and-workshop-results).
 
 Playback uses coordinated left controls, a center timeline, and a right
 configurator when at least 1160 CSS pixels of application width are available.

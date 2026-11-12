@@ -121,7 +121,7 @@ simulation results.
 | 1275×605: title-row restart and compact timeline | [Before](screenshots/issue82/compact-desktop-before.png) | [After](screenshots/issue82/compact-desktop-after.png) |
 | 320×568: compact mobile timeline | [Before](screenshots/issue82/compact-mobile-before.png) | [After](screenshots/issue82/compact-mobile-after.png) |
 | Focused first tutorial heading | [Before](screenshots/issue82/first-tutorial-desktop-before.png) | [After](screenshots/issue82/first-tutorial-desktop-after.png) |
-| Recorded Brazil originator: port-routed before, direct source-colored export arcs after | [Before](screenshots/issue82/lane-originator-desktop-before.png) | [After](screenshots/issue82/lane-originator-desktop-after.png) |
+| 1440×900: preserved ports and sea routes, temporary originator-based arc color; local port status unavailable | [Before](screenshots/issue82/lane-ports-desktop-before.png) | [After](screenshots/issue82/lane-ports-desktop-after.png) |
 
 Timeline dimensions remain **575×96.3px** on desktop and **292×91px** on mobile,
 with one readout row. All four new buttons are at least **24×24px**. Mobile
@@ -148,13 +148,17 @@ SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8001 \
 
 The script intercepts playback responses, labels each image's fixture state,
 checks matched geometry, and writes to `docs/screenshots/issue82/`.
-Add `--lane-only` to refresh only the two originator-route captures. Their matched
+Add `--lane-only` to refresh only the lane evidence (the port before/after pair
+and [recorded originator metrics after](screenshots/issue82/lane-originator-metrics-desktop-after.png)). Their matched
 graph uses the shipped `brazil_wholesaler` identity, role `wholesaler`, and
 `hasRecordedData: true`, with non-sea links to unrecorded Santos/Paranaguá and sea
-links onward to Rotterdam/Hamburg. Both versions inspect the same recorded
-originator: asking price **100**, quantity **50** versus reference **100**, and
-storage utilization **0.4**. The after view hides the bypassed Brazil ports and
-shows direct originator → Europe arcs; the fixture does not supply port metrics.
+links onward to Rotterdam/Hamburg. Both versions inspect Santos with unavailable
+local measurements; the same port markers, route endpoints and labels remain.
+Only sea-arc colors change from gray to red. The additional originator inspection
+shows asking price **100**, quantity **50** versus reference **100**, and storage
+utilization **0.4**. This controlled fixture has six nodes/markers and five edges;
+the shipped scene retains its sixteen nodes, edges and markers. No port metrics
+are supplied or invented.
 
 #### Historical responsive review evidence
 
@@ -227,8 +231,9 @@ settings, execution/monitoring, completed results, recorded selection, timeline,
 speed, manual stepping, reference/legend, component evidence and network
 indicators. Steps 7 and 8 provide English/Deutsch speed and stepping guidance;
 component evidence at step 10 explains recorded originator price, quantity and
-storage/handling metrics, and displayed-source arc colors. Execution/results retain their
-existing step positions and auto-advance rules. The popup highlights the relevant
+storage/handling metrics, temporary originator-based sea-arc colors and unavailable
+local port measurements. Execution/results retain their existing step positions
+and auto-advance rules. The popup highlights the relevant
 controls and opens their panel on step entry. **Back/Next** remain
 available even if a target has not loaded or a run has not completed; you can
 continue and return later. The tour never edits inputs, submits a simulation,
@@ -533,25 +538,29 @@ The workshop **Active cascade** control is fixed to **Soy crisis cascade** for
 now; its magnitude/timing/mitigation controls remain editable. API/CLI multi-cascade
 support and playback of historical energy runs remain supported.
 
-The display uniformly simplifies eligible export routes to **recorded grain
-originator → destination** arcs, matching Argentina/US. In a single pass, an
-explicitly unrecorded transport node (`hasRecordedData: false`; `land_transport`,
-`sea_transport` or legacy `port`) is bypassed only when it has incoming and outgoing
-edges, **all** incoming edges are non-sea links from recorded wholesalers, and
-**all** outgoing edges are sea links to retained destinations. Mixed or uncertain
-topologies remain unchanged; the rule does not recursively traverse transports.
-Bypassed ports are removed from both map and inspector. Brazil's grain originator
-thus connects directly to Rotterdam/Hamburg instead of via Santos/Paranaguá;
-other arcs keep their existing topology.
+All ports, markers, connection labels and route geometry stay as before. The
+shipped scene retains **16 nodes, 16 edges and 16 markers**, including
+**Santos → Rotterdam** and **Paranaguá → Hamburg**. Ports remain in both the map
+and **Inspect component**; unrecorded ports have gray markers and **Unavailable**
+local measurements.
 
-Each connection uses its **displayed source's status**, with no upstream search or
-target fallback. Inspect the recorded originator for asking price, supply
-availability and storage/handling pressure, including current/reference values
-and strongest metric/agent. Those metrics color its outgoing arcs but do not
-measure local port or route conditions. Retained unrecorded nodes keep unavailable
-local measurements. No port values are invented, and the display projection
-leaves raw source scenes, recordings, reference matching and API responses
-unchanged. Unsubmitted configurator edits do not affect recorded colors.
+A **temporary, one-hop color-only override** lets a sea edge use a recorded grain
+originator's assessment unchanged when its source is an explicitly unrecorded
+transport (`hasRecordedData: false`; `land_transport`, `sea_transport` or legacy
+`port`) and **all** incoming edges are non-sea links from the **same single
+distinct recorded wholesaler**. Unsupported, mixed or ambiguous inputs and return
+paths remain unknown/gray. There is no recursive search or separate inference UI.
+Other connections, including Argentina/US intercontinental arcs, retain their
+immediate-source coloring.
+
+Inspect the recorded originator for asking price, supply availability and
+storage/handling pressure, including current/reference values and strongest
+metric/agent. Its assessment supplies the eligible sea-arc color, not a measured
+local port condition or congestion level. **Remove this temporary override and
+restore proper local transport-metric coloring once the missing port/route
+recordings are fixed.** No port values are invented; raw source scenes,
+recordings, reference matching and API responses remain unchanged. Unsubmitted
+configurator edits do not affect recorded colors.
 
 The four synchronized timeline indicators remain soy price, feed price, total soy
 supply and average transport utilization. The last is network-wide; individual
@@ -633,9 +642,9 @@ width/height boundary defaults, explicit choices across resizing and selection
 remounts, and temporary EN/DE tutorial indicator reveal/restoration. It needs
 Chromium and a recorded-mode Vite server, not a live database or API.
 
-From `web/`, run `npm run test:playback`. Its display regressions cover eligible
-originator-route simplification, conservative exclusions and unchanged source
-scenes, alongside immediate-source connection colors and missing evidence.
+From `web/`, run `npm run test:playback`. Its regressions cover preserved port
+topology, the temporary one-hop sea-arc color override and conservative exclusions,
+alongside immediate-source connection colors and missing evidence.
 For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
 `npm run test:playback-browser`; these browser checks intercept API responses,
@@ -651,8 +660,9 @@ changes, accumulated/reversed steps while current or reference data loads, and
 clamping/pausing at nonzero boundaries. For a custom frontend/API origin, set
 `SIMENV_WEB_URL` and `SIMENV_TEST_PLAYBACK_ORIGIN` as in the
 [tutorial browser setup](../web/README.md#tutorial-browser-check).
-Status browser fixtures also check originator-sourced ocean renderer colors and
-recorded originator details through disturbance, recovery and missing evidence.
+Status browser fixtures also check preserved port markers/route geometry,
+temporary originator-based ocean renderer colors and honest port/originator
+details through disturbance, recovery and missing evidence.
 
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
 stack. It submits two edited soy configurations, verifies catalogue refresh, opens each exact

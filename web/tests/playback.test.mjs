@@ -135,7 +135,7 @@ const seaConnection = (source, target, id = `${source}->${target}`) => ({ ...con
 const displayFixture = () => ({ nodes: [component('a', 'wholesaler'), component('port', 'land_transport', false), component('x', 'land_transport', false)],
   edges: [connection('a', 'port'), seaConnection('port', 'x')] })
 
-test('shipped bundle displays Brazilian originator routes like Argentina and US without changing raw data', async () => {
+test('shipped presentation preserves all ports, edges, labels and marker geometry', async () => {
   const bundle = JSON.parse(await readFile(new URL('../public/bundle.json', import.meta.url), 'utf8'))
   const raw = { run_id: 'demo', scenario_id: 1, nodes: bundle.nodes, edges: bundle.edges }
   const original = structuredClone(raw)
@@ -144,99 +144,112 @@ test('shipped bundle displays Brazilian originator routes like Argentina and US 
   const display = presentScene(raw)
   assert.equal(raw.nodes.length, 16)
   assert.equal(raw.edges.length, 16)
-  assert.equal(display.nodes.length, 14)
-  assert.equal(display.edges.length, 14)
+  assert.equal(display.nodes.length, 16)
+  assert.equal(display.edges.length, 16)
   assert.deepEqual(raw, original)
-  assert.deepEqual(display.nodes.filter(node => !original.nodes.some(old => old.id === node.id)), [])
-  assert.deepEqual(original.nodes.filter(node => !display.nodes.some(retained => retained.id === node.id)).map(node => node.id).sort(), ['paranagua_port', 'santos_port'])
-  assert.deepEqual(display.edges.filter(edge => edge.isSeaCrossing).map(edge => [edge.source, edge.target]).sort(), [
-    ['argentina_wholesaler', 'rotterdam_port'], ['brazil_wholesaler', 'hamburg_port'], ['brazil_wholesaler', 'rotterdam_port'], ['us_wholesaler', 'rotterdam_port'],
-  ])
+  assert.deepEqual(display.nodes.map(node => node.id), raw.nodes.map(node => node.id))
+  assert.deepEqual(display.edges, raw.edges)
   const placed = resolveScene(display.nodes, display.edges)
-  assert.equal(placed.markers.length, 14)
-  assert.equal(placed.edges.length, 14)
-  assert.equal(display.nodes.find(node => node.id === 'rotterdam_port').hasRecordedData, false)
-  assert.deepEqual(presentScene(display), display, 'display projection is idempotent')
-  assert.equal(referenceCompatibility(raw, { ...original, scenario_id: 0 }), null, 'reference checks still use original topology')
-})
-
-test('display collapse forms all originator/destination routes and prefers an existing direct sea edge', () => {
-  const raw = displayFixture()
-  raw.nodes.push(component('b', 'wholesaler'), component('y', 'land_transport', false), component('parallel', 'port', false))
-  raw.edges.push(connection('b', 'port'), seaConnection('port', 'y'), connection('a', 'parallel'), seaConnection('parallel', 'x'), seaConnection('a', 'x', 'existing-sea'), connection('a', 'x'))
-  const display = presentScene(raw)
-  assert.deepEqual(display.nodes.map(node => node.id).sort(), ['a', 'b', 'x', 'y'])
-  assert.deepEqual(display.edges.map(edge => [edge.source, edge.target, edge.isSeaCrossing]).sort(), [
-    ['a', 'x', false], ['a', 'x', true], ['a', 'y', true], ['b', 'x', true], ['b', 'y', true],
-  ])
-  assert.equal(display.edges.find(edge => edge.source === 'a' && edge.target === 'x' && edge.isSeaCrossing).id, 'existing-sea')
-  assert.equal(display.edges.find(edge => edge.source === 'a' && edge.target === 'x' && !edge.isSeaCrossing).id, 'a->x')
-  assert.ok(display.edges.every(edge => display.nodes.some(node => node.id === edge.source) && display.nodes.some(node => node.id === edge.target)))
+  assert.equal(placed.markers.length, 16)
+  assert.equal(placed.edges.length, 16)
+  for (const id of ['santos_port', 'paranagua_port', 'rotterdam_port', 'hamburg_port']) assert.equal(display.nodes.find(node => node.id === id).hasRecordedData, false)
+  const ocean = placed.edges.find(edge => edge.id === 'santos_port->rotterdam_port')
+  assert.equal(ocean.label, 'Port of Santos → Port of Rotterdam')
+  assert.deepEqual([ocean.startLat, ocean.startLng, ocean.endLat, ocean.endLng], [-24, -46.3, 51.95, 4.14])
   assert.deepEqual(presentScene(display), display)
+  assert.equal(referenceCompatibility(raw, { ...display, scenario_id: 0 }), null)
 })
 
-test('generated display route IDs avoid original IDs and remain deterministic across input ordering', () => {
-  const raw = displayFixture()
-  raw.nodes.push(component('b', 'wholesaler'), component('y', 'land_transport', false))
-  raw.edges.push(connection('b', 'port'), seaConnection('port', 'y'), { ...connection('b', 'y'), id: 'display:["a","x",true]' }, { ...connection('a', 'y'), id: 'display:["a","x",true]:1' })
-  const display = presentScene(raw)
-  assert.equal(display.edges.find(edge => edge.source === 'a' && edge.target === 'x').id, 'display:["a","x",true]:2')
-  assert.equal(new Set(display.edges.map(edge => edge.id)).size, display.edges.length)
-  const reversed = presentScene({ ...raw, nodes: [...raw.nodes].reverse(), edges: [...raw.edges].reverse() })
-  const routes = value => value.edges.map(edge => [edge.source, edge.target, edge.isSeaCrossing, edge.id]).sort()
-  assert.deepEqual(routes(reversed), routes(display))
+test('temporary ocean coloring reuses the exact originator assessment without changing port measurements or frames', () => {
+  const scene = displayFixture()
+  const reference = [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')]
+  for (const [values, score, coverage] of [
+    [{ ...normal, storage_utilization: .2 }, 0, 'complete'],
+    [{ ...normal, quantity_available: 50, storage_utilization: .2 }, 1, 'complete'],
+    [{ quantity_available: 50 }, 1, 'partial'],
+    [{}, null, 'unavailable'],
+    [null, null, 'unavailable'],
+  ]) {
+    const current = values ? [agent(values, 7, 'wholesaler', 'a')] : []
+    const original = structuredClone({ scene, current, reference })
+    const result = projection(current, reference, scene)
+    assert.equal(result.edges['port->x'], result.nodes.a)
+    assert.equal(result.edgeIntensity['port->x'], score)
+    assert.equal(result.edges['port->x'].coverage, coverage)
+    assert.equal(result.nodes.port.score, null)
+    assert.equal(result.markerIntensity.port, null)
+    assert.equal(result.markerIntensity.x, null)
+    assert.deepEqual(result.nodes.port.agents, [])
+    if (score === 1) {
+      assert.equal(result.edges['port->x'].winner.metric.key, 'quantity_available')
+      assert.equal(result.edges['port->x'].winner.agent.agent_id, 7)
+    }
+    assert.deepEqual({ scene, current, reference }, original)
+  }
 })
 
-test('unsupported branches preserve the entire waypoint and its original connections', () => {
+test('one-hop ocean coloring accepts duplicate links from one recorded originator and explicit transport roles', () => {
+  const state = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const base = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  for (const role of ['land_transport', 'sea_transport', 'port']) {
+    const scene = displayFixture()
+    scene.nodes[1].role = role
+    scene.edges.push({ ...connection('a', 'port'), id: 'duplicate-feeder' })
+    const result = projection([state], [base], scene)
+    assert.equal(result.edges['port->x'], result.nodes.a)
+    assert.equal(result.edgeIntensity['port->x'], 1)
+    assert.equal(result.edges['a->port'], result.nodes.a, 'ordinary feeder coloring is unchanged')
+  }
+})
+
+test('unsupported or ambiguous incoming evidence leaves ordinary immediate-source coloring intact', () => {
   const unsupported = [
     scene => { scene.nodes[1].hasRecordedData = true },
     scene => { delete scene.nodes[1].hasRecordedData },
     scene => { scene.nodes[1].role = 'processor' },
     scene => { scene.nodes[0].role = 'producer' },
     scene => { scene.nodes[0].hasRecordedData = false },
+    scene => { delete scene.nodes[0].hasRecordedData },
     scene => { scene.edges[0].isSeaCrossing = true },
     scene => { scene.edges[1].isSeaCrossing = false },
+    scene => { delete scene.edges[0].isSeaCrossing },
     scene => { scene.edges.push(connection('missing', 'port')) },
-    scene => { scene.edges.push(seaConnection('port', 'missing')) },
-    scene => { scene.edges.push(seaConnection('port', 'a')) },
+    scene => { scene.edges[0].source = 'missing' },
+    scene => { scene.edges[1].target = 'a' },
     scene => { scene.edges.push(connection('port', 'port')) },
     scene => { scene.edges.shift() },
-    scene => { scene.edges.pop() },
-    scene => { scene.nodes.push(component('branch')); scene.edges.push(connection('port', 'branch')) },
     scene => { scene.nodes.push(component('branch')); scene.edges.push(connection('branch', 'port')) },
+    scene => { scene.nodes.push(component('b', 'wholesaler')); scene.edges.push(connection('b', 'port')) },
+    scene => { scene.edges.push(seaConnection('a', 'port', 'mixed-mode-feeder')) },
   ]
+  const state = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const base = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
   for (const change of unsupported) {
-    const raw = displayFixture()
-    change(raw)
-    assert.deepEqual(presentScene(raw), raw, change.toString())
+    const scene = displayFixture()
+    change(scene)
+    const result = projection([state], [base], scene)
+    const ocean = scene.edges.find(edge => edge.id === 'port->x')
+    assert.equal(result.edges[ocean.id], result.nodes.port, change.toString())
+    assert.equal(result.edges[ocean.id].score, null)
   }
-  const raw = displayFixture()
-  raw.nodes.push(component('second', 'port', false), component('end'))
-  raw.edges.push(seaConnection('x', 'second'), seaConnection('second', 'end'))
-  const display = presentScene(raw)
-  assert.deepEqual(display.nodes.map(node => node.id), ['a', 'x', 'second', 'end'], 'only original candidates are collapsed; sea-fed transports stay visible')
-  assert.ok(display.edges.some(edge => edge.source === 'x' && edge.target === 'second'))
-  assert.deepEqual(presentScene(display), display)
 })
 
-test('display sea edges use only the immediate originator assessment and retain its metric details', () => {
-  const raw = displayFixture()
-  const display = presentScene(raw)
-  const reference = [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')]
-  const edge = display.edges.find(edge => edge.source === 'a' && edge.target === 'x')
-  for (const [values, expected] of [[{ ...normal, storage_utilization: .2 }, 0], [{ ...normal, quantity_available: 50, storage_utilization: .2 }, 1], [{}, null]]) {
-    const current = [agent(values, 7, 'wholesaler', 'a')]
-    const result = projection(current, reference, display)
-    assert.equal(result.edgeIntensity[edge.id], expected)
-    assert.equal(result.edges[edge.id], result.nodes.a)
-    assert.equal(result.markerIntensity.x, null)
-    if (expected === 1) {
-      assert.equal(result.nodes.a.winner.metric.key, 'quantity_available')
-      assert.equal(result.nodes.a.winner.agent.agent_id, 7)
-    }
-  }
-  const uncollapsed = projection([agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')], reference, raw)
-  assert.equal(uncollapsed.edges['port->x'].score, null, 'ordinary unrecorded sources do not recursively inherit')
+test('ocean workaround never traverses ancestors, borrows target or network evidence, or overrides a recorded source', () => {
+  const scene = displayFixture()
+  scene.nodes.push(component('farm'))
+  scene.edges.push(connection('farm', 'a'))
+  const farm = agent({ ...normal, quantity_available: 50 }, 0, 'producer', 'farm')
+  const target = agent({ ...normal, quantity_available: 50 }, 0, 'producer', 'x')
+  const environment = agent({ transport_utilisation: 1 }, 0, 'environment', 'environment')
+  const result = projection([farm, target, environment], [agent(normal, 0, 'producer', 'farm')], scene)
+  assert.equal(result.nodes.farm.score, 1)
+  assert.equal(result.edges['port->x'], result.nodes.a)
+  assert.equal(result.edgeIntensity['port->x'], null, 'missing immediate originator evidence is not bypassed')
+  scene.nodes[1].hasRecordedData = true
+  const port = agent(normal, 0, 'producer', 'port')
+  const known = projection([farm, port], [agent(normal, 0, 'producer', 'farm'), port], scene)
+  assert.equal(known.edges['port->x'], known.nodes.port)
+  assert.equal(known.edgeIntensity['port->x'], 0, 'recorded source assessments remain authoritative')
 })
 
 test('wire validation preserves precision and rejects nonfinite and duplicate agent states', () => {

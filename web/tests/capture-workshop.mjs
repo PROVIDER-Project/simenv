@@ -3,7 +3,7 @@
 // current:       VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001 npm run dev -- --port 5182
 // SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5192 SIMENV_WEB_URL=http://127.0.0.1:5182 \
 //   node tests/capture-workshop.mjs
-// Add --lane-only to refresh just the matched originator-route pair.
+// Add --lane-only to refresh the port pair and originator-metrics evidence.
 // All images are explicitly labeled controlled API fixtures, not simulation runs.
 // Geometry assertions run after capture; lane captures require the expected topology.
 import assert from 'node:assert/strict'
@@ -67,8 +67,8 @@ async function capture(page, name, label) {
 
 // Capture-only graph: recorded farm -> recorded wholesaler -> unrecorded Brazil
 // export ports -> EU ports. Both versions receive exactly the same source graph.
-// The shipped originator identity/role makes only the Brazil export ports eligible
-// for the conservative display collapse; no port measurements are supplied.
+// All ports and routes must remain present. Only eligible sea-arc colors temporarily
+// use the shipped originator's recorded assessment; no port metrics are supplied.
 // Status/renderer behavior is covered separately by status-browser.test.mjs.
 async function laneFixture(page) {
   await page.route(`${origin}/runs/*/scenarios/*/scene`, route => {
@@ -99,6 +99,34 @@ async function laneFixture(page) {
         values: { unit_price: 100, quantity_available: scenario === 1 ? 50 : 100, storage_utilization: .4 } })
     }
     return route.fulfill({ json: result })
+  })
+}
+
+// Inspect mounted renderer inputs so stale collapsed-route code cannot produce
+// misleading evidence. The fixture is six nodes/markers and five edges, not the
+// full shipped sixteen-node scene covered by the core playback/browser tests.
+async function laneRendererState(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('#root')
+    const fiber = root[Object.keys(root).find(key => key.startsWith('__reactContainer'))]
+    function find(node) {
+      if (!node) return null
+      const props = node.memoizedProps
+      if (Array.isArray(props?.arcsData) && Array.isArray(props?.pointsData) && typeof props.arcColor === 'function') return props
+      return find(node.child) || find(node.sibling)
+    }
+    const props = find(fiber.stateNode?.current ?? fiber)
+    if (!props) throw new Error('Mounted globe renderer props not found')
+    return {
+      markers: props.pointsData.map(point => point.nodeId).sort(),
+      ports: props.pointsData.filter(point => point.nodeId.endsWith('_port'))
+        .map(point => ({ id: point.nodeId, intensity: point.intensity, color: props.pointColor(point) })),
+      routes: props.arcsData.filter(arc => arc.layer === 'core').map(arc => ({ id: arc.edgeId,
+        endpoints: [arc.startLat, arc.startLng, arc.endLat, arc.endLng] })),
+      sea: props.arcsData.filter(arc => ['santos-rotterdam', 'paranagua-hamburg'].includes(arc.edgeId))
+        .map(arc => ({ intensity: arc.intensity, color: props.arcColor(arc) })),
+      labels: props.htmlElementsData.filter(anchor => anchor.kind === 'edge').map(anchor => ({ id: anchor.id, text: anchor.text })),
+    }
   })
 }
 
@@ -166,25 +194,48 @@ async function main() {
       }
       await page.close()
     }
+    let beforeRoutes
     for (const [version, url] of [['before', baselineUrl], ['after', webUrl]]) {
-      const page = await setup(url, sizes[0][1], true)
+      const page = await setup(url, { width: 1440, height: 900 }, true)
       const inspector = page.getByRole('combobox', { name: 'Inspect component' })
-      // Refuse to capture an after image until the core display projection is live.
-      for (const port of ['santos_port', 'paranagua_port']) {
-        assert.equal(await inspector.locator(`option[value="${port}"]`).count(), version === 'before' ? 1 : 0,
-          `${version}: bypassed Brazil ports must match the expected display topology`)
+      assert.equal(await inspector.locator('option').count(), 6)
+      for (const port of ['santos_port', 'paranagua_port', 'rotterdam_port', 'hamburg_port']) {
+        assert.equal(await inspector.locator(`option[value="${port}"]`).count(), 1,
+          `${version}: every port must remain inspectable`)
       }
-      await inspector.selectOption('brazil_wholesaler')
+      const rendered = await laneRendererState(page)
+      assert.deepEqual(rendered.markers, ['brazil_farms', 'brazil_wholesaler', 'hamburg_port', 'paranagua_port', 'rotterdam_port', 'santos_port'])
+      assert.equal(rendered.routes.length, 5)
+      assert.deepEqual(rendered.routes.find(route => route.id === 'santos-rotterdam').endpoints, [-23.96, -46.33, 51.95, 4.14])
+      assert.deepEqual(rendered.routes.find(route => route.id === 'paranagua-hamburg').endpoints, [-25.52, -48.51, 53.55, 9.99])
+      for (const port of rendered.ports) assert.deepEqual(port, { id: port.id, intensity: null, color: '#8793A3' })
+      assert.equal(rendered.sea.length, 6)
+      for (const arc of rendered.sea) assert.equal(arc.intensity, version === 'before' ? null : 1,
+        `${version}: sea-arc color must match the expected temporary override`)
+      const topology = { routes: rendered.routes, labels: rendered.labels }
+      if (version === 'before') beforeRoutes = topology
+      else assert.deepEqual(topology, beforeRoutes, 'route geometry, IDs and labels must be preserved')
+      await inspector.selectOption('santos_port')
       const details = page.getByRole('region', { name: 'Component status' })
+      await details.getByRole('heading', { name: 'Port of Santos · step 100' }).waitFor()
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+      assert.match(await details.innerText(), /No measurements recorded for this component/)
+      assert.equal(await details.getByRole('region', { name: 'Connection inference' }).count(), 0)
+      await details.locator('h3').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+      await capture(page, `lane-ports-desktop-${version}`, `${version === 'before' ? 'd5f02ab BEFORE · gray sea arcs' : 'PR83 AFTER · temporary originator color'} · ports/routes preserved · local port data unavailable · 1440×900`)
+      console.log(`Lane ${version} renderer: ${JSON.stringify(rendered)}`)
+      await inspector.selectOption('brazil_wholesaler')
       await details.getByRole('heading', { name: 'Brazil grain originator · step 100' }).waitFor()
       const quantity = details.locator('.sim-metric').filter({ hasText: 'quantity_available' })
       assert.match(await quantity.innerText(), /Current: 50\s+Reference: 100/)
       const storage = details.locator('.sim-metric').filter({ hasText: 'storage_utilization' })
       assert.match(await storage.innerText(), /Current: 40\.0%\s+Reference: 40\.0%/)
       assert.equal(await details.getByText('Incomplete evidence', { exact: true }).count(), 0)
-      // Show all three measured source metrics beside the matched routes.
-      await details.locator('summary').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
-      await capture(page, `lane-originator-desktop-${version}`, `${version === 'before' ? 'd5f02ab BEFORE · via Brazil ports' : 'PR83 AFTER · direct originator arcs'} · measured Brazil wholesaler · 1275×605`)
+      if (version === 'after') {
+        // Show measured color evidence separately from the honest unavailable port.
+        await details.locator('summary').evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
+        await capture(page, 'lane-originator-metrics-desktop-after', 'PR83 AFTER · recorded Brazil wholesaler metrics · temporary arc color, not local congestion · 1440×900')
+      }
       console.log(`Lane ${version} details: ${await details.innerText()}`)
       await page.close()
     }

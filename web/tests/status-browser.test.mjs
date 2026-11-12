@@ -51,11 +51,14 @@ async function oceanRendererState(page) {
     }
     const props = find(fiber.stateNode?.current ?? fiber)
     if (!props) throw new Error('Mounted globe renderer props not found')
-    const ocean = props.arcsData.filter(datum => datum.edgeId === 'display:["brazil_wholesaler","rotterdam_port",true]')
+    const ocean = props.arcsData.filter(datum => ['ocean', 'santos_port->rotterdam_port'].includes(datum.edgeId))
     const port = props.pointsData.find(datum => datum.nodeId === 'rotterdam_port')
     return { ocean: ocean.map(datum => ({ layer: datum.layer, intensity: datum.intensity, color: props.arcColor(datum) })),
       port: { intensity: port.intensity, color: props.pointColor(port) },
       exportPorts: props.pointsData.filter(datum => ['santos_port', 'paranagua_port'].includes(datum.nodeId)).length,
+      exportPortStates: props.pointsData.filter(datum => ['santos_port', 'paranagua_port'].includes(datum.nodeId))
+        .map(datum => ({ id: datum.nodeId, intensity: datum.intensity, color: props.pointColor(datum) })),
+      oceanLabel: props.htmlElementsData.find(anchor => anchor.id === `edge:${ocean[0]?.edgeId}`)?.text,
       markerCount: props.pointsData.length, edgeCount: new Set(props.arcsData.map(datum => datum.edgeId)).size,
       endpoints: ocean.length ? [ocean[0].startLat, ocean[0].startLng, ocean[0].endLat, ocean[0].endLng] : [],
       period: document.querySelector('[aria-label="Component status"]').dataset.period,
@@ -280,7 +283,7 @@ test('unplaced components remain keyboard-inspectable with unavailable measured 
   } finally { await browser.close() }
 })
 
-test('display ocean routes start at the originator and share its measured status and details', async () => {
+test('temporary ocean colors follow the originator while port geometry, labels and inspection stay unchanged', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -292,7 +295,7 @@ test('display ocean routes start at the originator and share its measured status
         ['santos_port', 'Workshop export port'], ['paranagua_port', 'Workshop secondary port'],
         ['rotterdam_port', 'Workshop import port'], ['hamburg_port', 'Workshop secondary import'],
       ].map(([id, label]) => ({ id, label, role: 'land_transport', entityIds: [id], placements: [], hasRecordedData: false }))
-      // Put an omitted component first to exercise initial selection validation.
+      // Ports remain in the original scene order, including initial selection.
       result.nodes = [...ports.slice(0, 2), ...result.nodes, {
         id: 'brazil_wholesaler', label: 'Brazil grain originator', role: 'wholesaler', entityIds: ['brazil_wholesaler'], hasRecordedData: true,
         placements: [{ entityId: 'brazil_wholesaler', label: 'Brazil grain originator', lat: -23, lng: -47, illustrative: true }],
@@ -320,10 +323,13 @@ test('display ocean routes start at the originator and share its measured status
     })
     await page.goto(webUrl); await pause(page)
     const selector = page.getByRole('combobox', { name: 'Inspect component' })
-    assert.equal(await selector.inputValue(), 'brazil_farms', 'selection falls back to a retained display component')
-    assert.equal(await selector.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 0)
-    await selector.selectOption('brazil_wholesaler')
+    assert.equal(await selector.inputValue(), 'santos_port', 'the original first port remains selectable')
+    assert.equal(await selector.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 2)
     const details = page.getByRole('region', { name: 'Component status' })
+    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+    assert.match(await details.innerText(), /No measurements recorded for this component/)
+    assert.match(await details.innerText(), /across 0 recorded agents/)
+    await selector.selectOption('brazil_wholesaler')
     await details.getByText('Severe', { exact: true }).waitFor()
     assert.match(await details.locator('.sim-status-responsible').innerText(), /Supply availability · agent 7 \(wholesaler\)/)
     assert.match(await details.locator('.sim-metric').filter({ hasText: 'quantity_available' }).innerText(), /Current: 50.*Reference: 100/s)
@@ -341,17 +347,24 @@ test('display ocean routes start at the originator and share its measured status
       assert.equal(rendered.period, String(period))
       assert.equal(rendered.indicatorPeriod, String(period))
       assert.deepEqual(rendered.port, { intensity: null, color: '#8793A3' })
-      assert.equal(rendered.exportPorts, 0)
-      assert.deepEqual(rendered.endpoints, [-23, -47, 51.95, 4.14], 'ocean geometry begins at the originator, not Santos')
+      assert.equal(rendered.exportPorts, 2)
+      assert.deepEqual(rendered.exportPortStates, [
+        { id: 'santos_port', intensity: null, color: '#8793A3' },
+        { id: 'paranagua_port', intensity: null, color: '#8793A3' },
+      ])
+      assert.deepEqual(rendered.endpoints, [-24, -46.3, 51.95, 4.14], 'ocean geometry still begins at Santos, not the originator')
+      assert.equal(rendered.oceanLabel, 'Workshop export port → Workshop import port')
       assert.deepEqual(rendered.ocean, [
         { layer: 'halo', intensity: score, color: `rgba(${rgb},0.16)` },
         { layer: 'glow', intensity: score, color: `rgba(${rgb},0.34)` },
         { layer: 'core', intensity: score, color: `rgba(${rgb},0.92)` },
-      ], 'display ocean layers inherit only their immediate originator, including unavailable gray')
+      ], 'the temporary color override follows the one-hop originator without changing the ocean arc')
     }
-    await selector.selectOption('rotterdam_port')
-    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
-    assert.match(await details.innerText(), /No measurements recorded for this component/)
+    for (const port of ['santos_port', 'paranagua_port', 'rotterdam_port', 'hamburg_port']) {
+      await selector.selectOption(port)
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+      assert.match(await details.innerText(), /No measurements recorded for this component/)
+    }
   } finally { await browser.close() }
 })
 
@@ -433,13 +446,14 @@ test('static demo keeps its start-mode limitation and explains submitted-result 
     await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_STATIC_WEB_URL); await pause(page)
     const components = page.getByRole('combobox', { name: 'Inspect component' })
-    assert.equal(await components.locator('option').count(), 14)
-    assert.equal(await components.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 0)
+    assert.equal(await components.locator('option').count(), 16)
+    assert.equal(await components.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 2)
     const displayed = await oceanRendererState(page)
-    assert.equal(displayed.markerCount, 14)
-    assert.equal(displayed.edgeCount, 14)
-    assert.equal(displayed.exportPorts, 0)
-    assert.deepEqual(displayed.endpoints, [-23, -47, 51.95, 4.14])
+    assert.equal(displayed.markerCount, 16)
+    assert.equal(displayed.edgeCount, 16)
+    assert.equal(displayed.exportPorts, 2)
+    assert.deepEqual(displayed.endpoints, [-24, -46.3, 51.95, 4.14])
+    assert.equal(displayed.oceanLabel, 'Port of Santos → Port of Rotterdam')
     assert.deepEqual(displayed.port, { intensity: null, color: '#8793A3' })
     assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'start')
     assert.match(await page.getByRole('region', { name: 'Reference comparison' }).innerText(), /cannot reveal disturbances already present/)
