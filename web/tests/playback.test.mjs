@@ -127,6 +127,132 @@ test('connections inherit source only; day-zero baseline and raw measurements st
   assert.equal(reference[0].values.quantity_available, 100)
 })
 
+const component = (id, role = 'producer', hasRecordedData = true) => ({ id, label: id, role, hasRecordedData, entityIds: [id], placements: [] })
+const connection = (source, target) => ({ id: `${source}->${target}`, source, target, isSeaCrossing: false })
+
+test('Brazil ocean connections infer nearest upstream evidence without inventing port measurements', () => {
+  const scene = { nodes: [component('brazil_wholesaler', 'wholesaler'), ...['santos_port', 'paranagua_port', 'rotterdam_port', 'hamburg_port'].map(id => component(id, 'land_transport', false))],
+    edges: [connection('brazil_wholesaler', 'santos_port'), connection('brazil_wholesaler', 'paranagua_port'), connection('santos_port', 'rotterdam_port'), connection('paranagua_port', 'hamburg_port')] }
+  const reference = [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'brazil_wholesaler')]
+  const current = [agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'brazil_wholesaler')]
+  const original = structuredClone({ scene, current, reference })
+  const result = projection(current, reference, scene)
+  for (const id of ['santos_port', 'paranagua_port']) {
+    const evidence = result.edges[`${id}->${id === 'santos_port' ? 'rotterdam_port' : 'hamburg_port'}`]
+    assert.equal(evidence.score, 1)
+    assert.equal(evidence.kind, 'inferred')
+    assert.deepEqual(evidence.sources.map(source => [source.nodeId, source.path]), [['brazil_wholesaler', ['brazil_wholesaler', id]]])
+    assert.equal(evidence.winner.nodeId, 'brazil_wholesaler')
+    assert.equal(evidence.winner.metric.key, 'quantity_available')
+    assert.equal(evidence.winner.agent.agent_id, 7)
+    assert.equal(result.nodes[id].score, null)
+    assert.deepEqual(result.nodes[id].agents, [])
+    assert.equal(result.markerIntensity[id], null)
+  }
+  assert.equal(result.edgeIntensity['santos_port->rotterdam_port'], 1)
+  assert.deepEqual({ scene, current, reference }, original)
+  assert.equal(projection(reference, reference, scene).edges['santos_port->rotterdam_port'].score, 0, 'recovery follows the measured upstream component')
+})
+
+test('only explicitly unrecorded transport roles are transparent, including legacy ports', () => {
+  for (const [role, recorded, expected] of [['land_transport', false, 1], ['sea_transport', false, 1], ['port', false, 1], ['processor', false, null], ['land_transport', true, null], ['unknown', false, null]]) {
+    const scene = { nodes: [component('farm'), component('middle', role, recorded), component('target')], edges: [connection('farm', 'middle'), connection('middle', 'target')] }
+    assert.equal(projection([agent({ ...normal, quantity_available: 50 })], [agent(normal)], scene).edges['middle->target'].score, expected, `${role}, recorded=${recorded}`)
+  }
+})
+
+test('inference crosses multiple transports but stops at missing nearest recorded evidence', () => {
+  const scene = { nodes: [component('farm'), component('trader', 'feed_trader'), component('port', 'land_transport', false), component('sea', 'sea_transport', false), component('target')],
+    edges: [connection('farm', 'trader'), connection('trader', 'port'), connection('port', 'sea'), connection('sea', 'target')] }
+  const farm = agent({ ...normal, quantity_available: 50 })
+  const missing = projection([farm], [agent(normal)], scene).edges['sea->target']
+  assert.equal(missing.score, null)
+  assert.equal(missing.kind, 'inferred')
+  assert.deepEqual(missing.sources.map(source => [source.nodeId, source.path]), [['trader', ['trader', 'port', 'sea']]])
+  const trader = agent(normal, 0, 'feed_trader', 'trader')
+  const known = projection([farm, trader], [agent(normal), trader], scene).edges['sea->target']
+  assert.equal(known.score, 0, 'a healthy nearer recorded component blocks a severe ancestor')
+  const noReference = projection([farm, trader], [agent(normal)], scene).edges['sea->target']
+  assert.equal(noReference.score, null, 'missing reference is not bypassed')
+})
+
+test('branch inference retains adverse partial evidence and deterministic metric provenance', () => {
+  const scene = { nodes: [component('a'), component('b'), component('port', 'port', false), component('target')],
+    edges: [connection('b', 'port'), connection('a', 'port'), connection('port', 'target')] }
+  const state = (id, quantity = 50) => agent({ ...normal, quantity_available: quantity }, 0, 'producer', id)
+  const reference = [state('a', 100), state('b', 100)]
+  const severe = projection([state('b'), state('a')], reference, scene).edges['port->target']
+  assert.equal(severe.score, 1)
+  assert.equal(severe.coverage, 'complete')
+  assert.equal(severe.winner.nodeId, 'a')
+  assert.deepEqual(severe.sources.map(source => source.nodeId), ['a', 'b'])
+  const reordered = { nodes: [...scene.nodes].reverse(), edges: [...scene.edges].reverse() }
+  assert.deepEqual(projection([state('a'), state('b')], reference, reordered).edges['port->target'], severe)
+  const partial = projection([state('a')], reference, scene).edges['port->target']
+  assert.equal(partial.score, 1)
+  assert.equal(partial.coverage, 'partial')
+  const insufficient = projection([state('a', 100)], reference, scene).edges['port->target']
+  assert.equal(insufficient.score, null)
+  assert.equal(insufficient.coverage, 'partial')
+})
+
+test('unresolved transport branches cannot become healthy or borrow target or network status', () => {
+  const farm = agent(normal)
+  const target = agent({ ...normal, quantity_available: 50 }, 0, 'producer', 'target')
+  const environment = agent({ transport_utilisation: 1 }, 0, 'environment', 'environment')
+  for (const extra of [[], [connection('missing', 'port')], [connection('loop', 'port'), connection('port', 'loop')]]) {
+    const scene = { nodes: [component('farm'), component('port', 'port', false), component('loop', 'sea_transport', false), component('target')], edges: [...extra, connection('port', 'target')] }
+    const result = projection([farm, target, environment], [farm, agent(normal, 0, 'producer', 'target')], scene)
+    const unknown = result.edges['port->target']
+    assert.equal(unknown.score, null)
+    assert.ok(unknown.unresolved.length)
+    assert.equal(unknown.winner, null)
+    assert.equal(result.nodes.target.score, 1)
+    scene.edges.push(connection('farm', 'port'))
+    const mixed = projection([farm, target], [farm, target], scene).edges['port->target']
+    assert.equal(mixed.score, extra.length ? null : 0)
+    assert.equal(mixed.coverage, extra.length ? 'partial' : 'complete')
+    const adverse = projection([agent({ ...normal, quantity_available: 50 }), target], [farm, target], scene).edges['port->target']
+    // With no broken branch, adding the farm resolves the previously empty port.
+    assert.equal(adverse.score, 1)
+    assert.equal(adverse.coverage, extra.length ? 'partial' : 'complete')
+  }
+})
+
+test('inferred edges exclude their own recorded destination without sharing another target result', () => {
+  const scene = { nodes: [component('farm'), component('port', 'land_transport', false), component('other')],
+    edges: [connection('farm', 'port'), connection('port', 'other'), connection('port', 'farm'), connection('farm', 'farm')] }
+  for (const quantity of [100, 50]) {
+    const result = projection([agent({ ...normal, quantity_available: quantity })], [agent(normal)], scene)
+    const cycle = result.edges['port->farm']
+    assert.equal(cycle.score, null, 'a recorded target cannot become its own inferred source')
+    assert.deepEqual(cycle.sources, [])
+    assert.equal(cycle.winner, null)
+    assert.deepEqual(cycle.unresolved.map(item => item.path), [['farm', 'port']])
+    assert.match(cycle.unresolved[0].reason, /destination/i)
+    assert.equal(result.edges['port->other'].score, quantity === 100 ? 0 : 1, 'another target retains valid upstream evidence')
+    assert.equal(result.edges['farm->port'].score, quantity === 100 ? 0 : 1, 'direct recorded sources are unchanged')
+    assert.equal(result.edges['farm->farm'].score, quantity === 100 ? 0 : 1, 'destination exclusion applies only to inference')
+    assert.equal(result.nodes.port.score, null)
+  }
+})
+
+test('destination exclusion through multiple transports retains only independent branch evidence', () => {
+  const scene = { nodes: [component('farm'), component('b'), component('port', 'port', false), component('sea', 'sea_transport', false)],
+    edges: [connection('farm', 'port'), connection('b', 'port'), connection('port', 'sea'), connection('sea', 'farm')] }
+  const state = (id, quantity) => agent({ ...normal, quantity_available: quantity }, 0, 'producer', id)
+  const reference = [state('farm', 100), state('b', 100)]
+  const healthy = projection(reference, reference, scene).edges['sea->farm']
+  assert.equal(healthy.score, null)
+  assert.equal(healthy.coverage, 'partial')
+  assert.deepEqual(healthy.sources.map(source => source.nodeId), ['b'])
+  assert.deepEqual(healthy.unresolved.map(item => item.path), [['farm', 'port', 'sea']])
+  const adverse = projection([state('farm', 100), state('b', 50)], reference, scene).edges['sea->farm']
+  assert.equal(adverse.score, 1)
+  assert.equal(adverse.coverage, 'partial')
+  assert.equal(adverse.winner.nodeId, 'b')
+})
+
 test('wire validation preserves precision and rejects nonfinite and duplicate agent states', () => {
   const page = { run_id: 'r', scenario_id: 0, start: 0, next_start: null,
     frames: [{ period: 0, agents: [{ entity_id: 'farm', agent_id: 1, role: 'producer', values: { unit_price: 1.123456789012345 } }] }] }

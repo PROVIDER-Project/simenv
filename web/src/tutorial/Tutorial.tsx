@@ -41,6 +41,7 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
     if (!active) return
     let revealed = false
     let docked = false
+    let dockRevealPending = false
     let recoverVisibility = false
     let wasAccessible = false
     let frame = 0
@@ -65,6 +66,12 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
       return rect.top >= top - 1 && rect.bottom <= bottom + 1 && rect.left >= left - 1 && rect.right <= right + 1
     }
     function update() {
+      // Another animation frame can run before React commits the dock styles.
+      // Keep its one-time reveal pending until the docked layout is in the DOM.
+      if (dockRevealPending && popover.current?.closest('.sim-tutorial-shell--docked')) {
+        recoverVisibility = true
+        dockRevealPending = false
+      }
       const element = document.querySelector<HTMLElement>(`[data-tutorial="${step.id}"]`)
       const visible = element && element.getClientRects().length > 0 && !element.closest('[hidden]')
       let justRevealed = false
@@ -104,7 +111,7 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
         // Dock instead, reserving actual application space. Keep this choice
         // for this step/viewport so scrolling cannot oscillate between layouts.
         docked = true
-        recoverVisibility = true
+        dockRevealPending = true
         setDockHeight(Math.min(vh * .42, 240) + 16)
         schedule()
         return
@@ -122,6 +129,7 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
       // grid. Re-evaluate against the new viewport without a reserved inset;
       // scroll, playback and element-size observers never reset this latch.
       docked = false
+      dockRevealPending = false
       setDockHeight(null)
       schedule()
     }
@@ -149,14 +157,14 @@ export default function Tutorial({ children, mode, layoutReady }: { children: (r
     }}>Restart tutorial</button>)}
     {active && <>
       {target && <div className="sim-tutorial-highlight" aria-hidden="true" style={{ left: target.x - 4, top: target.y - 4, width: target.width + 8, height: target.height + 8 }} />}
-      <section ref={popover} className="sim-tutorial" role="region" aria-label="Interactive tutorial" lang={language} style={position}>
+      <section ref={popover} className="sim-tutorial" data-step={step.id} role="region" aria-label="Interactive tutorial" lang={language} style={position}>
         <div className="sim-tutorial-bar"><span>{index + 1} / {steps.length}</span><div>
           <button type="button" aria-pressed={!de} onClick={() => { setLanguage('en'); write('language', 'en') }}>English</button>
           <button type="button" aria-pressed={de} onClick={() => { setLanguage('de'); write('language', 'de') }}>Deutsch</button>
         </div></div>
         <h2 ref={heading} tabIndex={-1}>{step[language][0]}</h2>
         <p>{step[language][1]}</p>
-        {index === 4 && <p>{mode === 'static'
+        {step.id === 'runs' && <p>{mode === 'static'
           ? (de ? 'Statische Demo: keine Verbindung zu eingereichten Läufen. Für eigene Ergebnisse ist die aufgezeichnete Wiedergabe erforderlich.' : 'Static demo: separate from submitted runs. Recorded playback must be configured to view your own results.')
           : (de ? 'Aufgezeichneter Modus: Daten stammen aus dem ausgewählten Datenbanklauf.' : 'Recorded mode: data comes from the selected database run.')}</p>}
         {!target && <p role="status">{de ? 'Dieser Bereich ist noch nicht verfügbar. Du kannst weitergehen oder zurückkehren, sobald die Daten bereit sind.' : 'This area is not available yet. Continue freely or return when its data is ready.'}</p>}

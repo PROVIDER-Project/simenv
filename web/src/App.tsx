@@ -35,6 +35,7 @@ export default function App({ source }: { source: PlaybackSource }) {
   const [initialLayoutReady, setInitialLayoutReady] = useState(false)
   // Session preference belongs above the keyed playback, not to a run/scenario.
   const [indicatorsPreference, setIndicatorsPreference] = useState<boolean | null>(null)
+  const [speed, setSpeed] = useState(1)
   const reportLayoutReady = useCallback(() => setInitialLayoutReady(true), [])
   const selection = useRef('')
   const opening = useRef<AbortController | null>(null)
@@ -116,17 +117,17 @@ export default function App({ source }: { source: PlaybackSource }) {
       <div ref={setImpactSlot} />
     </div>
     {selected ? <SelectedPlayback key={`${selected}:${scenario}`} source={source} run={selected} scenario={scenario} runs={runs} impactSlot={impactSlot} onLayoutReady={reportLayoutReady}
-      indicatorsPreference={indicatorsPreference} onIndicatorsPreference={setIndicatorsPreference} />
+      indicatorsPreference={indicatorsPreference} onIndicatorsPreference={setIndicatorsPreference} speed={speed} onSpeed={setSpeed} />
       : <div className="sim-playback-notice"><div className="sim-playback-message">Select a completed run for playback.</div></div>}
     <ScenarioConfigurator meta={{ pdl: 's1-soja.pdl.yaml', scenario: '', ticks: 0, generatedAt: '', honestyNote: '' }} onCompleted={refreshRuns} onViewResults={viewResults} />
   </main>}</Tutorial>
 }
 
-function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady, indicatorsPreference, onIndicatorsPreference }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void; indicatorsPreference: boolean | null; onIndicatorsPreference: (expanded: boolean) => void }) {
+function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutReady, indicatorsPreference, onIndicatorsPreference, speed, onSpeed }: { source: PlaybackSource; run: string; scenario: number; runs: RunSummary[]; impactSlot: HTMLElement | null; onLayoutReady: () => void; indicatorsPreference: boolean | null; onIndicatorsPreference: (expanded: boolean) => void; speed: number; onSpeed: (speed: number) => void }) {
   const [referenceChoice, setReferenceChoice] = useState(source.mode === 'static' ? 'start' : 'auto')
   const automatic = referenceChoice === 'auto'
   const preparation = useAutomaticReference(source, run, scenario, automatic)
-  const playback = usePlayback(source, run, scenario, automatic ? preparation.reference ?? null : referenceChoice)
+  const playback = usePlayback(source, run, scenario, automatic ? preparation.reference ?? null : referenceChoice, speed)
   const reference = playback.reference
   const comparisonReady = !automatic || (preparation.phase === 'ready' && !!(reference.frame || reference.error))
   useEffect(() => {
@@ -192,7 +193,7 @@ function SelectedPlayback({ source, run, scenario, runs, impactSlot, onLayoutRea
       maxPeriod={playback.scene.max_period} playing={playback.playing} env={projected?.env ?? null}
       indicators={projected?.indicators}
       indicatorsPreference={indicatorsPreference} onIndicatorsPreference={onIndicatorsPreference}
-      onSeek={playback.seek} onTogglePlay={playback.toggle} />}
+      onSeek={playback.seek} onTogglePlay={playback.toggle} onStep={playback.step} speed={speed} onSpeed={onSpeed} />}
     <footer className="sim-frame-meta"><span>Displayed recorded results: {source.name} · {run} · scenario {scenario}</span>
       <p className="sim-frame-honesty">{playback.scene?.honesty_note}</p></footer>
   </>

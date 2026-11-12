@@ -57,6 +57,10 @@ body {
 }
 
 .sim-frame-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-content: start;
   position: relative;
   grid-column: 2;
   grid-row: 1;
@@ -92,10 +96,29 @@ body {
 }
 
 .sim-frame-heading h1 {
+  grid-column: 1;
+  grid-row: 2;
   font: 520 clamp(24px, 2.25vw, 34px)/1 var(--sim-font-display);
   letter-spacing: -0.025em;
   text-shadow: 0 5px 24px rgba(0, 0, 0, 0.58);
 }
+
+.sim-frame-heading .sim-tutorial-restart {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.sim-frame-eyebrow,
+.sim-frame-subtitle {
+  grid-column: 1 / -1;
+}
+
+.sim-frame-eyebrow { grid-row: 1; }
+.sim-frame-subtitle { grid-row: 3; }
 
 .sim-frame-subtitle {
   margin-top: 7px !important;

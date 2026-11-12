@@ -52,7 +52,7 @@ try {
   await after.close()
   const page = await setup(webUrl, true)
   const tour = page.getByRole('region', { name: 'Interactive tutorial' })
-  for (let i = 0; i < 8; i++) await tour.getByRole('button', { name: 'Next', exact: true }).click()
+  while (await tour.getAttribute('data-step') !== 'indicators') await tour.getByRole('button', { name: 'Next', exact: true }).click()
   await tour.getByRole('heading', { name: 'Read network indicators', exact: true }).waitFor()
   await page.getByRole('group', { name: 'Network indicators' }).waitFor()
   await capture(page, 'tutorial-en')

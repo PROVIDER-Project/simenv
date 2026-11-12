@@ -21,7 +21,8 @@ configurator); the page-flow threshold remains conservatively at 1160px.
 At 1275px, the center is 575px wide, gaining the 100px freed by the configurator.
 Both sidebars start 24px from the
 application top and span the header, globe and timeline rows with their own
-scrolling. The title and **Restart tutorial** stay in a normal-flow center header;
+scrolling. **Restart tutorial** shares the title row in a normal-flow center
+header, anchored to its right edge, 16px from the desktop configurator;
 the timeline stays between the sidebars. Below
 1160px of available application width or at 540px available height or less, the
 controls switch to scrollable page flow. Tutorial docking can reduce that
@@ -43,11 +44,33 @@ See [matched responsive captures](../docs/playback.md#responsive-playback-layout
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
 
+### Playback controls
+
+The timeline's compact **− / +** buttons (**Slower playback / Faster playback**)
+select **0.25×, 0.5×, 1×, 2× or 4×**, default **1×**. The nominal delay per recorded
+step is **60 ms / speed** (240, 120, 60, 30 or 15 ms); loading/rendering can slow
+the observed pace. Changing speed preserves the current playing/paused state and
+changes viewing pace only. The preference lives above keyed playback remounts,
+so it survives run/scenario changes for this page session; reload resets it to 1×.
+The slower/faster button is disabled at its respective preset limit.
+
+**Previous simulation step / Next simulation step** move one step backward/forward
+and always pause, even at the first/last step or while buffering. Each click
+adjusts the latest requested target, including an automatic target still loading,
+rather than the last displayed frame; repeated clicks accumulate or reverse that
+request. Targets clamp to the scene's recorded minimum/maximum without wrapping.
+Measurements and colors hold together until the requested pair is ready, and
+loading does not resume playback after a manual step. Autoplay retains its
+last-to-first wrap. The slider also pauses when seeking.
+
 ### Interactive tutorial
 
-The first visit automatically opens a nine-step highlighted tour from scenario
+The first visit automatically opens an eleven-step highlighted tour from scenario
 name and disruption settings through execution, **View results**, recorded
-selection, timeline, reference/legend, component evidence and network indicators.
+selection, timeline, speed, manual stepping, reference/legend, component evidence
+and network indicators. Steps 7 and 8 explain speed and stepping in English and
+Deutsch; component guidance also explains upstream connection inference and
+unavailable local transport measurements.
 Use **Back/Next** freely, including when a target is not available yet; return
 when its data is ready. The tutorial opens relevant panels on step entry and
 reveals the target, but never changes scenario inputs, submits a simulation,
@@ -71,7 +94,8 @@ automatic reference preparation is separate, existing playback behavior.
   work in the current page session. Completion/language cannot survive reload.
 - The popup is a labeled, non-modal region: Tab/Shift+Tab can reach both its
   buttons and application controls. Use Enter/Space on buttons, and native
-  keyboard controls on sliders/selects. Step entry focuses the heading; dismissal
+  keyboard controls on sliders/selects. Step entry focuses the static heading
+  without a textbox-like outline; buttons retain visible keyboard focus. Dismissal
   returns focus to the opener or **Restart tutorial**. Component inspection has
   a dropdown alternative to globe interaction. Narrow/short screens keep the
   popup scrollable and may reserve space above the application for it.
@@ -181,8 +205,21 @@ including when coordinates come from the fallback gazetteer.
   Processing input offered/processed are optional decrease indicators;
   unused input is diagnostic only. Historical metrics absent on both sides are
   unsupported rather than invented.
-- Connections inherit source status only, labeled **inferred upstream status**.
-  Network-average transport utilization does not measure a particular port/route.
+- Connections show **inferred upstream status**. Recorded sources retain their
+  own status; only transport nodes explicitly marked `hasRecordedData: false`
+  (`land_transport`, `sea_transport`, legacy `port`) are traversed upstream to
+  the nearest recorded source on each path. Missing recorded evidence is never
+  bypassed. Branches use strongest evidence; adverse partial evidence survives,
+  while healthy evidence with unresolved branches stays gray. Unknown nodes,
+  cycles and paths reaching the connection's destination are explained as
+  unresolved; there is no target fallback.
+  Unrecorded ports keep unavailable local measurements/gray markers. Their
+  details separately show outgoing **Connection inference**, source/path,
+  metric/agent and current/reference evidence. Thus Brazil–Europe lanes can show
+  upstream disruption without claiming a measured local port condition. A local
+  transport disruption can remain invisible when upstream conditions stay normal.
+  The pure resolver (`src/playback/connections.ts`) does not mutate measurements
+  or use network averages or unsubmitted configurator settings for lane colors.
   The timeline synchronizes soy/feed prices, soy supply and average transport
   utilization with playback. Placement annotations and selection rings are separate.
 

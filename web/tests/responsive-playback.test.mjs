@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 import { mockPlayback, webUrl } from './playback-fixtures.mjs'
+import { controlledState, timelineGeometry, workshopButtons } from './capture-workshop.mjs'
 
 async function setup(viewport, tutorial = false) {
   const browser = await chromium.launch({ headless: true })
@@ -39,14 +40,15 @@ async function geometry(page, desktop) {
       const r = document.querySelector(selector).getBoundingClientRect()
       return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, height: r.height, width: r.width }
     }
-    return { left: box('.sim-playback-sidebar'), right: box('.sim-configurator'), timeline: box('.sim-timeline'), app: box('.sim-app'), header: box('.sim-frame-heading'), subtitle: box('.sim-frame-subtitle'), restart: box('.sim-tutorial-restart'), footer: box('.sim-frame-meta') }
+    return { left: box('.sim-playback-sidebar'), right: box('.sim-configurator'), timeline: box('.sim-timeline'), app: box('.sim-app'), header: box('.sim-frame-heading'), title: box('.sim-frame-heading h1'), subtitle: box('.sim-frame-subtitle'), restart: box('.sim-tutorial-restart'), footer: box('.sim-frame-meta') }
   })
-  const { left, right, timeline, app, header, subtitle, restart, footer } = boxes
+  const { left, right, timeline, app, header, title, subtitle, restart, footer } = boxes
   if (desktop) {
     assert.equal(right.width, app.width <= 1500 ? 320 : 420, 'medium screens reserve a narrower configurator column')
     assert.equal(left.y, app.y + 24, 'left sidebar starts at app top + 24px')
     assert.equal(right.y, app.y + 24, 'right sidebar starts at app top + 24px')
     assert.ok(header.x >= left.right + 15 && header.right + 15 <= right.x, 'header stays in center column')
+    assert.ok(Math.abs(right.x - restart.right - 16) <= 1, 'restart anchors beside the configurator gutter')
     assert.ok(left.right + 15 <= timeline.x, JSON.stringify(boxes))
     assert.ok(timeline.right + 15 <= right.x, JSON.stringify(boxes))
     assert.ok(timeline.width >= 360, 'minimum usable center width')
@@ -61,16 +63,60 @@ async function geometry(page, desktop) {
     assert.ok(header.bottom <= left.y, 'header and restart precede flow controls')
     assert.ok(left.bottom <= timeline.y && timeline.bottom <= right.y, 'flow controls must not overlap')
   }
-  assert.ok(restart.y >= subtitle.bottom, 'restart must follow header text without overlap')
+  assert.ok(title.right <= restart.x, 'restart must not overlap the title')
+  assert.ok(restart.y < title.bottom && title.y < restart.bottom, 'restart shares the title row')
+  assert.ok(Math.abs(restart.right - header.right) <= 1, 'restart aligns with the header right edge')
+  assert.ok(subtitle.y >= Math.max(title.bottom, restart.bottom), 'subtitle follows the whole title row')
   assert.ok(restart.bottom <= header.bottom, 'header must contain restart in normal flow')
+  assert.equal(await page.locator('.sim-frame-heading').evaluate(el => el.scrollWidth <= el.clientWidth), true, 'header must not overflow horizontally')
   const controls = [
     page.getByRole('button', { name: /^(Play|Pause)$/ }),
+    ...workshopButtons.map(name => page.getByRole('button', { name, exact: true })),
     page.getByRole('slider', { name: 'Simulation step' }),
     page.getByRole('button', { name: /^(Show|Hide) indicators$/ }),
     page.getByRole('combobox', { name: 'Recorded scenario', exact: true }),
     page.getByRole('textbox', { name: 'Scenario name' }),
+    page.getByRole('button', { name: 'Restart tutorial', exact: true }),
   ]
   for (const control of controls) await reachable(control)
+}
+
+// Literal clean d5f02ab measurements: Chromium, DPR 1, identical mockPlayback,
+// first/scenario 1, reference first/scenario 0, paused period 100, collapsed.
+// No baseline server is needed to run the regression suite.
+for (const [width, height, baseline] of [
+  [1275, 605, { width: 575, height: 96.296875, readoutRows: 1 }],
+  [320, 568, { width: 292, height: 91, readoutRows: 1 }],
+]) {
+  test(`workshop controls retain baseline compactness and usable targets ${width}x${height}`, async () => {
+    const { browser, page } = await setup({ width, height })
+    try {
+      await controlledState(page)
+      const measured = await timelineGeometry(page)
+      assert.ok(measured.scrubber.width >= 120, 'scrubber retains at least 120 CSS px of usable track')
+      assert.equal(measured.horizontalOverflow, false)
+      for (const name of workshopButtons) {
+        const button = page.getByRole('button', { name, exact: true })
+        const bounds = await button.boundingBox()
+        assert.ok(bounds.width >= 24 && bounds.height >= 24, `${name} is at least 24×24 CSS px`)
+        await reachable(button)
+        await button.focus()
+        assert.equal(await button.evaluate(el => el === document.activeElement), true, `${name} is keyboard reachable`)
+      }
+      const slider = page.getByRole('slider', { name: 'Simulation step' })
+      await reachable(slider)
+      await slider.focus()
+      await slider.press('ArrowRight')
+      await page.waitForFunction(() => document.querySelector('[aria-label="Component status"]')?.dataset.period === '101')
+      const bounds = await slider.boundingBox()
+      await page.mouse.click(bounds.x + bounds.width * .75, bounds.y + bounds.height / 2)
+      await page.waitForFunction(() => Number(document.querySelector('[aria-label="Simulation step"]').value) > 150)
+      assert.equal(await page.getByRole('button', { name: 'Play', exact: true }).count(), 1, 'scrubbing stays paused')
+      assert.ok(Math.abs(measured.timeline.width - baseline.width) <= .1, `timeline retains baseline width: ${JSON.stringify(measured)}`)
+      assert.ok(measured.timeline.height <= baseline.height + .1, `collapsed timeline must not grow beyond d5f02ab ${baseline.height}px: ${JSON.stringify(measured)}`)
+      assert.ok(measured.readoutRows <= baseline.readoutRows, 'no extra step/soy/shock wrapping')
+    } finally { await browser.close() }
+  })
 }
 
 for (const [width, height, desktop, expanded] of [
@@ -79,6 +125,7 @@ for (const [width, height, desktop, expanded] of [
   [1159, 1000, false, false], [1160, 1000, true, false],
   [1500, 801, true, false], [1501, 801, true, true], [1501, 800, true, false],
   [1280, 540, false, false], [1280, 541, true, false],
+  [320, 568, false, false], [844, 390, false, false],
 ]) {
   test(`coordinated layout and indicator defaults ${width}x${height}`, async () => {
     const { browser, page } = await setup({ width, height })
@@ -165,7 +212,7 @@ for (const language of ['en', 'de']) {
       if (language === 'de') await tour.getByRole('button', { name: 'Deutsch', exact: true }).click()
       const next = tour.getByRole('button', { name: language === 'de' ? 'Weiter' : 'Next', exact: true })
       const back = tour.getByRole('button', { name: language === 'de' ? 'Zurück' : 'Back', exact: true })
-      for (let i = 0; i < 8; i++) await next.click()
+      while (await tour.getAttribute('data-step') !== 'indicators') await next.click()
       const cards = page.getByRole('group', { name: 'Network indicators' })
       await cards.waitFor()
       assert.equal(await cards.locator('[data-metric]').count(), 4)

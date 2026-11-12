@@ -33,6 +33,22 @@ The workshop cascade is currently locked to soy; API jobs still execute only the
 single scenario submitted. Scenario-start comparison remains explicit. See the
 [workshop status rules](docs/playback.md#workshop-status-and-references).
 
+Compact **− / +** controls select **0.25×, 0.5×, 1×, 2× or 4×** playback speed
+(default **1×**, nominal interval **60 ms / speed**) without changing play/pause.
+Speed survives run/scenario changes for the page session; reload resets it.
+**Previous / Next simulation step** always pause, including at boundaries or while
+buffering. Repeated clicks adjust the pending target and clamp to the recorded
+range; autoplay still wraps from the last step to the first. See
+[playback controls](docs/playback.md#playback-controls).
+
+Brazil–Europe lanes can show **inferred upstream status** through explicitly
+unrecorded transport nodes, using the nearest recorded sources on each path.
+Port details keep local measurements unavailable and separately explain outgoing
+connection inference with source/path, metric and agent evidence. This does not
+measure local port conditions or use network averages or unsubmitted configurator
+edits; a local transport disruption can remain invisible if upstream evidence is
+normal. See [connection rules](docs/playback.md#connections-and-workshop-results).
+
 Playback uses coordinated left controls, a center timeline, and a right
 configurator when at least 1160 CSS pixels of application width are available.
 The configurator is 320px wide through 1500px of available application width
@@ -40,7 +56,8 @@ and 420px above that, giving the flexible center 100px more room on medium scree
 The left sidebar stays 300px wide and the center retains its 360px minimum.
 The 1160px page-flow threshold remains conservative despite the smaller medium layout budget.
 Both side panels start 24px from the application top, beside a normal-flow center
-header containing the title and **Restart tutorial**. Narrow or very short layouts
+header with **Restart tutorial** beside the title, aligned to the header's right
+edge at the configurator gutter. Narrow or very short layouts
 use scrollable page flow, with that header before the controls. Network indicator cards
 start collapsed when the viewport is at most 1500px wide **or** 800px high.
 **Show indicators / Hide indicators** frees globe space without changing playback.
@@ -51,9 +68,10 @@ See [responsive layout and matched review captures](docs/playback.md#responsive-
 
 ### Interactive tutorial
 
-On a first visit, a nine-step tutorial highlights scenario editing, execution,
-recorded-run selection, time navigation and impact inspection. **English** and
-**Deutsch** inside the popup switch its guidance and remember your language;
+On a first visit, an eleven-step tutorial highlights scenario editing, execution,
+recorded-run selection, time navigation, speed, manual stepping and impact
+inspection. **English** and **Deutsch** inside the popup switch all guidance,
+including speed and stepping, and remember your language;
 this does not translate the whole interface. Navigate freely with **Back/Next**:
 the tour never edits inputs or submits a simulation. On step 3, explicitly clicking
 **Run simulation** advances to step 4 once the job is accepted, even while queued.
@@ -65,6 +83,8 @@ Escape) dismisses it until reload; unfinished tours restart from the beginning.
 **Restart tutorial** button starts again with the remembered language. If browser
 storage is blocked, the tour still works for the current page session but cannot
 remember completion or language after reload.
+Step entry focuses a static tutorial heading without a textbox-like outline;
+buttons retain visible keyboard focus.
 
 Static demo playback remains separate from submitted results; viewing your own
 run requires recorded playback. See [tutorial controls, keyboard access and

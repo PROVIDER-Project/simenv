@@ -37,6 +37,29 @@ async function pause(page) {
   if (await show.isVisible()) await show.click()
 }
 
+// Inspect the real mounted renderer inputs, like globe-layout's ref inspection;
+// no application test hooks or replacement globe are needed.
+async function oceanRendererState(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('#root')
+    const fiber = root[Object.keys(root).find(key => key.startsWith('__reactContainer'))]
+    function find(node) {
+      if (!node) return null
+      const props = node.memoizedProps
+      if (Array.isArray(props?.arcsData) && Array.isArray(props?.pointsData) && typeof props.arcColor === 'function') return props
+      return find(node.child) || find(node.sibling)
+    }
+    const props = find(fiber.stateNode?.current ?? fiber)
+    if (!props) throw new Error('Mounted globe renderer props not found')
+    const ocean = props.arcsData.filter(datum => datum.edgeId === 'ocean')
+    const port = props.pointsData.find(datum => datum.nodeId === 'santos_port')
+    return { ocean: ocean.map(datum => ({ layer: datum.layer, intensity: datum.intensity, color: props.arcColor(datum) })),
+      port: { intensity: port.intensity, color: props.pointColor(port) },
+      period: document.querySelector('[aria-label="Component status"]').dataset.period,
+      indicatorPeriod: document.querySelector('[aria-label="Network indicators"]').dataset.period }
+  })
+}
+
 test('day-zero disturbance, keyboard inspection, recovery and start-mode limitation agree', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -251,6 +274,77 @@ test('unplaced components remain keyboard-inspectable with unavailable measured 
     const details = page.getByRole('region', { name: 'Component status' })
     assert.match(await details.innerText(), /No measurements recorded for this component/)
     assert.match(await details.innerText(), /Unavailable/)
+  } finally { await browser.close() }
+})
+
+test('port-sourced ocean renderer colors and details agree without inventing local measurements', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await workshop(page)
+    await page.route(`${origin}/runs/*/scenarios/*/scene`, route => {
+      const parts = new URL(route.request().url()).pathname.split('/')
+      const result = scene(parts[2], Number(parts[4]))
+      result.nodes.push(...[
+        ['santos_port', 'Workshop export port'], ['rotterdam_port', 'Workshop import port'],
+      ].map(([id, label]) => ({ id, label, role: 'land_transport', entityIds: [id], placements: [], hasRecordedData: false })))
+      result.edges = [
+        { id: 'farm-port', source: 'brazil_farms', target: 'santos_port', isSeaCrossing: false },
+        { id: 'ocean', source: 'santos_port', target: 'rotterdam_port', isSeaCrossing: true },
+        { id: 'return', source: 'santos_port', target: 'brazil_farms', isSeaCrossing: false },
+      ]
+      return route.fulfill({ json: result })
+    })
+    await page.route(`${origin}/runs/*/scenarios/*/frames*`, route => {
+      const url = new URL(route.request().url()), parts = url.pathname.split('/')
+      const scenario = Number(parts[4]), start = Number(url.searchParams.get('start'))
+      const result = frames(parts[2], scenario, start)
+      for (const frame of result.frames) {
+        frame.agents[0].values = scenario === 1 && frame.period >= 280 ? {}
+          : { unit_price: 100, quantity_available: scenario === 1 && frame.period < 200 ? 50 : 100, active: 1 }
+        frame.agents[1].values.transport_utilisation = 1
+      }
+      return route.fulfill({ json: result })
+    })
+    await page.goto(webUrl); await pause(page)
+    await page.getByRole('combobox', { name: 'Inspect component' }).selectOption('santos_port')
+    const details = page.getByRole('region', { name: 'Component status' })
+    await details.getByText('No measurements recorded for this component', { exact: true }).waitFor()
+    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+    assert.match(await details.innerText(), /across 0 recorded agents/)
+    const inferenceRegions = details.getByRole('region', { name: 'Connection inference' })
+    const inferred = inferenceRegions.filter({ has: page.getByRole('heading', { name: 'Connection inference: Workshop export port → Workshop import port', exact: true }) })
+    const cyclic = inferenceRegions.filter({ has: page.getByRole('heading', { name: 'Connection inference: Workshop export port → Brazil farms', exact: true }) })
+    await inferred.getByText('Severe', { exact: true }).waitFor()
+    assert.match(await inferred.innerText(), /Brazil farms → Workshop export port/)
+    assert.match(await inferred.innerText(), /Supply availability.*quantity_available/)
+    assert.match(await inferred.innerText(), /Current: 50/)
+    assert.match(await inferred.innerText(), /Reference: 100/)
+    assert.match(await inferred.innerText(), /not measured port or route conditions/i)
+    assert.equal(await inferred.locator('code').filter({ hasText: 'utilisation' }).count(), 0)
+    for (const [period, score, label, rgb] of [
+      [0, 1, 'Severe', '255,96,80'],
+      [250, 0, 'Near reference / low pressure', '81,227,165'],
+      [290, null, 'Unavailable', '135,147,163'],
+      [250, 0, 'Near reference / low pressure', '81,227,165'],
+    ]) {
+      await page.getByRole('slider', { name: 'Simulation step' }).fill(String(period))
+      await page.waitForFunction(step => document.querySelector('[aria-label="Component status"]')?.dataset.period === String(step), period)
+      assert.equal(await inferred.locator('strong').first().innerText(), label)
+      assert.equal(await cyclic.locator('strong').first().innerText(), 'Unavailable')
+      assert.match(await cyclic.innerText(), /reaches this connection’s destination/)
+      assert.equal(await cyclic.locator('code').count(), 0, 'the destination is not presented as upstream metric evidence')
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+      const rendered = await oceanRendererState(page)
+      assert.equal(rendered.period, String(period))
+      assert.equal(rendered.indicatorPeriod, String(period))
+      assert.deepEqual(rendered.port, { intensity: null, color: '#8793A3' })
+      assert.deepEqual(rendered.ocean, [
+        { layer: 'halo', intensity: score, color: `rgba(${rgb},0.16)` },
+        { layer: 'glow', intensity: score, color: `rgba(${rgb},0.34)` },
+        { layer: 'core', intensity: score, color: `rgba(${rgb},0.92)` },
+      ], 'the actual port-sourced ocean layers receive the inferred color, including unavailable gray')
+    }
   } finally { await browser.close() }
 })
 

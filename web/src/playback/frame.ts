@@ -1,6 +1,7 @@
 import type { RecordedFrame, Scene } from '../data/playback'
 import type { EnvState } from '../data/types'
 import { measure } from './measure'
+import { resolveConnections } from './connections'
 import { agentIdentity } from './reference'
 import { assessNode, evaluateAgent, unavailable, type AgentAssessment, type NodeAssessment } from './status'
 
@@ -24,7 +25,7 @@ export function projectFrame(scene: Pick<Scene, 'edges'> & Partial<Pick<Scene, '
   for (const node of scene.nodes ?? []) {
     if (!nodes[node.id] || !node.hasRecordedData) nodes[node.id] = { ...unavailable('No measurements recorded for this component'), agents: [], winner: null }
   }
-  const edges = Object.fromEntries(scene.edges.map(edge => [edge.id, nodes[edge.source] ?? { ...unavailable('Upstream status unavailable'), agents: [], winner: null }]))
+  const edges = resolveConnections(scene, nodes)
   const markerIntensity = Object.fromEntries(Object.entries(nodes).map(([id, status]) => [id, status.score]))
   const edgeIntensity = Object.fromEntries(Object.entries(edges).map(([id, status]) => [id, status.score]))
   const environment = { entity_id: 'environment', agent_id: 0, role: 'environment', values: {} }
