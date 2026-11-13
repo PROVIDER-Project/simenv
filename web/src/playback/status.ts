@@ -31,12 +31,22 @@ const inputs: MetricDefinition[] = [
   { key: 'input_processed', label: 'Input processed', direction: 'decrease', optional: true },
   { key: 'unused_input', label: 'Unused input (diagnostic)', direction: 'diagnostic', optional: true },
 ]
+const transport: MetricDefinition[] = [
+  { key: 'effective_capacity', label: 'Effective transport capacity', direction: 'decrease' },
+  { key: 'quantity_available', label: 'Transport output available', direction: 'decrease' },
+  { key: 'unit_price', label: 'Transport output asking price', direction: 'increase' },
+  { key: 'utilisation', label: 'Transport utilization', direction: 'capacity' },
+  active,
+  { key: 'capacity', label: 'Nominal transport capacity (diagnostic)', direction: 'diagnostic', optional: true },
+]
 const registry: Record<string, MetricDefinition[]> = {
   producer: [price, quantity, active],
   wholesaler: [price, quantity, { key: 'storage_utilization', label: 'Storage/handling pressure', direction: 'capacity' }],
   processor: [price, quantity, ...inputs],
   feed_manufacturer: [price, quantity, ...inputs],
   feed_trader: [price, quantity],
+  land_transport: transport,
+  sea_transport: transport,
   consumer: [
     { key: 'feed_received', label: 'Feed availability', direction: 'decrease' },
     { key: 'livestock_output', label: 'Livestock output', direction: 'decrease' }, active,
@@ -63,7 +73,9 @@ function evaluateMetric(def: MetricDefinition, current: AgentState, reference?: 
   const base = finite(reference?.values[def.key])
   const result: MetricStatus = { ...def, current: value, reference: base, change: null, score: null, reason: '' }
   if (value === null) return { ...result, reason: `${def.label}: current measurement unavailable` }
-  if (def.direction === 'diagnostic') return { ...result, reason: 'Diagnostic only; not evidence of production utilization or unmet demand' }
+  if (def.direction === 'diagnostic') return { ...result, reason: def.key === 'capacity'
+    ? 'Nominal capacity only; effective capacity determines available transport capacity'
+    : 'Diagnostic only; not evidence of production utilization or unmet demand' }
   if (def.direction === 'participation') {
     return { ...result, score: value === 0 ? 1 : value === 1 ? 0 : null,
       reason: value === 0 ? 'Market participation: inactive' : value === 1 ? 'Market participation: active' : 'Invalid participation flag' }

@@ -61,7 +61,7 @@ def test_missing_environment_and_nonfinite_are_integrity_errors(playback_db):
         store.get_frames("run-1", 0, 1, 1)
 
 
-def test_legacy_provenance_is_checked_without_reading_ticks(playback_db, tmp_path):
+def test_legacy_provenance_is_checked_before_reconstruction(playback_db, tmp_path):
     from pathlib import Path
 
     from provider_simenv.export_bundle import _sha256

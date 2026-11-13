@@ -69,8 +69,9 @@ The first visit automatically opens an eleven-step highlighted tour from scenari
 name and disruption settings through execution, **View results**, recorded
 selection, timeline, speed, manual stepping, reference/legend, component evidence
 and network indicators. Steps 7 and 8 explain speed and stepping in English and
-Deutsch; component guidance covers recorded originator metrics, temporary sea-arc
-colors and unavailable local port measurements.
+Deutsch; component guidance covers local port capacity, transport output, asking
+price and utilization, immediate-source connection colors, and historical missing
+measurements.
 Use **Back/Next** freely, including when a target is not available yet; return
 when its data is ready. The tutorial opens relevant panels on step entry and
 reveals the target, but never changes scenario inputs, submits a simulation,
@@ -182,8 +183,8 @@ including when coordinates come from the fallback gazetteer.
   metrics contribute. Known adverse evidence survives incomplete coverage;
   green-only evidence with missing comparisons stays gray.
 - Fixed illustrative thresholds: relative adverse change green through **5%**,
-  amber at **20%**, red at **50%**, with interpolation; capacity green below
-  **80%**, amber at **80%**, red at **95%**. Policy is centralized in
+  amber at **20%**, red at **50%**, with interpolation; capacity utilization green
+  below **80%**, amber at **80%**, red at **95%**. Policy is centralized in
   `src/playback/status.ts`; palette in `src/design/tokens.ts`.
 - Recorded mode defaults to **Disruption-free reference (automatic)**. It searches
   catalogue/history pages for a compatible scenario 0 or a verified empty-events
@@ -200,25 +201,37 @@ including when coordinates come from the fallback gazetteer.
   frame. It cannot reveal disturbances already present at the first step. Static
   demo uses this mode and its legacy exported aggregation, not raw agent identities.
 - Zero/missing references and no-quote prices are unavailable, not healthy.
-  Inactivity is red. Recorded capacity pressure is absolute. Storage/handling
+  Inactivity is red. Recorded utilization pressure is absolute; transport effective
+  capacity loss is relative to the reference. Storage/handling
   pressure is not production utilization; lower quantity alone is not unmet demand.
   Processing input offered/processed are optional decrease indicators;
-  unused input is diagnostic only. Historical metrics absent on both sides are
-  unsupported rather than invented.
+  unused input is diagnostic only. Historical optional processing metrics absent
+  on both sides are unsupported rather than invented.
 - Ports, markers, labels and route geometry are preserved, including
-  **Santos → Rotterdam** and **Paranaguá → Hamburg**. A **temporary color-only
-  override** applies to a sea edge whose source is an explicitly unrecorded
-  transport: all incoming edges must be non-sea links from the same single
-  recorded wholesaler. It uses that originator's assessment unchanged, without
-  recursive traversal. Unsupported, mixed, ambiguous or return paths stay gray.
-  Other arcs, including Argentina/US, retain immediate-source coloring.
-  All ports remain inspectable; unrecorded ports keep gray markers and unavailable
-  local measurements. Inspect the originator's recorded asking price, supply
-  availability and storage/handling pressure for the sea-arc color's evidence,
-  not a measurement of local congestion. **Remove this override and restore proper
-  local transport-metric coloring once missing port/route recordings are fixed.**
-  Raw scenes, recordings, reference matching and API responses remain unchanged;
-  no port values are invented.
+  **Santos → Rotterdam** and **Paranaguá → Hamburg**. Every arc uses its immediate
+  source component's status. An ocean arc leaving a port uses that port's local
+  recorded evidence; the temporary grain-originator override has been removed.
+  Derived sea-transport agents are recorded in raw database frames but are not
+  separate map nodes or inspector options and do not supply the collapsed arc's
+  color. The target and network average are never substitutes for missing source
+  evidence. Historical unrecorded ports and their outgoing arcs stay gray.
+- Both transport roles now record `quantity_available`, `unit_price`, `utilisation`,
+  `capacity`, `effective_capacity` and `active`. Inspect **Effective transport
+  capacity**, **Transport output available**, **Transport output asking price**,
+  **Transport utilization** and participation. Effective capacity is a read-only
+  nominal-capacity × resolved supply-effect measurement, not active-adjusted;
+  nominal capacity is diagnostic only. Capacity/output decreases and price
+  increases use relative thresholds; utilization uses absolute 80%/95% thresholds.
+  Severe capacity loss can coexist with unchanged output and low utilization; it
+  does not prove downstream harm or a shipment queue. See the
+  [Santos investigation](../docs/economic-models.md#santos-capacity-investigation-issue-84).
+- Historical absent recordings remain unavailable: run the simulation again to
+  obtain local transport measurements and a compatible recorded reference. Reloading
+  or re-exporting old data cannot recover them. The committed default demo bundle
+  is not regenerated by this change. New static exports sum quantity and capacities,
+  average prices, weight utilization by effective capacity and use boolean-any
+  activity; unlike raw playback these aggregates can hide individual distress. See
+  [export aggregation and missing-value rules](../docs/postgres-schema.md#static-bundle-aggregation).
   The timeline synchronizes soy/feed prices, soy supply and average transport
   utilization with playback. The last is network-wide, not a route measurement.
   Placement annotations and selection rings are separate.
@@ -470,8 +483,10 @@ mock API responses; tutorial and playback browser fixtures are separate.
 
 ## Where the data comes from
 
-Globe playback reads a single JSON bundle through the `DataSource` seam.
-The configurator separately submits simulations and monitors them via the API:
+Static-demo playback reads a single JSON bundle through the `DataSource` seam.
+Recorded playback instead fetches raw individual-agent frames from the playback
+API; it does not use the static exporter aggregation. The configurator separately
+submits simulations and monitors them via the simulation API:
 
 ```
 simulation run (Melodie)
@@ -503,12 +518,9 @@ environment installed (`pip install -e '.[dev]'`) and PostgreSQL running (see "P
 Setup" in the root `README.md`):
 
 ```bash
-# 1. Run the simulation (writes the run to PostgreSQL and Result_Simulator_*.csv
-#    to data/output/<run-id>/).
-#    Run from the package directory — Melodie resolves data/ paths from the cwd.
-cd src/provider_simenv
-python main.py --pdl scenarios/s1-soja.pdl.yaml
-cd ../..
+# 1. Run from the repository root (writes PostgreSQL and CSV files under
+#    src/provider_simenv/data/output/<run-id>/).
+python -m provider_simenv.main --pdl src/provider_simenv/scenarios/s1-soja.pdl.yaml
 
 # 2. Export the run to the web bundle (newest completed run, from PostgreSQL)
 python -m provider_simenv.export_bundle --scenario 1
