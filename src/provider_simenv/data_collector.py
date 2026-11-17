@@ -28,20 +28,21 @@ TRANSPORT_PROPS = (
 )
 
 _PROPS_BY_ROLE = {
-    ROLE_PRODUCER: ("quantity_available", "unit_price", "active"),
-    ROLE_CONSUMER: ("feed_received", "livestock_output", "active"),
+    ROLE_PRODUCER: ("quantity_available", "unit_price", "active", "stock"),
+    ROLE_CONSUMER: ("feed_received", "livestock_output", "active", "orders_placed"),
     ROLE_WHOLESALER: (
-        "quantity_available", "unit_price", "storage_utilization",
+        "quantity_available", "unit_price", "storage_utilization", "stock",
+        "orders_placed",
     ),
     ROLE_PROCESSOR: (
         "quantity_available", "unit_price", "input_received",
-        "input_processed", "unused_input",
+        "input_processed", "unused_input", "stock", "orders_placed",
     ),
     ROLE_FEED_MANUFACTURER: (
         "quantity_available", "unit_price", "input_received",
-        "input_processed", "unused_input",
+        "input_processed", "unused_input", "stock", "orders_placed",
     ),
-    ROLE_FEED_TRADER: ("quantity_available", "unit_price"),
+    ROLE_FEED_TRADER: ("quantity_available", "unit_price", "stock", "orders_placed"),
     ROLE_LAND_TRANSPORT: TRANSPORT_PROPS,
     ROLE_SEA_TRANSPORT: TRANSPORT_PROPS,
 }

@@ -25,7 +25,7 @@ TRANSPORT_PROPS = (
 )
 
 
-def congestion_model(base_yield=100.) -> Any:
+def congestion_model(base_yield=100., supply=.2) -> Any:
     model: Any = SupplyChainModel(
         cast(Any, SimpleNamespace()), SupplyChainScenario(1),
     )
@@ -33,37 +33,47 @@ def congestion_model(base_yield=100.) -> Any:
     model.brazil_farms.agents[0].base_yield = base_yield
     model.environment._tracker = EventTracker(
         events=[{"id": "congestion", "entity": "santos_port",
-                 "impacts": {"supply": .2}, "duration": 2}],
+                 "impacts": {"supply": supply}, "duration": 2}],
         timeline=[{"at_day": 1, "event_id": "congestion"}],
     )
     return model
 
 
-@pytest.mark.parametrize("base_yield,quantities,feeds,utils", [
-    (100., [70., 70., 70., 70.], [240., 240., 240., 240.],
-     [.14, .7, .7, .14]),
-    (200., [140., 100., 100., 140.], [320., 288., 288., 320.],
-     [.28, 1., 1., .28]),
+# Order mode (BRANCH77 3.12, 3.17/D3): orders travel up one link per tick
+# and a transport passes on everything that arrives. On the onset tick the
+# port carries the 70 ordered before the event (utilisation above 1), from
+# the next tick its order is capped at effective capacity, and the first
+# day returns one tick after the event ends.
+@pytest.mark.parametrize("supply,caps,orders,quantities,feeds,utils", [
+    (.2, [500., 100., 100., 500., 500., 500.], [70.] * 6, [70.] * 6,
+     [240.] * 6, [.14, .7, .7, .14, .14, .14]),
+    (.1, [500., 50., 50., 500., 500., 500.],
+     [70., 50., 50., 70., 70., 70.], [70., 70., 50., 50., 70., 70.],
+     [240., 240., 224., 224., 240., 240.],
+     [.14, 1.4, 1., .1, .14, .14]),
 ])
 def test_congestion_onset_and_recovery_preserve_real_capacity_semantics(
-    base_yield, quantities, feeds, utils,
+    supply, caps, orders, quantities, feeds, utils,
 ):
-    model = congestion_model(base_yield)
+    model = congestion_model(supply=supply)
     port = model.santos_port.agents[0]
+    trader = model.eu_feed_trader.agents[0]
     prices = []
-    for day in range(4):
+    for day in range(6):
         model._do_step(day)
         assert port.capacity == 500.
-        assert port.effective_capacity == [500., 100., 100., 500.][day]
-        assert port.quantity_available == quantities[day]
-        assert port.utilisation == utils[day]
-        assert model.eu_feed_trader.agents[0].quantity_available == feeds[day]
+        assert port.effective_capacity == pytest.approx(caps[day])
+        assert port.orders_placed == pytest.approx(orders[day])
+        assert port.quantity_available == pytest.approx(quantities[day])
+        assert port.utilisation == pytest.approx(utils[day])
+        assert trader.quantity_available == pytest.approx(feeds[day])
         prices.append(model.environment.feed_price)
-    assert prices[0] == prices[3]
-    if base_yield == 100.:
-        assert prices[0] == prices[1]
+    assert prices[4] == pytest.approx(prices[0])
+    if supply == .2:
+        assert prices == pytest.approx([prices[0]] * 6)
     else:
-        assert prices[1] > prices[0]
+        assert prices[1] == pytest.approx(prices[0])
+        assert prices[2] > prices[0]
     # Observability must not become provider-owned state or a mutable setting.
     assert "effective_capacity" not in port._state()
     with pytest.raises(AttributeError):

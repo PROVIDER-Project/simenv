@@ -44,7 +44,8 @@ def test_real_model_constrains_input_and_reprices_only_exposed_costs(
         processed, output, cost = (50., 40., 125.) if shocked else (100., 80., 100.)
         assert process.input_processed == processed
         assert process.quantity_available == output
-        assert process.input_received == pytest.approx(
+        assert process.stock == (500. if shocked else 300.)
+        assert process.stock == pytest.approx(
             process.input_processed + process.unused_input,
         )
         sources: list[dict[str, Any]] = [
@@ -91,7 +92,7 @@ def test_process_diagnostics_are_registered_for_recording():
     for role in ("processor", "feed_manufacturer"):
         assert _PROPS_BY_ROLE[role] == (
             "quantity_available", "unit_price", "input_received",
-            "input_processed", "unused_input",
+            "input_processed", "unused_input", "stock", "orders_placed",
         )
     for name in ("input_received", "input_processed", "unused_input"):
         assert db_schema.METRICS_BY_NAME[name].unit == "input units per period"

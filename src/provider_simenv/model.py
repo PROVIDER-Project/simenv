@@ -19,6 +19,7 @@ Step order each timestep (derived, not hardcoded):
     4. DataCollector    record the snapshot.
 """
 import logging
+from copy import deepcopy
 from Melodie import Model
 from pathlib import Path
 from typing import ClassVar
@@ -69,7 +70,8 @@ class SupplyChainModel(Model):
         Populate every AgentList in the derived roster with one agent per roster
         entry, assign roles, and apply each archetype's declared params —
         bindings, literal attrs, and scenario-sourced attrs — so agents carry no
-        role-specific init.
+        role-specific init. A warm-up tick then measures what each buyer takes from
+        each supplier and leaves the agents as they were.
         """
         for entry in self._roster:
             arc = entry.archetype
@@ -103,6 +105,14 @@ class SupplyChainModel(Model):
         from .topology import build_flow_adjacency, execution_order
         self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
         self._execution_order: list[str] = execution_order(self._flow_adjacency)
+        self._deliveries: dict[int, list] = {}
+        self._shipped: dict[int, float] | None = None
+        self._links: dict[tuple[int, int], list] = {}
+        self._orders: dict[int, list] = {}
+        self._next_orders: dict[int, list] = {}
+        self._baseline: dict[int, list] = {}
+        self._warming = False
+        self._warm_up()
 
 
     def upstream_parts(self, name: str) -> list:
@@ -127,6 +137,28 @@ class SupplyChainModel(Model):
             for dst, sources in self._flow_adjacency.items()
             if name in sources
         )
+
+    def _warm_up(self) -> None:
+        """Run one tick on the take rules without shocks or recording, keep what each
+        buyer took from each supplier as its baseline order and restore every agent."""
+        agents = [agent for agent_list in self._all_agent_lists() for agent in agent_list.agents]
+        before = [deepcopy(agent._state()) for agent in agents]
+        self._warming = True
+        for name in self._execution_order:
+            getattr(self, name).method_foreach('step', ())
+        self._warming = False
+        for source, buyer, quantity in self._links.values():
+            self._baseline.setdefault(id(buyer), []).append((source, quantity))
+            self._orders.setdefault(id(source), []).append((buyer, quantity))
+        for agent, state in zip(agents, before):
+            for name, value in state.items():
+                setattr(agent, name, value)
+        for agent in agents:
+            links = self._baseline.get(id(agent))
+            if links:
+                agent.seed_orders(links)
+        self._deliveries = {}
+        self._links = {}
 
 
     def _collect_snapshot(self) -> dict:
@@ -224,10 +256,58 @@ class SupplyChainModel(Model):
             '─' * 63,
         )
 
+    def book_delivery(self, source, quantity: float, buyer=None) -> None:
+        """Record that a buyer took `quantity` from `source` in the current tick."""
+        booked = self._deliveries.setdefault(id(source), [source, 0.0])
+        booked[1] += quantity
+        if buyer is not None:
+            link = self._links.setdefault((id(source), id(buyer)), [source, buyer, 0.0])
+            link[2] += quantity
+
+    def delivered(self, source, buyer) -> float:
+        """What `source` delivered to `buyer` in the current tick."""
+        link = self._links.get((id(source), id(buyer)))
+        return link[2] if link else 0.0
+
+    def place_order(self, buyer, source, quantity: float) -> None:
+        """Record what `buyer` orders from `source` for the next tick."""
+        self._next_orders.setdefault(id(source), []).append((buyer, quantity))
+
+    def orders_for(self, agent) -> list | None:
+        """What each buyer ordered from `agent` in the previous tick as (buyer, quantity),
+        or None during the warm-up."""
+        if self._warming:
+            return None
+        return self._orders.get(id(agent), [])
+
+    def baseline_orders(self, buyer) -> list:
+        """What `buyer` took from each supplier in the warm-up, as (supplier, quantity)."""
+        return self._baseline.get(id(buyer), [])
+
+    def shipped_last_tick(self, agent) -> float | None:
+        """What buyers took from `agent` in the previous tick, or None on the first tick."""
+        if self._shipped is None:
+            return None
+        return self._shipped.get(id(agent), 0.0)
+
+    def overdrawn_suppliers(self, tolerance: float = 1e-9) -> list[tuple[str, float, float]]:
+        """Suppliers whose buyers took more this tick than they had available,
+        as (list name, taken, available)."""
+        return [
+            (source.list_name, taken, source.quantity_available)
+            for source, taken in self._deliveries.values()
+            if taken > source.quantity_available + tolerance * max(1.0, source.quantity_available)
+        ]
+
     def _do_step(self, t: int) -> None:
         """
         Execute one simulation step at period t. Shared by run() and run_stepwise().
         """
+        self._shipped = None if t == 0 else {
+            key: taken for key, (_, taken) in self._deliveries.items()
+        }
+        self._deliveries = {}
+        self._links = {}
         self.environment.update_shock_scales(t)
 
         # tracker event logging
@@ -290,6 +370,8 @@ class SupplyChainModel(Model):
                 run_id=self.__class__._run_id,
                 t=t,
             )
+
+        self._orders, self._next_orders = self._next_orders, {}
 
 
     def _init_event_tracker(self) -> None:
