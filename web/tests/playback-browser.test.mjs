@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { mockPlayback, webUrl, origin, page as framePage } from './playback-fixtures.mjs'
 
 test('left playback panel stacks controls and collapses without resetting selection or playback', async () => {
@@ -71,6 +72,7 @@ test('an empty catalogue keeps submission available and retry restores playback'
   try {
     const page = await browser.newPage()
     await page.route(`${origin}/**`, route => route.fulfill({ json: { items: [], total: 0 }, headers: { 'access-control-allow-origin': '*' } }))
+    await dismissInitialTutorial(page)
     await page.goto(webUrl)
     await page.getByText('No recorded runs yet.').waitFor()
     assert.equal(await page.getByRole('button', { name: 'Run simulation', exact: true }).isVisible(), true)
@@ -172,6 +174,7 @@ test('mobile empty-state playback controls do not obstruct first-run submission'
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    await dismissInitialTutorial(page)
     await page.route(`${origin}/**`, route => route.fulfill({ json: { items: [], total: 0 }, headers: { 'access-control-allow-origin': '*' } }))
     await page.goto(webUrl)
     await page.getByText('No recorded runs yet.').waitFor()

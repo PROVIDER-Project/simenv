@@ -119,6 +119,8 @@ def test_view_set_is_fixed():
         "sim_processor_view",
         "sim_feed_manufacturer_view",
         "sim_feed_trader_view",
+        "sim_land_transport_view",
+        "sim_sea_transport_view",
         "sim_environment_view",
     }
     assert len(db_schema.VIEW_DDL) == len(roles) + 1
@@ -143,6 +145,12 @@ def test_view_set_is_fixed():
                                         "stock", "orders_placed"]),
         ("sim_feed_trader_view", ["quantity_available", "unit_price", "stock",
                                   "orders_placed"]),
+        ("sim_land_transport_view",
+         ["quantity_available", "unit_price", "utilisation", "capacity",
+          "active", "effective_capacity"]),
+        ("sim_sea_transport_view",
+         ["quantity_available", "unit_price", "utilisation", "capacity",
+          "active", "effective_capacity"]),
         ("sim_environment_view",
          ["soy_price", "feed_price", "shock_scale", "drought_severity",
           "total_soy_supply", "transport_utilisation", "current_step"]),

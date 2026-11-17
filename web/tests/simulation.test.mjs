@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 
 // Acceptance test against a running frontend and the real PR #50 API.
 // No local API mock is shipped. Each case creates a real simulation job.
@@ -11,6 +12,7 @@ test('soy workshop executes edited documents and reuses its frontend-managed uns
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
+    await dismissInitialTutorial(page)
     const baselinePosts = []
     page.on('request', request => {
       if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/simulations') && request.postDataJSON()?.cascade === 'unshocked_reference') baselinePosts.push(request.postDataJSON())

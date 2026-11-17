@@ -13,13 +13,138 @@ keeping the central globe clear. Both panels start expanded and have independent
 share one scroll area, including on short windows. On smaller screens they use
 the page's full-width scrollable layout without nested panel scrolling.
 The globe stays still until you drag it; scroll to zoom. Automatic rotation is disabled.
-The timeline's height is reserved separately from the sidebar; very short windows
-also switch to page flow so the scrubber remains clickable.
+The desktop grid keeps a 300px left column and a flexible center with a 360px
+minimum. In the named `sim-shell` container, the configurator is 320px wide at
+1160–1500 CSS pixels inclusive and 420px above 1500px. With two 16px gaps and
+48px outer padding, the medium layout budget is 1060px (1160px with the wider
+configurator); the page-flow threshold remains conservatively at 1160px.
+At 1275px, the center is 575px wide, gaining the 100px freed by the configurator.
+Both sidebars start 24px from the
+application top and span the header, globe and timeline rows with their own
+scrolling. **Restart tutorial** shares the title row in a normal-flow center
+header, anchored to its right edge, 16px from the desktop configurator;
+the timeline stays between the sidebars. Below
+1160px of available application width or at 540px available height or less, the
+controls switch to scrollable page flow. Tutorial docking can reduce that
+available application space. Tall expanded content scrolls rather than clipping.
+In page flow, the header and restart button precede the controls.
+
+Network indicator cards default to collapsed at viewport width **≤1500px or
+height ≤800px**, leaving more globe visible; wider **and** taller viewports default
+to expanded. **Show indicators / Hide indicators** keeps play/pause, seeking and
+the basic step/soy/shock readout available. The unset preference follows viewport
+resizing. Once explicitly selected, either choice survives resizing and
+run/scenario remounts for this page session; reload resets it. The tutorial's last
+step temporarily reveals indicators and restores the underlying preference/default
+on leaving or closing; hiding them during that step affects only that visit.
+See [matched responsive captures](../docs/playback.md#responsive-playback-layout).
 
 `VITE_PLAYBACK_API_BASE_URL` selects database playback independently of
 `VITE_SIMENV_API_BASE_URL` for submission. Without the playback URL the frontend
 explicitly uses its static exported demo. The legacy demo/export workflow below
 applies to that mode; PostgreSQL is required for database playback.
+
+### Playback controls
+
+The timeline's compact **− / +** buttons (**Slower playback / Faster playback**)
+select **0.25×, 0.5×, 1×, 2× or 4×**, default **1×**. The nominal delay per recorded
+step is **60 ms / speed** (240, 120, 60, 30 or 15 ms); loading/rendering can slow
+the observed pace. Changing speed preserves the current playing/paused state and
+changes viewing pace only. The preference lives above keyed playback remounts,
+so it survives run/scenario changes for this page session; reload resets it to 1×.
+The slower/faster button is disabled at its respective preset limit.
+
+**Previous simulation step / Next simulation step** move one step backward/forward
+and always pause, even at the first/last step or while buffering. Each click
+adjusts the latest requested target, including an automatic target still loading,
+rather than the last displayed frame; repeated clicks accumulate or reverse that
+request. Targets clamp to the scene's recorded minimum/maximum without wrapping.
+Measurements and colors hold together until the requested pair is ready, and
+loading does not resume playback after a manual step. Autoplay retains its
+last-to-first wrap. The slider also pauses when seeking.
+
+### Interactive tutorial
+
+The first visit automatically opens an eleven-step highlighted tour from scenario
+name and disruption settings through execution, **View results**, recorded
+selection, timeline, speed, manual stepping, reference/legend, component evidence
+and network indicators. Steps 7 and 8 explain speed and stepping in English and
+Deutsch; component guidance covers local port capacity, transport output, asking
+price and utilization, immediate-source connection colors, and historical missing
+measurements.
+Use **Back/Next** freely, including when a target is not available yet; return
+when its data is ready. The tutorial opens relevant panels on step entry and
+reveals the target, but never changes scenario inputs, submits a simulation,
+chooses another run or seeks playback. **Run simulation** is your explicit action;
+automatic reference preparation is separate, existing playback behavior.
+
+- At step 3, explicitly clicking **Run simulation** advances to step 4 once the
+  API accepts the job, including queued jobs. At step 4, **View results** advances
+  to step 5 only after successfully opening that exact job's scenario 1. Errors
+  keep the current step. Pending actions from an earlier step entry are ignored
+  after manual navigation, restart or close, even if you return to that step.
+  **Back/Next** still work without submitting or opening results.
+- **Close for session** or Escape dismisses the popup for the current page
+  session. Reload restarts an unfinished tour at step 1, not the previous step.
+- **Finish** on the last step remembers completion in this browser/site so the
+  tutorial stays closed on later visits. **Restart tutorial** near the top
+  clears completion and starts at step 1, retaining the selected language.
+- **English/Deutsch** inside every popup switch the tutorial text and actions;
+  the preference is browser-local. Other interface labels remain in English.
+- If `localStorage` is blocked, guidance, language switching and dismissal still
+  work in the current page session. Completion/language cannot survive reload.
+- The popup is a labeled, non-modal region: Tab/Shift+Tab can reach both its
+  buttons and application controls. Use Enter/Space on buttons, and native
+  keyboard controls on sliders/selects. Step entry focuses the static heading
+  without a textbox-like outline; buttons retain visible keyboard focus. Dismissal
+  returns focus to the opener or **Restart tutorial**. Component inspection has
+  a dropdown alternative to globe interaction. Narrow/short screens keep the
+  popup scrollable and may reserve space above the application for it.
+
+In **Static demo (exported values)** the tour explains that submitted runs do not
+replace the demo. Execution needs the simulation API/database, and viewing its
+results requires `VITE_PLAYBACK_API_BASE_URL` and both APIs sharing the database.
+Recorded-mode tour steps can use existing recordings without submitting a job.
+See [tutorial screenshots and provenance](../docs/playback.md#tutorial-review-evidence).
+
+### Tutorial browser check
+
+Install dependencies with `npm ci` and Chromium with
+`npx playwright install --with-deps chromium`. Start a Vite server configured for
+recorded playback, plus a second Vite server with the playback URL unset for the
+static case. From `web/`, for example:
+
+```bash
+# Terminal 1: recorded mode (the responses are intercepted by the test)
+VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8079 npm run dev -- --host 127.0.0.1 --port 5179 --strictPort
+# Terminal 2: static mode; ensure web/.env.local does not supply a playback URL
+VITE_PLAYBACK_API_BASE_URL= npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
+# Terminal 3: browser checks
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_STATIC_WEB_URL=http://127.0.0.1:5180 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 npm run test:tutorial
+```
+
+`SIMENV_TEST_PLAYBACK_ORIGIN` must match the recorded frontend's configured API
+origin (the fixture default is `http://127.0.0.1:8001`; override it for port 8079
+or another custom origin). No real database/API is required for these controlled
+browser fixtures. The suite checks lifecycle, language, keyboard/focus, blocked
+storage, freely navigating without submission, exact-run preservation and
+desktop/mobile/short-screen reachability. Without `SIMENV_STATIC_WEB_URL` the
+static-demo case is explicitly skipped. Real-service execution remains covered
+separately by `npm run test:simulation`.
+
+Run the responsive layout/browser check against the recorded-mode server:
+
+```bash
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 npm run test:responsive-playback
+```
+
+This controlled-fixture suite covers column separation, pointer reachability,
+width/height boundaries, collapsed/expanded cards, resize defaults and explicit
+page-session choices across run/scenario remounts, plus temporary tutorial reveal
+and restoration in English/German. It requires Chromium, but no database/API.
 
 ### Workshop disturbance inspection
 
@@ -29,8 +154,8 @@ next run**; they do not change the displayed recorded results.
 
 The **Disturbance impact** panel provides a shared traffic-light legend, a
 **Reference condition** selector, and a keyboard-accessible **Inspect component**
-list (including unplaced/unrecorded components). Globe marker clicks select the
-same details. Details show the strongest metric/agent, individual current and
+list (including unplaced/unrecorded components and all ports). Globe marker clicks
+select the same details. Details show the strongest metric/agent, individual current and
 reference values, percentage changes, and missing-data explanations. Pooled
 components and multi-agent strongest-status aggregation are explicit.
 
@@ -58,8 +183,8 @@ including when coordinates come from the fallback gazetteer.
   metrics contribute. Known adverse evidence survives incomplete coverage;
   green-only evidence with missing comparisons stays gray.
 - Fixed illustrative thresholds: relative adverse change green through **5%**,
-  amber at **20%**, red at **50%**, with interpolation; capacity green below
-  **80%**, amber at **80%**, red at **95%**. Policy is centralized in
+  amber at **20%**, red at **50%**, with interpolation; capacity utilization green
+  below **80%**, amber at **80%**, red at **95%**. Policy is centralized in
   `src/playback/status.ts`; palette in `src/design/tokens.ts`.
 - Recorded mode defaults to **Disruption-free reference (automatic)**. It searches
   catalogue/history pages for a compatible scenario 0 or a verified empty-events
@@ -76,15 +201,40 @@ including when coordinates come from the fallback gazetteer.
   frame. It cannot reveal disturbances already present at the first step. Static
   demo uses this mode and its legacy exported aggregation, not raw agent identities.
 - Zero/missing references and no-quote prices are unavailable, not healthy.
-  Inactivity is red. Recorded capacity pressure is absolute. Storage/handling
+  Inactivity is red. Recorded utilization pressure is absolute; transport effective
+  capacity loss is relative to the reference. Storage/handling
   pressure is not production utilization; lower quantity alone is not unmet demand.
   Processing input offered/processed are optional decrease indicators;
-  unused input is diagnostic only. Historical metrics absent on both sides are
-  unsupported rather than invented.
-- Connections inherit source status only, labeled **inferred upstream status**.
-  Network-average transport utilization does not measure a particular port/route.
+  unused input is diagnostic only. Historical optional processing metrics absent
+  on both sides are unsupported rather than invented.
+- Ports, markers, labels and route geometry are preserved, including
+  **Santos → Rotterdam** and **Paranaguá → Hamburg**. Every arc uses its immediate
+  source component's status. An ocean arc leaving a port uses that port's local
+  recorded evidence; the temporary grain-originator override has been removed.
+  Derived sea-transport agents are recorded in raw database frames but are not
+  separate map nodes or inspector options and do not supply the collapsed arc's
+  color. The target and network average are never substitutes for missing source
+  evidence. Historical unrecorded ports and their outgoing arcs stay gray.
+- Both transport roles now record `quantity_available`, `unit_price`, `utilisation`,
+  `capacity`, `effective_capacity` and `active`. Inspect **Effective transport
+  capacity**, **Transport output available**, **Transport output asking price**,
+  **Transport utilization** and participation. Effective capacity is a read-only
+  nominal-capacity × resolved supply-effect measurement, not active-adjusted;
+  nominal capacity is diagnostic only. Capacity/output decreases and price
+  increases use relative thresholds; utilization uses absolute 80%/95% thresholds.
+  Severe capacity loss can coexist with unchanged output and low utilization; it
+  does not prove downstream harm or a shipment queue. See the
+  [Santos investigation](../docs/economic-models.md#santos-capacity-investigation-issue-84).
+- Historical absent recordings remain unavailable: run the simulation again to
+  obtain local transport measurements and a compatible recorded reference. Reloading
+  or re-exporting old data cannot recover them. The committed default demo bundle
+  is not regenerated by this change. New static exports sum quantity and capacities,
+  average prices, weight utilization by effective capacity and use boolean-any
+  activity; unlike raw playback these aggregates can hide individual distress. See
+  [export aggregation and missing-value rules](../docs/postgres-schema.md#static-bundle-aggregation).
   The timeline synchronizes soy/feed prices, soy supply and average transport
-  utilization with playback. Placement annotations and selection rings are separate.
+  utilization with playback. The last is network-wide, not a route measurement.
+  Placement annotations and selection rings are separate.
 
 Playback presents current/reference measurements as one matched pair. If a page
 is still loading, the displayed step, colors and values hold together until the
@@ -326,15 +476,17 @@ The frontend may submit one additional reference job if none is recorded already
 Set `SIMENV_WEB_URL` to test a frontend on another URL and `SIMENV_TEST_TIMEOUT_MS`
 to increase the per-run completion wait (default 120000 ms) for a busy API or
 slower hardware. The test assumes the
-API's bundled 365-step-per-scenario template. No API mock is included in the
-application or test sources.
+API's bundled 365-step-per-scenario template. This acceptance check does not
+mock API responses; tutorial and playback browser fixtures are separate.
 
 ---
 
 ## Where the data comes from
 
-Globe playback reads a single JSON bundle through the `DataSource` seam.
-The configurator separately submits simulations and monitors them via the API:
+Static-demo playback reads a single JSON bundle through the `DataSource` seam.
+Recorded playback instead fetches raw individual-agent frames from the playback
+API; it does not use the static exporter aggregation. The configurator separately
+submits simulations and monitors them via the simulation API:
 
 ```
 simulation run (Melodie)
@@ -366,12 +518,9 @@ environment installed (`pip install -e '.[dev]'`) and PostgreSQL running (see "P
 Setup" in the root `README.md`):
 
 ```bash
-# 1. Run the simulation (writes the run to PostgreSQL and Result_Simulator_*.csv
-#    to data/output/<run-id>/).
-#    Run from the package directory — Melodie resolves data/ paths from the cwd.
-cd src/provider_simenv
-python main.py --pdl scenarios/s1-soja.pdl.yaml
-cd ../..
+# 1. Run from the repository root (writes PostgreSQL and CSV files under
+#    src/provider_simenv/data/output/<run-id>/).
+python -m provider_simenv.main --pdl src/provider_simenv/scenarios/s1-soja.pdl.yaml
 
 # 2. Export the run to the web bundle (newest completed run, from PostgreSQL)
 python -m provider_simenv.export_bundle --scenario 1

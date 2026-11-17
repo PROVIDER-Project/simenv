@@ -49,7 +49,18 @@ class PlaybackStore:
                 _check_run_inputs(run, path)
             except RuntimeError:
                 continue
-            return SceneSnapshot.model_validate(build_scene(path))
+            scene = build_scene(path)
+            # Current recording capabilities are not evidence that a historical
+            # run contains measurements. Only reconstruct flags for legacy
+            # runs; saved scene snapshots remain authoritative above.
+            with self.engine.connect() as conn:
+                recorded = set(conn.execute(text(
+                    "SELECT DISTINCT entity_id FROM sim_tick_readable"
+                    " WHERE run_id=:run"
+                ), {"run": run.run_id}).scalars())
+            for node in scene["nodes"]:
+                node["hasRecordedData"] = node["id"] in recorded
+            return SceneSnapshot.model_validate(scene)
         raise PlaybackUnavailable("Original scene unavailable; no matching scenario inputs")
 
     def _run(self, conn, run_id, scenario_id):

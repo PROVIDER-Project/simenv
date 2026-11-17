@@ -1,4 +1,5 @@
-import { useId, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
+import { useTutorialPanel } from '../tutorial/context'
 import type { RunSummary } from '../data/playback'
 
 interface Props {
@@ -16,6 +17,8 @@ interface Props {
 
 export default function RunSelector(props: Props) {
   const [expanded, setExpanded] = useState(true)
+  const reveal = useCallback(() => setExpanded(true), [])
+  useTutorialPanel('runs', reveal)
   const controlsId = useId()
   const selected = props.runs.find(run => run.id === props.selected)
   return <section className="sim-run-selector" aria-label="Recorded playback">
@@ -25,7 +28,7 @@ export default function RunSelector(props: Props) {
         aria-label={`${expanded ? 'Hide' : 'Show'} playback selection`}
         onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide' : 'Show'}</button>
     </header>
-    <div id={controlsId} className="sim-run-selector-controls" hidden={!expanded}>
+    <div data-tutorial="runs" id={controlsId} className="sim-run-selector-controls" hidden={!expanded}>
       <label>Recorded run
         <select aria-label="Recorded run" value={props.selected} onChange={e => props.onRun(e.target.value)}>
           <option value="" disabled>Select a recorded run</option>

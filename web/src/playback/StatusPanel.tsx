@@ -7,9 +7,10 @@ export function StatusLegend() {
   return <section className="sim-status-legend" aria-label="Status legend">
     <div className="sim-status-scale">{[0, .5, 1, null].map(score => <span key={String(score)}><i style={{ background: statusColor(score) }} />{score === 0 ? 'Green: near reference' : score === .5 ? 'Amber: elevated' : score === 1 ? 'Red: severe' : 'Gray: unavailable'}</span>)}</div>
     <details><summary>Thresholds &amp; metric rules</summary>
-    <p>Relative adverse change: green through 5%, amber at 20%, red at 50%, interpolated between anchors. Capacity: green below 80%, amber at 80%, red at 95%. Illustrative workshop thresholds, pending domain calibration.</p>
+    <p>Relative adverse change: green through 5%, amber at 20%, red at 50%, interpolated between anchors. Capacity utilization: green below 80%, amber at 80%, red at 95%. Illustrative workshop thresholds, pending domain calibration.</p>
     <p>Overview = strongest applicable metric of the strongest individual agent. Incomplete evidence is labeled; healthy evidence plus missing comparisons is gray.</p>
-    <p>Connections: inferred upstream status, inherited from their source only. Gray sources give gray connections. Network-average transport utilization does not measure individual ports or routes.</p>
+    <p>Connections inherit their immediate source component’s status. An ocean arc leaving a port therefore uses that port’s recorded evidence, not its grain originator or a separate sea-transport agent. Geometry and labels stay unchanged; historical unrecorded ports and their outgoing connections remain unavailable.</p>
+    <p>Transport status compares effective capacity, output available and output asking price against the reference, and evaluates recorded utilization and participation directly. Nominal capacity is diagnostic only. Capacity loss can be severe while output is unchanged and utilization is low; it does not establish downstream harm. The target is never used, and network-average transport utilization does not measure individual ports or routes.</p>
     <p>Lower availability alone does not prove unmet demand. Storage/handling pressure is not production utilization or persistent warehouse inventory. Geographic placement annotations and selection rings are separate from status.</p>
     </details>
   </section>
@@ -22,7 +23,7 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
   const node = scene.nodes.find(item => item.id === selected)
   const status = projected.nodes[selected]
   return <section aria-label="Component status" className="sim-component-status" data-period={period}>
-    <label>Inspect component<select value={selected} onChange={event => onSelect(event.target.value)}>
+    <label data-tutorial="component">Inspect component<select value={selected} onChange={event => onSelect(event.target.value)}>
       {scene.nodes.map(item => <option key={item.id} value={item.id}>{item.label} · {statusLabel(projected.nodes[item.id]?.score ?? null)}</option>)}
     </select></label>
     {node && status && <>

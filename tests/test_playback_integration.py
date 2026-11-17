@@ -38,6 +38,9 @@ def test_completed_simulation_plays_from_db_without_input_files(playback_db, tmp
         assert playback.get("/runs").json()["items"][0]["id"] == identity
         scene = playback.get(f"/runs/{identity}/scenarios/1/scene")
         assert scene.status_code == 200 and scene.json()["nodes"]
+        santos = next(node for node in scene.json()["nodes"]
+                      if node["id"] == "santos_port")
+        assert santos["hasRecordedData"] is True
         received = {}
         for scenario in [1]:
             for start in [0, 100]:
@@ -52,3 +55,7 @@ def test_completed_simulation_plays_from_db_without_input_files(playback_db, tmp
         stored = {(r.id_scenario, r.period, r.entity_id, r.agent_id, r.metric): r.value for r in rows}
     assert received == stored
     assert len({key[1] for key in received}) == 105
+    for entity in ("santos_port", "sea_transport_santos_port__rotterdam_port"):
+        assert received[1, 0, entity, 0, "quantity_available"] > 0
+        assert received[1, 0, entity, 0, "effective_capacity"] > 0
+        assert (1, 104, entity, 0, "utilisation") in received

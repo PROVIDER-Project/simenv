@@ -7,6 +7,14 @@ e71b7fbe8532ab8` (clean working tree at inspection).
 **Open issues:** all 23 open issues retrieved from GitHub, including the comment on #25
 .
 
+**Historical audit:** the findings below describe the inspected 2026-10-28
+checkout, not the current implementation. In particular, Issue #84 adds individual
+land/sea transport recordings and effective-capacity-weighted static utilization;
+the old statements that port/sea agents have no series are historical. Current
+contracts and local-source UI rules are in [PostgreSQL schema](postgres-schema.md),
+[Database playback](playback.md) and the
+[Santos capacity investigation](economic-models.md#santos-capacity-investigation-issue-84).
+
 ## Executive summary
 
 The PDL is currently **not a self-contained simulation specification**. It describes en

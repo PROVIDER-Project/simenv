@@ -1,11 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
+import { readFile } from 'node:fs/promises'
 
-await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
+await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/staticPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
 const { createPlaybackBuffer } = await import('../.test-build/playback/buffer.js')
 const { projectFrame } = await import('../.test-build/playback/frame.js')
-const { parseFramePage } = await import('../.test-build/data/httpPlaybackSource.js')
+const { parseFramePage, createHttpPlaybackSource } = await import('../.test-build/data/httpPlaybackSource.js')
+const { createStaticPlaybackSource } = await import('../.test-build/data/staticPlaybackSource.js')
 const { referenceCompatibility } = await import('../.test-build/playback/reference.js')
 const { createReferenceLoader } = await import('../.test-build/playback/referenceLoader.js')
 const { presentScene, entityDisplayName } = await import('../.test-build/data/presentation.js')
@@ -125,6 +127,158 @@ test('connections inherit source only; day-zero baseline and raw measurements st
   assert.equal(projection(current, current).nodes.farm.score, 0)
   assert.equal(current[0].values.quantity_available, 50)
   assert.equal(reference[0].values.quantity_available, 100)
+})
+
+const component = (id, role = 'producer', hasRecordedData = true) => ({ id, label: id, role, hasRecordedData, entityIds: [id], placements: [] })
+const connection = (source, target) => ({ id: `${source}->${target}`, source, target, isSeaCrossing: false })
+
+const seaConnection = (source, target, id = `${source}->${target}`) => ({ ...connection(source, target), id, isSeaCrossing: true })
+const displayFixture = () => ({ nodes: [component('a', 'wholesaler'), component('port', 'land_transport', false), component('x', 'land_transport', false)],
+  edges: [connection('a', 'port'), seaConnection('port', 'x')] })
+
+test('shipped presentation preserves all ports, edges, labels and marker geometry', async () => {
+  const bundle = JSON.parse(await readFile(new URL('../public/bundle.json', import.meta.url), 'utf8'))
+  const raw = { run_id: 'demo', scenario_id: 1, nodes: bundle.nodes, edges: bundle.edges }
+  const original = structuredClone(raw)
+  function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value) } }
+  freeze(raw)
+  const display = presentScene(raw)
+  assert.equal(raw.nodes.length, 16)
+  assert.equal(raw.edges.length, 16)
+  assert.equal(display.nodes.length, 16)
+  assert.equal(display.edges.length, 16)
+  assert.deepEqual(raw, original)
+  assert.deepEqual(display.nodes.map(node => node.id), raw.nodes.map(node => node.id))
+  assert.deepEqual(display.edges, raw.edges)
+  const placed = resolveScene(display.nodes, display.edges)
+  assert.equal(placed.markers.length, 16)
+  assert.equal(placed.edges.length, 16)
+  for (const id of ['santos_port', 'paranagua_port', 'rotterdam_port', 'hamburg_port']) assert.equal(display.nodes.find(node => node.id === id).hasRecordedData, false)
+  const ocean = placed.edges.find(edge => edge.id === 'santos_port->rotterdam_port')
+  assert.equal(ocean.label, 'Port of Santos → Port of Rotterdam')
+  assert.deepEqual([ocean.startLat, ocean.startLng, ocean.endLat, ocean.endLng], [-24, -46.3, 51.95, 4.14])
+  assert.deepEqual(presentScene(display), display)
+  assert.equal(referenceCompatibility(raw, { ...display, scenario_id: 0 }), null)
+})
+
+const transportNormal = { effective_capacity: 1000, quantity_available: 70, unit_price: 100, utilisation: .7, active: 1, capacity: 1000 }
+const transport = (values = transportNormal, role = 'land_transport', id = 'port', agentId = 3) => agent(values, agentId, role, id)
+
+test('transport capacity loss colors the local port and outgoing arc independently of its wholesaler', () => {
+  const scene = displayFixture()
+  scene.nodes[1].hasRecordedData = true
+  const origin = agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const reference = [origin, transport()]
+  for (const [effective_capacity, score] of [[200, 1], [0, 1], [800, .5], [1000, 0]]) {
+    const current = [origin, transport({ ...transportNormal, effective_capacity })]
+    const original = structuredClone({ scene, current, reference })
+    const result = projection(current, reference, scene)
+    assert.equal(result.markerIntensity.port, score)
+    assert.equal(result.edgeIntensity['port->x'], score)
+    assert.equal(result.edges['port->x'], result.nodes.port)
+    assert.equal(result.markerIntensity.a, 0)
+    assert.equal(result.markerIntensity.x, null, 'source evidence does not fabricate downstream harm')
+    assert.equal(result.nodes.port.coverage, 'complete')
+    assert.equal(result.nodes.port.winner.metric.key, 'effective_capacity')
+    assert.equal(result.nodes.port.winner.agent.agent_id, 3)
+    assert.deepEqual({ scene, current, reference }, original)
+  }
+  const result = projection([agent({ ...origin.values, quantity_available: 50 }, 7, 'wholesaler', 'a'), transport()], reference, scene)
+  assert.equal(result.markerIntensity.a, 1)
+  assert.equal(result.edgeIntensity['a->port'], 1)
+  assert.equal(result.markerIntensity.port, 0)
+  assert.equal(result.edgeIntensity['port->x'], 0)
+})
+
+test('both transport roles score output, price, utilization and participation with nominal capacity diagnostic only', () => {
+  for (const role of ['land_transport', 'sea_transport']) {
+    for (const [changes, score, key] of [
+      [{ quantity_available: 35 }, 1, 'quantity_available'],
+      [{ unit_price: 120 }, .5, 'unit_price'],
+      [{ utilisation: .79 }, 0, 'effective_capacity'],
+      [{ utilisation: .8 }, .5, 'utilisation'],
+      [{ utilisation: .95 }, 1, 'utilisation'],
+      [{ active: 0 }, 1, 'active'],
+      [{ capacity: 0 }, 0, 'effective_capacity'],
+    ]) {
+      const result = projection([transport({ ...transportNormal, ...changes }, role)], [transport(transportNormal, role)]).nodes.port
+      assert.equal(result.score, score, `${role}: ${JSON.stringify(changes)}`)
+      assert.equal(result.winner.metric.key, key)
+      const metrics = result.agents[0].metrics
+      assert.equal(metrics.find(metric => metric.key === 'quantity_available').label, 'Transport output available')
+      assert.equal(metrics.find(metric => metric.key === 'unit_price').label, 'Transport output asking price')
+      assert.equal(metrics.find(metric => metric.key === 'capacity').score, null)
+    }
+  }
+})
+
+test('transport missing and zero comparisons preserve adverse partial evidence without inventing healthy status', () => {
+  for (const [values, reference, score, coverage] of [
+    [{ ...transportNormal, effective_capacity: 0 }, transportNormal, 1, 'complete'],
+    [transportNormal, { ...transportNormal, effective_capacity: 0 }, null, 'partial'],
+    [{ ...transportNormal, effective_capacity: 0 }, { ...transportNormal, effective_capacity: 0 }, null, 'partial'],
+    [{ ...transportNormal, unit_price: 0 }, transportNormal, null, 'partial'],
+    [{ effective_capacity: 200 }, transportNormal, 1, 'partial'],
+    [{ quantity_available: 70 }, transportNormal, null, 'partial'],
+    [transportNormal, null, null, 'partial'],
+    [{ utilisation: .95 }, null, 1, 'partial'],
+    [{ active: 0 }, null, 1, 'partial'],
+    [{}, transportNormal, null, 'unavailable'],
+  ]) {
+    const result = projection([transport(values)], reference ? [transport(reference)] : null).nodes.port
+    assert.equal(result.score, score, JSON.stringify({ values, reference }))
+    assert.equal(result.coverage, coverage)
+  }
+  for (const reference of [transport(transportNormal, 'sea_transport'), transport(transportNormal, 'land_transport', 'port', 4)]) {
+    assert.equal(projection([transport()], [reference]).nodes.port.score, null, 'reference identity must match exactly')
+  }
+})
+
+test('historical ports and missing local agents never borrow wholesaler, target, hidden sea or network status', () => {
+  const scene = displayFixture()
+  const origin = agent({ ...normal, quantity_available: 50, storage_utilization: .2 }, 7, 'wholesaler', 'a')
+  const others = [origin, transport({ ...transportNormal, effective_capacity: 0 }, 'sea_transport', 'sea_transport_port__x'),
+    transport({ ...transportNormal, utilisation: 1 }, 'land_transport', 'x'),
+    agent({ transport_utilisation: 1 }, 0, 'environment', 'environment')]
+  for (const recorded of [false, true]) {
+    scene.nodes[1].hasRecordedData = recorded
+    const current = recorded ? others : [...others, transport()]
+    const result = projection(current, [agent({ ...normal, storage_utilization: .2 }, 7, 'wholesaler', 'a'), ...others.slice(1), transport()], scene)
+    assert.equal(result.nodes.a.score, 1)
+    assert.equal(result.markerIntensity.port, null)
+    assert.equal(result.edgeIntensity['port->x'], null)
+    assert.equal(result.edges['port->x'], result.nodes.port)
+    if (!recorded) assert.deepEqual(result.nodes.port.agents, [], 'historical metadata is not bypassed')
+  }
+  const currentScene = { ...scene, scenario_id: 1, min_period: 0, max_period: 10 }
+  const historical = structuredClone({ ...currentScene, scenario_id: 0 })
+  historical.nodes[1].hasRecordedData = false
+  assert.match(referenceCompatibility(currentScene, historical), /structure/)
+})
+
+test('HTTP and static consumers retain transport measurements through local-source projection', async t => {
+  const localScene = { ...displayFixture(), run_id: 'r', scenario_id: 1, min_period: 0, max_period: 1, pdl: 'fixture.pdl.yaml', honesty_note: 'Fixture' }
+  localScene.nodes[1].hasRecordedData = true
+  const reference = { period: 0, agents: [transport()] }
+  const current = { period: 1, agents: [transport({ ...transportNormal, effective_capacity: 200, unit_price: 100.123456789012345 })] }
+  const page = { run_id: 'r', scenario_id: 1, start: 0, next_start: null, frames: [reference, current] }
+  const bundle = { nodes: localScene.nodes, edges: localScene.edges,
+    meta: { pdl: 'fixture.pdl.yaml', scenario: 'fixture', ticks: 2, generatedAt: 'recorded', honestyNote: 'Fixture' },
+    ticks: page.frames.map(frame => ({ period: frame.period, nodeId: 'port', values: frame.agents[0].values })),
+    env: page.frames.map(frame => ({ period: frame.period, soyPrice: 10, feedPrice: 20, shockScale: 1, droughtSeverity: 0, totalSoySupply: 100, transportUtilisation: .7, currentStep: frame.period })) }
+  const original = structuredClone({ localScene, page, bundle })
+  t.mock.method(globalThis, 'fetch', async url => new Response(JSON.stringify(url === '/bundle.json' ? bundle : url.endsWith('/scene') ? localScene : page)))
+  for (const [source, runId] of [[createHttpPlaybackSource('http://fixture'), 'r'], [createStaticPlaybackSource(), 'demo']]) {
+    const parsedScene = await source.getScene(runId, 1)
+    const parsedPage = await source.getFrames(runId, 1, 0, 2)
+    const result = projectFrame(parsedScene, parsedPage.frames[1], parsedPage.frames[0])
+    assert.equal(result.markerIntensity.port, 1)
+    assert.equal(result.edgeIntensity['port->x'], 1)
+    assert.equal(result.nodes.port.agents[0].metrics.find(metric => metric.key === 'unit_price').current, 100.123456789012345)
+    assert.equal(result.nodes.port.winner.metric.key, 'effective_capacity')
+    assert.deepEqual(parsedScene.edges, localScene.edges)
+  }
+  assert.deepEqual({ localScene, page, bundle }, original)
 })
 
 test('wire validation preserves precision and rejects nonfinite and duplicate agent states', () => {

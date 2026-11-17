@@ -9,10 +9,9 @@ environment time-series (``env``). Both sources feed the same aggregation, so th
 same run gives the same bundle.
 
 Each recorded agent list holds many instances; a map node is the aggregate of its
-list per step — extensive quantities are summed, prices/utilisation are averaged,
-and ``active`` is true if any instance is active. Ports produce no recorded rows,
-so they carry no ticks (``hasRecordedData: false``), exactly as the frontend
-expects.
+list per step — extensive quantities are summed, prices are averaged, transport
+utilisation is effective-capacity weighted, and ``active`` is true if any
+instance is active. Historical missing measurements remain absent or null.
 
 Entity placements declared in the PDL or roster are emitted with their entity ids.
 Entities without coordinates retain the frontend gazetteer fallback. Sea crossings
@@ -53,11 +52,16 @@ logger = logging.getLogger(__name__)
 # Column aggregation rules for collapsing a list's instances into one node/step.
 SUM_COLS = {
     "quantity_available", "feed_received", "livestock_output",
+    "capacity", "effective_capacity",
 }
 MEAN_COLS = {"unit_price", "storage_utilization"}
 BOOL_ANY_COLS = {"active"}
 
 # The browser bundle is a public projection, independent of diagnostic recording.
+TRANSPORT_EXPORT_PROPS = (
+    "quantity_available", "unit_price", "utilisation", "capacity", "active",
+    "effective_capacity",
+)
 EXPORT_PROPS_BY_ROLE = {
     "producer": ("quantity_available", "unit_price", "active"),
     "consumer": ("feed_received", "livestock_output", "active"),
@@ -67,6 +71,8 @@ EXPORT_PROPS_BY_ROLE = {
     "processor": ("quantity_available", "unit_price"),
     "feed_manufacturer": ("quantity_available", "unit_price"),
     "feed_trader": ("quantity_available", "unit_price"),
+    "land_transport": TRANSPORT_EXPORT_PROPS,
+    "sea_transport": TRANSPORT_EXPORT_PROPS,
 }
 
 
@@ -246,25 +252,53 @@ ENV_COLS = [
 HONESTY_NOTE = "Approximate geographic positions — not GIS accurate"
 
 
-def _aggregate(df: pd.DataFrame, props: list[str]) -> dict[int, dict]:
+def _aggregate(
+    df: pd.DataFrame, props: list[str], *, role: str | None = None,
+) -> dict[int, dict]:
     """Collapse a list's per-instance rows into one value dict per period."""
     out: dict[int, dict] = {}
     grouped = df.groupby("period")
     for period, group in grouped:
         values: dict = {}
         for prop in props:
+            if prop == "utilisation":
+                values[prop] = _transport_utilisation(group)
+                continue
             if prop not in group.columns:
                 continue
             if prop in SUM_COLS:
-                values[prop] = round(float(group[prop].sum()), 4)
-            elif prop in MEAN_COLS:
-                values[prop] = round(float(group[prop].mean()), 4)
+                # A partial transport census cannot establish total throughput
+                # or capacity. Keep other roles' historical sum semantics.
+                required = (
+                    len(group)
+                    if role in ("land_transport", "sea_transport") else 1
+                )
+                value = group[prop].sum(min_count=required)
             elif prop in BOOL_ANY_COLS:
-                values[prop] = bool(group[prop].astype(bool).any())
+                present = group[prop].dropna()
+                values[prop] = (
+                    bool(present.astype(bool).any()) if len(present) else None
+                )
+                continue
             else:
-                values[prop] = round(float(group[prop].mean()), 4)
+                value = group[prop].mean()
+            values[prop] = None if pd.isna(value) else round(float(value), 4)
         out[int(period)] = values
     return out
+
+
+def _transport_utilisation(group: pd.DataFrame) -> float | None:
+    """Missing inputs cannot establish a list's capacity-weighted pressure."""
+    columns = ["utilisation", "effective_capacity"]
+    if not set(columns).issubset(group.columns):
+        return None
+    if group[columns].isna().any().any():
+        return None
+    capacity = group["effective_capacity"].sum()
+    if capacity <= 0:
+        return None
+    used = (group["utilisation"] * group["effective_capacity"]).sum()
+    return round(float(used / capacity), 4)
 
 
 class CsvRunReader:
@@ -359,15 +393,22 @@ def build_bundle(
         node_id = entry.archetype.name
         if node_id in sea_transports:
             continue
-        nodes.append(_node_metadata(entry, entities))
+        node = _node_metadata(entry, entities)
+        node["hasRecordedData"] = False
+        nodes.append(node)
 
         props = EXPORT_PROPS_BY_ROLE.get(entry.archetype.role)
         if props is None:
             continue
         df = reader.agent_rows(node_id, entry.archetype.role, scenario)
-        if df is None:
+        if df is None or df.empty:
             continue
-        for period, values in _aggregate(df, list(props)).items():
+        node["hasRecordedData"] = bool(
+            df.reindex(columns=list(props)).notna().to_numpy().any()
+        )
+        for period, values in _aggregate(
+            df, list(props), role=entry.archetype.role,
+        ).items():
             ticks.append({"period": period, "nodeId": node_id, "values": values})
 
     edges = _collapsed_edges(adjacency, sea_transports, {node["id"] for node in nodes})

@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { origin, webUrl, run, scene, page as frames } from './playback-fixtures.mjs'
 
 async function fixture(page, { blockedScenario } = {}) {
+  await dismissInitialTutorial(page)
   let release
   const blocked = new Promise(resolve => { release = resolve })
   let requested
@@ -36,6 +38,7 @@ async function fixture(page, { blockedScenario } = {}) {
 
 async function pause(page) {
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'Show indicators', exact: true }).click()
   await page.getByRole('region', { name: 'Component status' }).getByText('Supply availability down 50%', { exact: true }).first().waitFor()
 }
 

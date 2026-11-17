@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { dismissInitialTutorial } from './browser-setup.mjs'
 import { origin, webUrl, run, scene, page as frames } from './playback-fixtures.mjs'
 
 async function workshop(page, { referenceFailure = false } = {}) {
+  await dismissInitialTutorial(page)
   const state = { referenceFailure, delay: null }
   await page.route(`${origin}/**`, async route => {
     const url = new URL(route.request().url())
@@ -31,6 +33,37 @@ async function pause(page) {
   await page.getByRole('slider', { name: 'Simulation step' }).waitFor()
   const button = page.getByRole('button', { name: 'Pause', exact: true })
   if (await button.isVisible()) await button.click()
+  const show = page.getByRole('button', { name: 'Show indicators', exact: true })
+  if (await show.isVisible()) await show.click()
+}
+
+// Inspect the real mounted renderer inputs, like globe-layout's ref inspection;
+// no application test hooks or replacement globe are needed.
+async function oceanRendererState(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('#root')
+    const fiber = root[Object.keys(root).find(key => key.startsWith('__reactContainer'))]
+    function find(node) {
+      if (!node) return null
+      const props = node.memoizedProps
+      if (Array.isArray(props?.arcsData) && Array.isArray(props?.pointsData) && typeof props.arcColor === 'function') return props
+      return find(node.child) || find(node.sibling)
+    }
+    const props = find(fiber.stateNode?.current ?? fiber)
+    if (!props) throw new Error('Mounted globe renderer props not found')
+    const ocean = props.arcsData.filter(datum => ['ocean', 'santos_port->rotterdam_port'].includes(datum.edgeId))
+    const port = props.pointsData.find(datum => datum.nodeId === 'rotterdam_port')
+    return { ocean: ocean.map(datum => ({ layer: datum.layer, intensity: datum.intensity, color: props.arcColor(datum) })),
+      port: { intensity: port.intensity, color: props.pointColor(port) },
+      exportPorts: props.pointsData.filter(datum => ['santos_port', 'paranagua_port'].includes(datum.nodeId)).length,
+      exportPortStates: props.pointsData.filter(datum => ['santos_port', 'paranagua_port'].includes(datum.nodeId))
+        .map(datum => ({ id: datum.nodeId, intensity: datum.intensity, color: props.pointColor(datum) })),
+      oceanLabel: props.htmlElementsData.find(anchor => anchor.id === `edge:${ocean[0]?.edgeId}`)?.text,
+      markerCount: props.pointsData.length, edgeCount: new Set(props.arcsData.map(datum => datum.edgeId)).size,
+      endpoints: ocean.length ? [ocean[0].startLat, ocean[0].startLng, ocean[0].endLat, ocean[0].endLng] : [],
+      period: document.querySelector('[aria-label="Component status"]').dataset.period,
+      indicatorPeriod: document.querySelector('[aria-label="Network indicators"]').dataset.period }
+  })
 }
 
 test('day-zero disturbance, keyboard inspection, recovery and start-mode limitation agree', async () => {
@@ -250,6 +283,105 @@ test('unplaced components remain keyboard-inspectable with unavailable measured 
   } finally { await browser.close() }
 })
 
+test('recorded port capacity colors its marker and ocean arc independently of originator and hidden sea agents', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await workshop(page)
+    await page.route(`${origin}/runs/*/scenarios/*/scene`, route => {
+      const parts = new URL(route.request().url()).pathname.split('/')
+      const result = scene(parts[2], Number(parts[4]))
+      const ports = [
+        ['santos_port', 'Workshop export port'], ['paranagua_port', 'Workshop secondary port'],
+        ['rotterdam_port', 'Workshop import port'], ['hamburg_port', 'Workshop secondary import'],
+      ].map(([id, label]) => ({ id, label, role: 'land_transport', entityIds: [id], placements: [], hasRecordedData: id === 'santos_port' }))
+      // Ports remain in the original scene order, including initial selection.
+      result.nodes = [...ports.slice(0, 2), ...result.nodes, {
+        id: 'brazil_wholesaler', label: 'Brazil grain originator', role: 'wholesaler', entityIds: ['brazil_wholesaler'], hasRecordedData: true,
+        placements: [{ entityId: 'brazil_wholesaler', label: 'Brazil grain originator', lat: -23, lng: -47, illustrative: true }],
+      }, ...ports.slice(2)]
+      result.edges = [
+        { id: 'farm-originator', source: 'brazil_farms', target: 'brazil_wholesaler', isSeaCrossing: false },
+        { id: 'originator-port', source: 'brazil_wholesaler', target: 'santos_port', isSeaCrossing: false },
+        { id: 'originator-secondary', source: 'brazil_wholesaler', target: 'paranagua_port', isSeaCrossing: false },
+        { id: 'ocean', source: 'santos_port', target: 'rotterdam_port', isSeaCrossing: true },
+        { id: 'secondary-ocean', source: 'paranagua_port', target: 'hamburg_port', isSeaCrossing: true },
+      ]
+      return route.fulfill({ json: result })
+    })
+    await page.route(`${origin}/runs/*/scenarios/*/frames*`, route => {
+      const url = new URL(route.request().url()), parts = url.pathname.split('/')
+      const scenario = Number(parts[4]), start = Number(url.searchParams.get('start'))
+      const result = frames(parts[2], scenario, start)
+      for (const frame of result.frames) {
+        frame.agents[0].values = { unit_price: 100, quantity_available: 100, active: 1 }
+        frame.agents[1].values.transport_utilisation = 1
+        frame.agents.push({ entity_id: 'brazil_wholesaler', agent_id: 7, role: 'wholesaler', values: {
+          ...frame.agents[0].values, quantity_available: scenario === 1 && frame.period >= 200 ? 50 : 100, storage_utilization: .2,
+        } })
+        const values = { effective_capacity: scenario === 1 && frame.period < 200 ? 200 : 1000,
+          capacity: 1000, quantity_available: 70, unit_price: 100, utilisation: .7, active: 1 }
+        if (scenario === 1 && frame.period === 275) values.effective_capacity = 0
+        if (scenario === 1 && frame.period >= 280) delete values.effective_capacity
+        frame.agents.push({ entity_id: 'santos_port', agent_id: 3, role: 'land_transport', values })
+        frame.agents.push({ entity_id: 'sea_transport_santos_port__rotterdam_port', agent_id: 9, role: 'sea_transport',
+          values: { effective_capacity: 1000, capacity: 1000, quantity_available: 70, unit_price: 100, utilisation: .99, active: 1 } })
+      }
+      return route.fulfill({ json: result })
+    })
+    await page.goto(webUrl); await pause(page)
+    const selector = page.getByRole('combobox', { name: 'Inspect component' })
+    assert.equal(await selector.inputValue(), 'santos_port', 'the original first port remains selectable')
+    assert.equal(await selector.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 2)
+    assert.equal(await selector.locator('option').count(), 6, 'the derived sea agent has no separate scene component')
+    const details = page.getByRole('region', { name: 'Component status' })
+    await details.getByText('Severe', { exact: true }).first().waitFor()
+    assert.match(await details.locator('.sim-status-responsible').innerText(), /Effective transport capacity · agent 3 \(land_transport\)/)
+    assert.match(await details.locator('.sim-metric').filter({ hasText: 'effective_capacity' }).innerText(), /Current: 200.*Reference: 1,000.*Change: -80.0%/s)
+    assert.match(await details.locator('.sim-metric').filter({ hasText: 'quantity_available' }).innerText(), /Transport output available.*Current: 70.*Reference: 70.*Change: \+0.0%/s)
+    assert.match(await details.locator('.sim-metric').filter({ hasText: 'utilisation' }).innerText(), /Current: 70.0%/)
+    await selector.selectOption('brazil_wholesaler')
+    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Near reference / low pressure')
+    await selector.selectOption('santos_port')
+    for (const [period, score, label, rgb] of [
+      [0, 1, 'Severe', '255,96,80'],
+      [250, 0, 'Near reference / low pressure', '81,227,165'],
+      [275, 1, 'Severe', '255,96,80'],
+      [290, null, 'Unavailable', '135,147,163'],
+      [250, 0, 'Near reference / low pressure', '81,227,165'],
+    ]) {
+      await page.getByRole('slider', { name: 'Simulation step' }).fill(String(period))
+      await page.waitForFunction(step => document.querySelector('[aria-label="Component status"]')?.dataset.period === String(step), period)
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), label)
+      const rendered = await oceanRendererState(page)
+      assert.equal(rendered.period, String(period))
+      assert.equal(rendered.indicatorPeriod, String(period))
+      assert.deepEqual(rendered.port, { intensity: null, color: '#8793A3' })
+      assert.equal(rendered.exportPorts, 2)
+      assert.equal(rendered.markerCount, 6, 'the derived sea agent does not add a map marker')
+      assert.deepEqual(rendered.exportPortStates, [
+        { id: 'santos_port', intensity: score, color: score === null ? '#8793A3' : score === 1 ? '#ff6050' : '#51e3a5' },
+        { id: 'paranagua_port', intensity: null, color: '#8793A3' },
+      ])
+      assert.deepEqual(rendered.endpoints, [-24, -46.3, 51.95, 4.14], 'ocean geometry still begins at Santos, not the originator')
+      assert.equal(rendered.oceanLabel, 'Workshop export port → Workshop import port')
+      assert.deepEqual(rendered.ocean, [
+        { layer: 'halo', intensity: score, color: `rgba(${rgb},0.16)` },
+        { layer: 'glow', intensity: score, color: `rgba(${rgb},0.34)` },
+        { layer: 'core', intensity: score, color: `rgba(${rgb},0.92)` },
+      ], 'ocean color follows its recorded source port, not the wholesaler or hidden sea agent')
+      if (period === 290) assert.match(await details.innerText(), /Incomplete evidence/)
+    }
+    await selector.selectOption('brazil_wholesaler')
+    assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Severe')
+    for (const port of ['paranagua_port', 'rotterdam_port', 'hamburg_port']) {
+      await selector.selectOption(port)
+      assert.equal(await details.locator('.sim-status-heading strong').innerText(), 'Unavailable')
+      assert.match(await details.innerText(), /No measurements recorded for this component/)
+    }
+  } finally { await browser.close() }
+})
+
 test('a disappearing agent retains surviving adverse evidence and unaffected network comparisons', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -325,7 +457,18 @@ test('static demo keeps its start-mode limitation and explains submitted-result 
       id: 'external-job', status: 'completed', label: 'Workshop', error: null,
       progress: { scenario_id: 1, step: 365, scenario_total_steps: 365, completed_steps: 365, total_steps: 365, percent_complete: 100 },
     } }))
+    await dismissInitialTutorial(page)
     await page.goto(process.env.SIMENV_STATIC_WEB_URL); await pause(page)
+    const components = page.getByRole('combobox', { name: 'Inspect component' })
+    assert.equal(await components.locator('option').count(), 16)
+    assert.equal(await components.locator('option[value="santos_port"], option[value="paranagua_port"]').count(), 2)
+    const displayed = await oceanRendererState(page)
+    assert.equal(displayed.markerCount, 16)
+    assert.equal(displayed.edgeCount, 16)
+    assert.equal(displayed.exportPorts, 2)
+    assert.deepEqual(displayed.endpoints, [-24, -46.3, 51.95, 4.14])
+    assert.equal(displayed.oceanLabel, 'Port of Santos → Port of Rotterdam')
+    assert.deepEqual(displayed.port, { intensity: null, color: '#8793A3' })
     assert.equal(await page.getByRole('combobox', { name: 'Reference condition' }).inputValue(), 'start')
     assert.match(await page.getByRole('region', { name: 'Reference comparison' }).innerText(), /cannot reveal disturbances already present/)
     await page.getByRole('button', { name: 'Run simulation', exact: true }).click()

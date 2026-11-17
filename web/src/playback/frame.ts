@@ -4,8 +4,10 @@ import { measure } from './measure'
 import { agentIdentity } from './reference'
 import { assessNode, evaluateAgent, unavailable, type AgentAssessment, type NodeAssessment } from './status'
 
+type ProjectionScene = Pick<Scene, 'edges'> & Partial<Pick<Scene, 'nodes'>>
+
 /** Display-only relative stress. Never transforms or replaces recorded measurements. */
-export function projectFrame(scene: Pick<Scene, 'edges'> & Partial<Pick<Scene, 'nodes'>>, frame: RecordedFrame, baseline: RecordedFrame | null, expected?: RecordedFrame | null) {
+export function projectFrame(scene: ProjectionScene, frame: RecordedFrame, baseline: RecordedFrame | null, expected?: RecordedFrame | null) {
   const started = performance.now()
   const reference = new Map(baseline?.agents.map(a => [agentIdentity(a), a]))
   const census = new Map(expected?.agents.map(a => [agentIdentity(a), a]))

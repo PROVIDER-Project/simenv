@@ -132,6 +132,19 @@ METRICS = (
         "What the agent ordered from its suppliers this period, to be "
         "delivered in the next one.",
     ),
+    Metric(
+        "utilisation", "ratio, 0.0-1.0",
+        "Transport output divided by its effective capacity; zero when "
+        "effective capacity is zero.",
+    ),
+    Metric(
+        "capacity", "output units per period",
+        "Nominal transport capacity before the current supply effect.",
+    ),
+    Metric(
+        "effective_capacity", "output units per period",
+        "Nominal transport capacity multiplied by its resolved supply effect.",
+    ),
 )
 
 METRICS_BY_NAME = {m.name: m for m in METRICS}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { inspectSimulation, submitSimulation, type SimulationJob, type SimulationSubmission } from './simulationApi'
+import { useTutorialAction } from '../tutorial/context'
 
 interface SimulationRunnerProps {
   submission: SimulationSubmission
@@ -13,6 +14,8 @@ function message(error: unknown): string {
 }
 
 export default function SimulationRunner({ submission, hidden, onCompleted, onViewResults }: SimulationRunnerProps) {
+  const completeExecution = useTutorialAction('execution')
+  const completeResults = useTutorialAction('results')
   const notified = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [job, setJob] = useState<SimulationJob | null>(null)
@@ -73,7 +76,10 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
     openGeneration.current++
     try {
       const next = await submitSimulation(submission, controller.signal)
-      if (!controller.signal.aborted) setJob(next)
+      if (!controller.signal.aborted) {
+        setJob(next)
+        completeExecution()
+      }
     } catch (error) {
       if (!controller.signal.aborted) setSubmissionError(message(error))
     } finally {
@@ -86,14 +92,17 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
     if (!job || job.status !== 'completed' || opening || !onViewResults) return
     const generation = ++openGeneration.current
     setOpening(true); setOpeningError(null)
-    try { await onViewResults(job.id) }
+    try {
+      await onViewResults(job.id)
+      if (openGeneration.current === generation) completeResults()
+    }
     catch (error) { if (openGeneration.current === generation) setOpeningError(message(error)) }
     finally { if (openGeneration.current === generation) setOpening(false) }
   }
   const edited = submitted && (Object.keys(submitted) as (keyof SimulationSubmission)[]).some(key => submitted[key] !== submission[key])
 
   return (
-    <section className="sim-configurator-section sim-configurator-run" hidden={hidden} aria-label="Simulation execution">
+    <section data-tutorial="execution" className="sim-configurator-section sim-configurator-run" hidden={hidden} aria-label="Simulation execution">
       <h3>Execute this scenario</h3>
       <p className="sim-configurator-copy">
         Run the generated PDL and roster with the selected cascade. Edits after submission apply to the next run.
@@ -112,7 +121,7 @@ export default function SimulationRunner({ submission, hidden, onCompleted, onVi
         </p>
       )}
       {job?.status === 'completed' && onViewResults && <div className="sim-configurator-actions">
-        <button type="button" onClick={() => void view()} disabled={opening}>{opening ? 'Opening results…' : 'View results'}</button>
+        <button data-tutorial="results" type="button" onClick={() => void view()} disabled={opening}>{opening ? 'Opening results…' : 'View results'}</button>
       </div>}
       {openingError && <p className="sim-configurator-run-error" role="alert">{openingError}</p>}
       {job && (

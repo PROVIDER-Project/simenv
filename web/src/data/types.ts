@@ -10,9 +10,10 @@
  *    actors carry their declared entity id; pooled nodes (eu_farmers) keep one
  *    list name for several entities. `entityIds` carries the ids a node represents.
  *
- *  - Ports and sea-lanes are geographically real but carry **no recorded
- *    time-series** (they are absent from the model's DataCollector / TickWriter).
- *    `hasRecordedData` marks that so views never expect a series that isn't there.
+ *  - Ports can carry recorded transport measurements in newer runs. Historical
+ *    scenes may have no port series; `hasRecordedData` describes the recording,
+ *    not whether a role is generally recordable. Derived sea agents can be
+ *    recorded without a separate geographic node in the scene.
  *
  *  - `eu_farmers` pools three PDL entities (poultry/pig/dairy) into ONE recorded
  *    series. On the map they may appear as several illustrative markers sharing
@@ -47,16 +48,13 @@ export interface Node {
   id: string
   /** Node-level English display name (used for edge labels), e.g. "Brazil soy farms". */
   label: string
-  /** Agent role, e.g. "producer" | "wholesaler" | "sea_santos". */
+  /** Agent role, e.g. "producer" | "wholesaler" | "land_transport". */
   role: string
   /** PDL or sidecar entity ids this node represents. */
   entityIds: string[]
   /** Entity coordinates supplied by the PDL/roster; empty means use the gazetteer. */
   placements: EntityPlacement[]
-  /**
-   * False for ports and sea-lanes, which exist structurally but produce no
-   * per-tick rows. Views must not expect a time-series for these nodes.
-   */
+  /** Whether this component has measurements in this recording. */
   hasRecordedData: boolean
 }
 

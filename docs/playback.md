@@ -1,6 +1,6 @@
 # Database playback
 
-![Recorded playback with the expanded left panel at step 150 (static demo)](playback-preview.png)
+![Historical playback interface with the expanded left panel at step 150 (static demo)](playback-preview.png)
 
 [View or download the full-size screenshot](playback-preview.png).
 
@@ -33,11 +33,14 @@ share a single bounded scroll area, so collapsing run selection moves impact up
 naturally without adding an overlay across the globe. On smaller screens the
 sidebar becomes full-width page flow with no nested scrolling. Globe connections
 remain visible in all status states, including gray for unknown upstream status.
-The desktop grid reserves the timeline's actual height below the sidebar so it
-cannot cover the scrubber. Very short windows (540px high or less) also use page
-flow to keep all controls reachable.
+The desktop grid keeps the timeline in the center column between both sidebars;
+the sidebars start 24px from the application top and span the header, globe and
+timeline rows. **Restart tutorial** sits beside the title in a normal-flow center
+header, anchored to the header's right edge at the 16px configurator gutter.
+Narrow or very short application space uses page flow to keep
+all controls reachable; see the exact thresholds below.
 
-Interface examples (using the bundled static demo):
+Historical interface examples (using the bundled static demo):
 [collapsed panel](playback-selector-collapsed.png) and
 [mobile layout](playback-selector-mobile.png).
 
@@ -50,6 +53,306 @@ Interface examples (using the bundled static demo):
 
 PostgreSQL and simulation job files have separate named volumes. `docker compose
 -f compose.playback.yml down` keeps both volumes.
+
+### Playback controls
+
+The compact **− / +** buttons, labeled **Slower playback / Faster playback**, select
+**0.25×, 0.5×, 1×, 2× or 4×**. The default is **1×**. The nominal timer interval is
+**60 ms / speed**: 240, 120, 60, 30 or 15 ms per recorded step. Data loading and
+rendering can slow the observed pace; these are viewing speeds, not changes to
+simulation time or recorded results. Changing speed preserves playing/paused
+state. The speed preference is owned above the keyed run/scenario playback
+component, so selection resets retain it for the current page session; reload
+resets it to 1×. The slower/faster button is disabled at its respective preset limit.
+
+**Previous simulation step / Next simulation step** always pause and move the
+requested target by one recorded step backward/forward. They remain usable while
+buffering and at both boundaries, where they still pause but clamp to the scene's
+minimum/maximum recorded period. They never wrap. Repeated clicks accumulate or
+reverse from the latest pending target, including an automatic target whose
+measurements have not arrived, rather than repeatedly starting from the held
+displayed frame. The displayed step, measurements and colors stay together until
+the requested current/reference pair is ready; completion of loading does not
+resume a manually paused playback. Seeking with the slider also pauses.
+Autoplay retains its existing wrap from the last recorded step to the first.
+
+### Responsive playback layout
+
+The desktop grid keeps a **300px left sidebar** and a flexible center with a
+**360px minimum**. The configurator is **320px** wide when the named `sim-shell`
+container is **1160–1500 CSS pixels inclusive**, and **420px above 1500px**.
+With two 16px gaps and 48px outer padding, the medium layout's width budget is
+**1060px**, versus 1160px with the wider configurator. The page-flow threshold
+remains conservatively at **1160px**, not the medium layout's exact minimum.
+At 1275px of application width, the center is **575px** wide: the narrower
+configurator gives it 100px more room without changing the left column or center
+minimum. Below 1160px of available application
+width, or at available height **≤540px**, controls use full-width scrollable page
+flow, with the header and restart button before the controls. A docked tutorial
+reduces the available application area, so these layout
+thresholds can apply even when the browser viewport itself is larger. On desktop,
+both sidebars scroll independently; oversized center content makes the application
+scroll rather than covering adjacent controls or being permanently clipped.
+
+The four **network indicator cards** start collapsed when viewport width is
+**≤1500px OR height ≤800px**. They start expanded only when both dimensions exceed
+those thresholds. **Show indicators / Hide indicators** toggles the cards, leaving
+play/pause, the step slider and basic step/soy/shock readout available. This changes
+visible globe space, not globe scale or playback time. Recorded playback and
+Disturbance impact still start expanded and retain their separate Hide/Show buttons.
+
+Before an explicit indicator choice, resizing updates the responsive default.
+Either explicit choice then survives resizing and run/scenario changes for the
+current page session; reload resets it. The tutorial's final step temporarily
+reveals the cards and restores the underlying explicit choice or current responsive
+default when you leave the step, finish or dismiss the tour. Hiding cards during
+that step changes only the temporary reveal; revisiting reveals them again.
+
+#### Workshop controls review evidence (Issue #82)
+
+These historical matched captures compare clean main **`d5f02ab`** with the Issue #82
+interface at Chromium device scale factor 1. Each uses a **controlled API
+fixture**, paused period **100**, run `first`, scenario 1, reference `first` / 0,
+and collapsed indicators. They demonstrate interface behavior, not empirical
+simulation results.
+
+The lane captures document the former temporary originator-color override and
+unrecorded-port behavior, **not the current local transport status rules**.
+Issue #84 removes that override and records local transport evidence in new runs;
+these screenshots retain their original provenance.
+
+| State | Before | After |
+| --- | --- | --- |
+| 1275×605: title-row restart and compact timeline | [Before](screenshots/issue82/compact-desktop-before.png) | [After](screenshots/issue82/compact-desktop-after.png) |
+| 320×568: compact mobile timeline | [Before](screenshots/issue82/compact-mobile-before.png) | [After](screenshots/issue82/compact-mobile-after.png) |
+| Focused first tutorial heading | [Before](screenshots/issue82/first-tutorial-desktop-before.png) | [After](screenshots/issue82/first-tutorial-desktop-after.png) |
+| Historical 1440×900: preserved ports and sea routes, temporary originator-based arc color; local port status unavailable | [Before](screenshots/issue82/lane-ports-desktop-before.png) | [After](screenshots/issue82/lane-ports-desktop-after.png) |
+
+Timeline dimensions remain **575×96.3px** on desktop and **292×91px** on mobile,
+with one readout row. All four new buttons are at least **24×24px**. Mobile
+scrubber width is **167px**. Keyboard and pointer operation are covered by the
+responsive acceptance tests.
+
+New tutorial guidance is also captured in both languages:
+[English speed](screenshots/issue82/tutorial-speed-en-desktop.png),
+[German speed](screenshots/issue82/tutorial-speed-de-desktop.png),
+[English stepping](screenshots/issue82/tutorial-stepping-en-mobile.png), and
+[German stepping](screenshots/issue82/tutorial-stepping-de-mobile.png).
+The same directory includes both viewport variants of each step/language.
+
+For the historical comparison, the detached `d5f02ab` worktree was served on port
+5192 and the Issue #82 worktree on 5182, both with
+`VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001`. The command below uses whichever
+source is served at those URLs; current source does not reproduce the historical
+originator-color behavior. From `web/`:
+
+```bash
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5192 \
+SIMENV_WEB_URL=http://127.0.0.1:5182 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8001 \
+  node tests/capture-workshop.mjs
+```
+
+The script intercepts playback responses, labels each image's fixture state,
+checks matched geometry, and writes to `docs/screenshots/issue82/`.
+Add `--lane-only` to refresh only the lane evidence (the port before/after pair
+and [recorded originator metrics after](screenshots/issue82/lane-originator-metrics-desktop-after.png)). Their matched
+graph uses the shipped `brazil_wholesaler` identity, role `wholesaler`, and
+`hasRecordedData: true`, with non-sea links to unrecorded Santos/Paranaguá and sea
+links onward to Rotterdam/Hamburg. Both versions inspect Santos with unavailable
+local measurements; the same port markers, route endpoints and labels remain.
+Only sea-arc colors change from gray to red. The additional originator inspection
+shows asking price **100**, quantity **50** versus reference **100**, and storage
+utilization **0.4**. This controlled fixture has six nodes/markers and five edges;
+the shipped scene retains its sixteen nodes, edges and markers. No port metrics
+are supplied or invented.
+
+#### Historical responsive review evidence
+
+These issue #79 captures predate the issue #82 title-row restart placement and
+compact playback controls; they document the layout revision described below.
+Running the capture command against newer source updates the named images to
+that source's interface rather than reproducing the historical pixels.
+
+All five images use **1275 × 605 CSS pixels**, Chromium device scale factor 1
+(1275 × 605 image pixels). The reported physical screenshot was approximately
+1912 × 907 pixels, consistent with 150% scaling; physical pixels are not the CSS
+layout viewport, so using those physical dimensions as the viewport would test a
+different layout.
+
+| State | Capture |
+| --- | --- |
+| Before: clean issue #79 HEAD `6add5ef`, timeline overlaps configurator | [Before medium](responsive-before-medium.png) |
+| After: 320px configurator, top-aligned side panels, center header, default collapsed cards | [After medium](responsive-after-medium.png) |
+| After: Show indicators, four-card grid at the viewport's lower edge | [Expanded medium](responsive-expanded-medium.png) |
+| Last tutorial step: temporary reveal, English | [English](responsive-tutorial-en-medium.png) |
+| Last tutorial step: temporary reveal, Deutsch | [Deutsch](responsive-tutorial-de-medium.png) |
+
+The before capture is served from a clean detached worktree at **`6add5ef`**, not
+the older issue #75 server used for the historical tutorial screenshots below.
+The four refreshed after captures use the **uncommitted narrower-configurator
+working tree beyond `8254dab`** on `79-interactive-tutorial`, served on port 5179:
+a 320px configurator, 575px center, side panels at 24px from the application top,
+and a normal-flow center title/restart header. They supersede the earlier
+top-alignment captures made beyond `94c2ff6`; neither commit alone reproduces
+these refreshed images. The original before PNG is preserved byte-for-byte. Both use
+the same **controlled recorded-response fixtures** from `playback-fixtures.mjs`:
+run `first`, scenario 1, paused step 100, component `brazil_farms`, scenario-start
+reference, expanded configurator. These are interface fixtures, not empirical
+simulation results; no simulation is submitted. Tutorial completion is seeded
+only for the three comparison captures; the last two navigate a fresh tour.
+
+To reproduce, create a detached baseline outside the working tree and start its
+recorded-mode Vite server (the existing issue #79 recorded server stays on 5179):
+
+```bash
+# From the repository root; run once for this baseline location.
+git worktree add --detach /tmp/opencode/simenv79-responsive-baseline 6add5ef
+# From /tmp/opencode/simenv79-responsive-baseline/web:
+npm ci
+VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8079 npm run dev -- --host 127.0.0.1 --port 5181 --strictPort
+# From the followup worktree's web/ directory, in another terminal:
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5181 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-responsive-playback.mjs
+# Preserve the existing before image after the script regenerates the matched set:
+git -C .. restore -- docs/responsive-before-medium.png
+```
+
+The capture script reuses playback fixtures and their browser-setup completion
+seed, checks the expected baseline/default toggle state, and logs panel geometry.
+Visual review confirms top-aligned after side panels, the center title/restart
+header and separated columns, plus readable configurator labels, buttons, inputs
+and range controls within 320px. The expanded cards and EN/DE final-step guidance
+remain readable. At this short viewport the expanded grid reaches the
+lower image edge; scroll for its remaining content. Tutorial navigation can scroll
+the sidebar contents while the panel containers still start at 24px.
+The older tutorial/status screenshots remain historical evidence of their stated
+source revisions; they have not been regenerated with the responsive followup.
+
+## Interactive tutorial
+
+A first visit automatically starts an eleven-step tour: scenario name, disruption
+settings, execution/monitoring, completed results, recorded selection, timeline,
+speed, manual stepping, reference/legend, component evidence and network
+indicators. Steps 7 and 8 provide English/Deutsch speed and stepping guidance;
+component evidence at step 10 explains local effective capacity, transport output,
+asking price and utilization, immediate-source arc colors, and why capacity loss
+can be severe without reduced output. Historical missing measurements remain
+unavailable. Execution/results retain their existing step positions
+and auto-advance rules. The popup highlights the relevant
+controls and opens their panel on step entry. **Back/Next** remain
+available even if a target has not loaded or a run has not completed; you can
+continue and return later. The tour never edits inputs, submits a simulation,
+switches the selected run or moves the playback time. Automatic disruption-free
+reference preparation remains normal playback behavior, not a tutorial action.
+
+At step 3, explicitly clicking **Run simulation** advances to step 4 when the API
+accepts the job, even while queued; it does not wait for completion. At step 4,
+**View results** advances to step 5 only after successfully opening that exact
+job's scenario 1. Submission or results-opening errors leave the step unchanged.
+Manual navigation, restart or close invalidates pending auto-advance from the old
+step entry, even if you return to the same step. **Back/Next** remain freely
+available without submitting a job or opening results.
+
+**Close for session** or Escape dismisses the tour for this page session. Reload
+starts an unfinished tour again at step 1. **Finish** on the last step stores
+completion locally in this browser for this site, suppressing automatic start on
+later visits. The **Restart tutorial** button near the top clears completion and
+starts at step 1, keeping your language. Select **English** or **Deutsch** inside
+the popup to change tutorial text and actions; the choice is remembered locally.
+This does not translate the rest of the interface. Completion and language are
+not account settings or shared between browsers/origins. If `localStorage` is
+blocked, the tutorial degrades gracefully to current-page-session behavior:
+navigation, dismissal and language switching work, but completion and language
+cannot be remembered after reload.
+
+The popup is a labeled, non-modal region. Step entry focuses its static heading
+without a textbox-like outline; it is not an input. Buttons retain visible keyboard
+focus. **Restart tutorial** shares the title row at the center header's right edge.
+Tab/Shift+Tab reach both tutorial buttons and application controls, and
+Enter/Space activate buttons. Escape closes and returns focus to the opener or
+**Restart tutorial**. Use native keyboard controls for sliders/selects and
+**Inspect component** as an alternative to globe interaction. Narrow/short
+screens allow scrolling the popup and may dock it above the application with
+space reserved for the highlighted controls.
+
+The tour works in both playback modes, but does not create missing services or
+results. In static mode its selection step explains that the exported demo is
+separate from submitted runs. Executing your inputs needs the simulation API and
+PostgreSQL; viewing the completed job requires recorded playback, both APIs
+sharing the database, and **View results** to open that exact job's scenario 1.
+Existing recordings can be explored without submitting a new job.
+
+### Tutorial review evidence
+
+These captures predate the eleven-step tour, title-row restart placement and
+heading-outline change. The commands below regenerate their named files using
+the source served at the supplied URLs; newer source produces updated guidance
+and controls, not the exact historical images.
+
+Historical issue #79 step 3/4 guidance at **1275 × 605**, device scale factor 1:
+
+| State | Capture |
+| --- | --- |
+| Step 3, English: automatic advance explained; Run simulation highlighted before explicit submission | [Execution guidance](tutorial-execution-auto-advance.png) |
+| Step 4, Deutsch: reached automatically after accepted submission; completed View results button highlighted | [Results guidance](tutorial-results-auto-advance.png) |
+
+These two captures use the issue #79 working tree based on `37dfe1d`, including
+the uncommitted auto-advance changes, served on port 5179. They are **mocked
+browser fixtures, not real simulation results**. The script uses the existing
+recorded-response fixture (initial run `first`, scenario 1), explicitly clicks
+**Run simulation**, and intercepts submission with HTTP 202 and a completed job
+`second`. It captures step 4 before clicking **View results**, then verifies that
+clicking it advances to step 5 with run `second`, scenario 1 selected. No request
+is submitted to a real simulation service. Older captures below predate this copy.
+
+Reproduce only these two PNGs from `web/` with the current recorded-mode Vite
+server running (no baseline or static server needed):
+
+```bash
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial-auto-advance.mjs
+```
+
+| State | Desktop (1440 × 1000) | Mobile (390 × 844) |
+| --- | --- | --- |
+| Before: configurator, no tutorial | [Before desktop](tutorial-before-desktop.png) | [Before mobile](tutorial-before-mobile.png) |
+| After: first-visit English popup and scenario-name highlight | [After desktop](tutorial-after-desktop.png) | [After mobile](tutorial-after-mobile.png) |
+
+Historical nine-step tour's impact guidance at step 8 (now step 10), with the same
+selected component and playback step:
+[English](tutorial-impact-en.png) / [Deutsch](tutorial-impact-de.png). Only the
+tutorial changes language; the surrounding English controls remain visible.
+
+The four static screenshots use the same committed `bundle.json`, paused at
+step 100. Before is the unmodified issue #75 source at commit
+`4b35fce12db40774984fa437144d0b9f13dd4ccc`, served by the existing static server
+on port 5176; after is the issue #79 working tree on port 5180. Mobile captures
+are scrolled to center the scenario-name input, rather than showing page top.
+The capture script asserts byte equality of the two bundles; the captured
+SHA-256 was `0efafdb2224af97984ee0caf86131c0c6493a0c10ebc078855721daaa72713f0`.
+The two impact screenshots use **controlled recorded-response fixtures**, not
+empirical simulation results: run `first`, scenario 1, step 100, component
+`brazil_farms`, explicitly selected scenario-start reference. No simulation is
+submitted by the capture script.
+
+Reproduce from `web/`, with before/after static servers and the issue #79
+recorded-mode server running (see the [tutorial browser setup](../web/README.md#tutorial-browser-check)):
+
+```bash
+SIMENV_BASELINE_WEB_URL=http://127.0.0.1:5176 \
+SIMENV_STATIC_WEB_URL=http://127.0.0.1:5180 \
+SIMENV_WEB_URL=http://127.0.0.1:5179 \
+SIMENV_TEST_PLAYBACK_ORIGIN=http://127.0.0.1:8079 \
+  node tests/capture-tutorial.mjs
+```
+
+`SIMENV_TEST_PLAYBACK_ORIGIN` must match the recorded frontend's build/dev API
+origin. Its default is `http://127.0.0.1:8001`; port 8079 requires the override
+above. Playwright Chromium captures these six PNGs at device scale factor 1.
 
 ## Configuration
 
@@ -95,6 +398,28 @@ Frames contain `period` and `agents`. Each agent contains `entity_id`, `agent_id
 `environment`, agent 0. Values come from `sim_tick_readable`: no summing,
 averaging, rounding, downsampling, or interpolation. Flags remain numeric 0/1.
 JSON numbers retain the database's double precision and agents stay distinct.
+
+New runs include individual `land_transport` and `sea_transport` agents with
+`quantity_available`, `unit_price`, `utilisation`, `capacity`, `active` and
+`effective_capacity`. Ports were missing from recordings because the collector
+omitted both transport roles, not because those agents failed to execute. The
+role views are `sim_land_transport_view` and `sim_sea_transport_view`. Effective
+capacity is read-only nominal capacity multiplied by the resolved supply effect;
+it is shock-adjusted, not active-adjusted. Participation is separate. See the
+[metric catalogue and exporter rules](postgres-schema.md#static-bundle-aggregation).
+
+Database frames preserve derived sea-agent measurements even though the geographic
+scene collapses those agents into connections, without separate map nodes or
+inspector choices. Static export instead aggregates visible roster lists: quantity
+and capacities are summed, price is an arithmetic mean, utilization is weighted by
+effective capacity, and activity is boolean-any. Missing utilization/weight inputs
+or a nonpositive total effective capacity yield `null`. These list aggregates can
+hide individual constraints, saturation or exits; raw playback retains the agents.
+
+Historical absent recordings stay unavailable. A schema upgrade, reload or
+re-export cannot create measurements that were never stored: **execute a new run**
+for local transport data and use a compatible recorded reference. The committed
+default static bundle is not regenerated by this change.
 
 Globe colours are display-only assessments using the fixed workshop rules below.
 They never mutate or replace measurements, and do not depend on page-cache contents
@@ -145,11 +470,12 @@ and reference compatibility checks are unaffected.
 | --- | --- | --- | --- | --- |
 | Prices | Relative increase | through 5% | 20% | 50% and above |
 | Availability / output | Relative decrease | through 5% | 20% | 50% and above |
-| Capacity pressure | Absolute recorded fraction | below 80% | 80% | 95% and above |
+| Effective transport capacity | Relative decrease | through 5% | 20% | 50% and above |
+| Utilization / storage pressure | Absolute recorded fraction | below 80% | 80% | 95% and above |
 | Participation | Recorded `active` | active | — | inactive |
 
 Relative colors interpolate green–amber from 5–20% and amber–red from 20–50%.
-Capacity is green below 80%, then interpolates amber–red from 80–95%. Improvements
+Utilization is green below 80%, then interpolates amber–red from 80–95%. Improvements
 return toward green. These are initial workshop defaults pending domain review,
 centrally configured in `web/src/playback/status.ts`; shared palette/interpolation
 live in `web/src/design/`. Selection rings and illustrative placement labels do
@@ -167,11 +493,19 @@ utilization without a recorded capacity denominator. Storage pressure is not
 production utilization or persistent inventory, and low quantity alone does not
 establish unmet demand.
 
+Both transport roles compare **effective capacity** and **output available** for
+relative decreases and **output asking price** for relative increases. Recorded
+`utilisation` uses the absolute 80%/95% pressure anchors and `active` is evaluated
+directly. Nominal `capacity` is diagnostic only. An 80% effective-capacity decline
+is severe even if output is unchanged and utilization remains below 80%; that is
+evidence of local impairment, not proof of throughput loss or downstream harm.
+See the [Santos investigation and binding positive control](economic-models.md#santos-capacity-investigation-issue-84).
+
 Gray means missing measurements, unusable references, incompatible identities,
 or insufficient evidence. Relative references must be positive: zero-to-zero is
 unknown, not healthy. Zero current availability against a positive reference is
 a severe decline. Zero price is **no quote / no contributing volume**, not recovery.
-Inactivity and absolute capacity remain evaluable even if references fail.
+Inactivity and absolute utilization remain evaluable even if references fail.
 Known adverse evidence with missing comparisons retains its color and is labeled
 **Incomplete evidence**; green-only evidence with missing comparisons is gray.
 Expected-agent checks use the first-frame census; the API has no independent
@@ -243,11 +577,37 @@ The workshop **Active cascade** control is fixed to **Soy crisis cascade** for
 now; its magnitude/timing/mitigation controls remain editable. API/CLI multi-cascade
 support and playback of historical energy runs remain supported.
 
-Connections show **inferred upstream status**: inherit only their source node's
-assessment. Unknown source means gray, without target fallback or recursive
-propagation through unrecorded ports. The four synchronized timeline indicators
-are soy price, feed price, total soy supply and average transport utilization.
-The last is network-wide; individual route/port utilization is not recorded.
+All ports, markers, connection labels and route geometry stay as before. The
+shipped scene retains **16 nodes, 16 edges and 16 markers**, including
+**Santos → Rotterdam** and **Paranaguá → Hamburg**. Ports remain in both the map
+and **Inspect component**. New recordings include their local transport metrics;
+historical unrecorded ports have gray markers and **Unavailable** local measurements.
+
+**Every connection inherits its immediate source component's assessment.** The
+temporary grain-originator color override has been removed. Santos → Rotterdam
+uses Santos's recorded port evidence; it never borrows Brazil grain-originator,
+destination, hidden sea-agent or network-average evidence. Argentina/US arcs
+likewise use their immediate visible sources. A hidden derived sea agent can have
+its own raw measurements and status evidence without a separate geographic node;
+its assessment does not replace that of the collapsed arc's visible source.
+Historical unrecorded source ports and their outgoing connections remain gray.
+
+Inspect a port for effective capacity, output available, output asking price,
+utilization, participation and the contributing metric/individual agent. With
+default Brazil output **100**, Santos's fixed **0.7** share offers **70** (or
+**60 × 0.7 = 42** during the illustrated drought). An 80% reduction of nominal
+capacity **500** still leaves **100**: capacity status can be severe while output
+is unchanged. The controlled yield-200 positive control instead offers **140**,
+falls to **100**, and reduces EU feed-distributor output **320 → 288**. These
+are model mechanics, not calibrated congestion predictions. Fixed route weights,
+no shipment queue/backlog and no transit delay remain model limitations; the
+recording change does not alter the equations. See the
+[full investigation](economic-models.md#santos-capacity-investigation-issue-84).
+Unsubmitted configurator edits do not affect recorded colors.
+
+The four synchronized timeline indicators remain soy price, feed price, total soy
+supply and average transport utilization. The last is network-wide and cannot
+substitute for the newly recorded individual port/sea-transport utilization.
 
 After completion, **View results** searches catalogue pages for the submitted ID
 and opens its scenario 1. It never substitutes the newest run. Errors retain the
@@ -257,6 +617,19 @@ displayed recorded results; later configurator changes are **Unsubmitted edits
 for the next run**, separate from the submitted input snapshot.
 
 ### Review screenshots
+
+Issue #84's [matched before/after evidence](screenshots/issue84/README.md)
+shows Santos [before recording](screenshots/issue84/santos-capacity-loss-Before113f3b8.png),
+[during recorded capacity loss](screenshots/issue84/santos-capacity-loss-AfterIssue84.png)
+and [after recovery](screenshots/issue84/santos-recovered-AfterIssue84.png).
+These controlled API fixtures demonstrate local port/ocean colors and unchanged
+output; they are not empirical simulation results. The linked guide records the
+fixture measurements and reproduction command.
+
+These screenshots are historical interface evidence from the revisions/fixtures
+described below, separately from Issue #84's new local transport measurements.
+Capture commands use the source served at their URLs; current source may produce
+different guidance and status evidence.
 
 - [Automatic reference preparing](automatic-reference-preparing.png) — the
   frontend's separate job can still be running at 100%; no comparison is shown.
@@ -290,7 +663,8 @@ The static-network images use the committed demo bundle rather than intercepted
 responses. For comparison, the
 [previous overlapping layout](https://github.com/PROVIDER-Project/simenv/blob/f216590f2da88b106c2441af1189bff96f1cc00d/docs/status-disturbed.png)
 documents the interface before the sidebar correction.
-Real-service coverage separately submits and opens both supported cascades.
+Real-service workshop coverage separately submits and opens two edited soy
+configurations and verifies reference creation/reuse.
 
 ## Verification
 
@@ -308,11 +682,48 @@ private inputs, fetches scenario 1 across pages, and compares every identity/val
 to PostgreSQL. Set `PROVIDER_SIMENV_POSTGRES_URL` as well to enable live tick-writer
 checks. CSV parity is separately opt-in via `PROVIDER_SIMENV_PARITY_RUN`.
 
-From `web/`, run `npm run test:playback`. For browser tests, start Vite with
+Run `npm run test:tutorial` from `web/` using the
+[two-server setup and fixture-origin configuration](../web/README.md#tutorial-browser-check).
+It covers first-visit/completion/restart, remembered EN/DE, session dismissal,
+keyboard focus without a textbox-like heading outline, blocked storage,
+non-submitting navigation, selected-run/time preservation, EN/DE speed/stepping
+guidance and responsive target reachability. The static case is skipped
+unless `SIMENV_STATIC_WEB_URL` is supplied. These fixtures do not replace
+real-service simulation acceptance.
+
+Run `npm run test:responsive-playback` from `web/` with `SIMENV_WEB_URL` and
+`SIMENV_TEST_PLAYBACK_ORIGIN` set as in the tutorial setup. This separate
+controlled-fixture suite checks responsive column geometry, control reachability,
+width/height boundary defaults, explicit choices across resizing and selection
+remounts, and temporary EN/DE tutorial indicator reveal/restoration. It needs
+Chromium and a recorded-mode Vite server, not a live database or API.
+
+From `web/`, run `npm run test:playback`. Its regressions cover preserved port
+topology, local transport capacity/output/price/utilization/participation status,
+immediate-source colors for every connection, historical missing evidence, and
+transport measurements through both HTTP and static consumers.
+For browser tests, start Vite with
 `VITE_PLAYBACK_API_BASE_URL=http://127.0.0.1:8001` and run
-`npm run test:playback-browser`; only these tests intercept API responses.
+`npm run test:playback-browser`; these browser checks intercept API responses,
+as does the separate tutorial suite.
+For just the playback-control checks, run from `web/` against the same server:
+
+```bash
+node --test tests/playback-controls.test.mjs
+```
+
+These checks cover preset pacing, pause preservation, speed across run/scenario
+changes, accumulated/reversed steps while current or reference data loads, and
+clamping/pausing at nonzero boundaries. For a custom frontend/API origin, set
+`SIMENV_WEB_URL` and `SIMENV_TEST_PLAYBACK_ORIGIN` as in the
+[tutorial browser setup](../web/README.md#tutorial-browser-check).
+Status browser fixtures also check preserved port markers/route geometry,
+local port marker/ocean renderer colors independent of originator and hidden
+sea-agent status, and honest details through disturbance, recovery, zero capacity
+and missing evidence.
+
 `npm run test:simulation` uses real APIs: set `SIMENV_WEB_URL` to the running
-stack. It submits both cascades, verifies catalogue refresh, opens each exact
+stack. It submits two edited soy configurations, verifies catalogue refresh, opens each exact
 completed run via **View results**, and seeks into a later database page. Status
 browser regressions cover day-0 comparison, recovery, missing/reference failures,
 keyboard inspection, reference switching/refresh, delayed responses, cache eviction

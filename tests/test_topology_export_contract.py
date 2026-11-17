@@ -8,7 +8,6 @@ from pathlib import Path
 from provider_simenv import export_bundle
 from provider_simenv.data_collector import _PROPS_BY_ROLE
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PDL = (
     ROOT
@@ -211,7 +210,7 @@ def test_shipped_pdl_bundle_matches_map_contract(tmp_path, monkeypatch):
     assert {node_id for node_id, node in nodes.items() if node["hasRecordedData"]} == {
         tick["nodeId"] for tick in bundle["ticks"]
     }
-    assert len(bundle["ticks"]) == 12
+    assert len(bundle["ticks"]) == 16
     assert len(bundle["env"]) == bundle["meta"]["ticks"] == 1
 
     frontend = _inspect_in_frontend(bundle, tmp_path)
