@@ -3,12 +3,15 @@
 import pytest
 from test_economic_config import SHIPPED, model_for
 
+from provider_simenv import topology
 from provider_simenv.agents import ROLE_CONSUMER
 from provider_simenv.model import SupplyChainModel
 
 
 def test_halved_harvest_is_split_by_orders_and_leaves_no_backlog(monkeypatch):
     monkeypatch.setattr(SupplyChainModel, "_event_registry", None, raising=False)
+    # Isolates the shortage split from the sea transit delay.
+    monkeypatch.setitem(topology._SEA_TRANSPORT["attrs"], "transit_steps", 0)
     model = model_for(SHIPPED, monkeypatch)
     farm = model.brazil_farms.agents[0]
     harvest = farm.base_yield

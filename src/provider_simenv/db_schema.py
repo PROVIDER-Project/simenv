@@ -134,8 +134,9 @@ METRICS = (
     ),
     Metric(
         "utilisation", "ratio, 0.0-1.0",
-        "Transport output divided by its effective capacity; zero when "
-        "effective capacity is zero.",
+        "What entered the transport this period divided by its effective "
+        "capacity; zero when effective capacity is zero. Without transit "
+        "time that is also what it passes on.",
     ),
     Metric(
         "capacity", "output units per period",
@@ -144,6 +145,12 @@ METRICS = (
     Metric(
         "effective_capacity", "output units per period",
         "Nominal transport capacity multiplied by its resolved supply effect.",
+    ),
+    Metric(
+        "quantity_in_transit", "units in transit",
+        "What a sea transport has loaded and not yet passed on, summed "
+        "over its transit_steps slots. One slot is unloaded each period, "
+        "the newest after transit_steps periods.",
     ),
 )
 

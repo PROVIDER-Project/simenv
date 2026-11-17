@@ -3,6 +3,7 @@
 import pytest
 from test_economic_config import configured_pdl, model_for
 
+from provider_simenv import topology
 from provider_simenv.agents import ROLE_PRODUCER, ROLE_WHOLESALER
 from provider_simenv.model import SupplyChainModel
 
@@ -12,6 +13,8 @@ def test_capped_mill_settles_and_the_wholesalers_keep_the_surplus(tmp_path, monk
         "parameters": {"throughput_capacity": 250.},
     }})
     monkeypatch.setattr(SupplyChainModel, "_event_registry", None, raising=False)
+    # Isolates the mill cap from the sea transit delay.
+    monkeypatch.setitem(topology._SEA_TRANSPORT["attrs"], "transit_steps", 0)
     model = model_for(pdl, monkeypatch)
     model.scenario.period_num = 14
     agents = {role: [getattr(model, entry.archetype.name).agents[0]

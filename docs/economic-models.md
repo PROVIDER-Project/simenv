@@ -89,7 +89,7 @@ disables operating-cost exposure. Missing `economics` is supported.
 | `throughput_capacity` | processor/feed manufacturer | Input tonnes/step **per agent**; null (default) or finite nonnegative |
 | `conversion_ratio` | processor/feed manufacturer | Output/input tonnes; finite strictly positive |
 | `storage_capacity` | wholesaler | Current same-tick handling cap in tonnes, not persistent inventory |
-| `transit_steps` | land/sea transport | Nonnegative integer; descriptive only, no delay is implemented |
+| `transit_steps` | land/sea transport | Nonnegative integer; periods a transport holds cargo before passing it on, order mode only. simenv sets 17 on sea lanes, land lanes stay at 0 |
 
 Consumer costs/shares are configurable state but do not create consumer demand
 or a financial ledger. Current consumer behavior is feed sharing and operational
@@ -197,8 +197,8 @@ source component; derived sea agents remain recorded without separate map nodes.
 See [playback rules](playback.md#connections-and-workshop-results).
 
 Route weights remain fixed rather than reallocating exports dynamically around
-a congested port. There is no shipment queue, waiting-time model or carried
-backlog, and `transit_steps` adds no delay. Capacity impairment, utilization and
+a congested port. There is no port queue, waiting-time model or carried
+backlog. Sea lanes delay arrivals by `transit_steps` (order mode, #86). Capacity impairment, utilization and
 realized throughput loss must be interpreted separately. Historical runs cannot
 gain measurements they never recorded: execute a new run for local port data;
 re-exporting does not backfill it or regenerate the committed default demo.
@@ -207,8 +207,8 @@ re-exporting does not backfill it or regenerate the committed default demo.
 
 - No persistent inventory, purchase/sale settlement, energy quantity bottleneck,
   endogenous consumer demand or market clearing. Quotes are not transaction prices.
-- No shipment queue: `transit_steps` does not delay arrivals. The DAG still
-  propagates material through several stages in one tick.
+- No port queue or waiting time. Sea lanes delay arrivals by `transit_steps`,
+  but within a tick the DAG still propagates material through several stages.
 - A conversion ratio below one leaves coproduct/waste outside the modeled
   output. Soy-oil revenue and nutritional feed conversion are not modeled.
 - Current graph sharing restrictions prevent some double counting but are not a

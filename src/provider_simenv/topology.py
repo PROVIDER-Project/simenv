@@ -240,7 +240,9 @@ SEA_FREIGHT_ATTR: str = "fixed_costs_transport_sea"
 _SEA_TRANSPORT = {
     "scenario_attrs": {"fixed_costs": SEA_FREIGHT_ATTR,
                        "margin_transport": "margin_transport"},
-    "attrs":          {"capacity": SEA_CAPACITY, "transit_steps": 60},   # ~2-month Atlantic crossing
+    # Rotterdam-Santos ~17 days (SeaRates 2024). Placeholder for the other
+    # crossings (Paranaguá, Argentina, US Gulf) until sourced.
+    "attrs":          {"capacity": SEA_CAPACITY, "transit_steps": 17},
 }
 
 

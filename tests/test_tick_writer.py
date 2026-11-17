@@ -150,7 +150,7 @@ def test_view_set_is_fixed():
           "active", "effective_capacity"]),
         ("sim_sea_transport_view",
          ["quantity_available", "unit_price", "utilisation", "capacity",
-          "active", "effective_capacity"]),
+          "active", "effective_capacity", "quantity_in_transit"]),
         ("sim_environment_view",
          ["soy_price", "feed_price", "shock_scale", "drought_severity",
           "total_soy_supply", "transport_utilisation", "current_step"]),

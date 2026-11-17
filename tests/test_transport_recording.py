@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import text
 from test_tick_writer import FakeConnection
 
-from provider_simenv import db_schema, export_bundle, run_registry
+from provider_simenv import db_schema, export_bundle, run_registry, topology
 from provider_simenv.data_collector import result_table_name
 from provider_simenv.event_tracker import EventTracker
 from provider_simenv.model import DEFAULT_PDL, SupplyChainModel
@@ -43,7 +43,8 @@ def congestion_model(base_yield=100., supply=.2) -> Any:
 # and a transport passes on everything that arrives. On the onset tick the
 # port carries the 70 ordered before the event (utilisation above 1), from
 # the next tick its order is capped at effective capacity, and the first
-# day returns one tick after the event ends.
+# day returns one tick after the event ends. Sea transit is set to 0 so the
+# feed trader sees the cap on the same days.
 @pytest.mark.parametrize("supply,caps,orders,quantities,feeds,utils", [
     (.2, [500., 100., 100., 500., 500., 500.], [70.] * 6, [70.] * 6,
      [240.] * 6, [.14, .7, .7, .14, .14, .14]),
@@ -53,8 +54,9 @@ def congestion_model(base_yield=100., supply=.2) -> Any:
      [.14, 1.4, 1., .1, .14, .14]),
 ])
 def test_congestion_onset_and_recovery_preserve_real_capacity_semantics(
-    supply, caps, orders, quantities, feeds, utils,
+    supply, caps, orders, quantities, feeds, utils, monkeypatch,
 ):
+    monkeypatch.setitem(topology._SEA_TRANSPORT["attrs"], "transit_steps", 0)
     model = congestion_model(supply=supply)
     port = model.santos_port.agents[0]
     trader = model.eu_feed_trader.agents[0]
@@ -124,17 +126,18 @@ def test_tick_writer_records_individual_port_and_sea_measurements():
     writer._metric_ids = {m.name: i for i, m in enumerate(db_schema.METRICS)}
     conn = FakeConnection()
     rows = writer._agent_rows(conn, model, 1, "transport", 1)
-    for entity, role, expected in (
-        ("santos_port", "land_transport", 100.),
-        (SEA, "sea_transport", 1000.),
+    for entity, role, expected, extra in (
+        ("santos_port", "land_transport", 100., {}),
+        (SEA, "sea_transport", 1000., {"quantity_in_transit": 17 * 70.}),
     ):
         agent_key = writer._agent_keys.get((entity, role, 0))
         assert agent_key is not None, f"missing recorded transport {entity}"
         values = {db_schema.METRICS[row["metric_id"]].name: row["value"]
                   for row in rows if row["agent_key"] == agent_key}
-        assert set(values) == set(TRANSPORT_PROPS)
+        assert set(values) == set(TRANSPORT_PROPS) | set(extra)
         assert values["quantity_available"] == 70.
         assert values["effective_capacity"] == expected
+        assert {name: values[name] for name in extra} == extra
 
 
 def test_transport_aggregation_weights_utilisation_by_effective_capacity():

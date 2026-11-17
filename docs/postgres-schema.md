@@ -221,7 +221,7 @@ section 4 explains why they never change in place.
 
 | `name` | Roles | `unit` | Meaning |
 |---|---|---|---|
-| `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | output units per period | How much of its output good the agent has ready this period; transport output available after handling/admission, not queued shipments. |
+| `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | output units per period | How much of its output good the agent has ready this period; transport output available after handling/admission, not queued shipments. A sea transport with transit time reports what it unloads this period; what is still at sea is `quantity_in_transit`. |
 | `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | currency per output unit | The agent's output asking price this period. `0.0` when it has nothing to sell; not a transaction price. |
 | `storage_utilization` | wholesaler | ratio, 0.0-1.0 | Stock divided by storage capacity. |
 | `feed_received` | consumer | feed units per period | Feed delivered by upstream traders this period. |
@@ -232,9 +232,10 @@ section 4 explains why they never change in place.
 | `unused_input` | processor, feed_manufacturer | input units per period | Input left after processing this period. It carries into the next period as stock. |
 | `stock` | producer, wholesaler, processor, feed_manufacturer, feed_trader | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. |
 | `orders_placed` | consumer, wholesaler, processor, feed_manufacturer, feed_trader | units ordered per period | What the agent ordered from its suppliers this period, to be delivered in the next one. |
-| `utilisation` | land_transport, sea_transport | ratio, usually 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. On orders a transport passes on everything that arrives, so it can exceed 1.0 for a tick. |
+| `utilisation` | land_transport, sea_transport | ratio, usually 0.0-1.0 | What entered the transport this period divided by effective capacity; zero when effective capacity is zero. Without transit time that is also what it passes on. On orders a transport passes on everything that arrives, so it can exceed 1.0 for a tick. |
 | `capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity before the current supply effect. |
 | `effective_capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity multiplied by its resolved supply effect. |
+| `quantity_in_transit` | sea_transport | units in transit | Output units loaded onto the sea lane and not yet unloaded, summed over its `transit_steps` slots. One slot is unloaded each period. 0 without transit time. |
 
 "Output units" are the units of whatever good the agent sells, so `quantity_available` for a
 producer is raw soy and for a feed trader is compound feed. The metric is the same; the good
@@ -247,6 +248,14 @@ It adds observability without changing the standalone agent's economic equations
 or mutable state. Capacity loss need not reduce output when the ceiling still
 exceeds the offered volume. See the
 [Santos investigation](economic-models.md#santos-capacity-investigation-issue-84).
+
+Sea transport `quantity_in_transit` is also a read-only adapter property: the
+sum of `quantity` over the agent's `in_transit` slots (provider-agents state,
+one slot per period of travel, each with `quantity` and `value`). The slots
+themselves are not recorded. With `transit_steps` 17 a run without shocks
+holds 17 × the lane's baseline flow at sea, for example 17 × 70 = 1190 on
+Santos–Rotterdam. Per lane, volume balances: in transit before + arrived =
+in transit after + passed on.
 Individual `utilisation` and the environment's network-average
 `transport_utilisation` are different metrics.
 
@@ -318,7 +327,7 @@ One view per role, each with one column per metric that role carries:
 | `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
 | `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock`, `orders_placed` |
 | `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
-| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
+| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity`, `quantity_in_transit` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,

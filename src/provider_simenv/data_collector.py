@@ -26,6 +26,7 @@ TRANSPORT_PROPS = (
     "quantity_available", "unit_price", "utilisation", "capacity", "active",
     "effective_capacity",
 )
+SEA_TRANSPORT_PROPS = (*TRANSPORT_PROPS, "quantity_in_transit")
 
 _PROPS_BY_ROLE = {
     ROLE_PRODUCER: ("quantity_available", "unit_price", "active", "stock"),
@@ -44,7 +45,7 @@ _PROPS_BY_ROLE = {
     ),
     ROLE_FEED_TRADER: ("quantity_available", "unit_price", "stock", "orders_placed"),
     ROLE_LAND_TRANSPORT: TRANSPORT_PROPS,
-    ROLE_SEA_TRANSPORT: TRANSPORT_PROPS,
+    ROLE_SEA_TRANSPORT: SEA_TRANSPORT_PROPS,
 }
 
 # Environment-level variables to record each step

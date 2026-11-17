@@ -16,11 +16,17 @@ __all__ = ["ROLE_LAND_TRANSPORT", "ROLE_SEA_TRANSPORT", "Transport"]
 class Transport(SupplyChainAgent):
     agent_type = TransportProviderAgent
     capacity: float
+    in_transit: list[dict[str, float]]
 
     @property
     def effective_capacity(self) -> float:
         """Current physical ceiling, without adding provider-owned state."""
         return self.capacity * self.effective("capacity")
+
+    @property
+    def quantity_in_transit(self) -> float:
+        """Loaded and not yet passed on, summed over the transit slots."""
+        return sum(slot["quantity"] for slot in self.in_transit)
 
     def _step_context(self):
         upstream, sources = self._sources(self.model.upstream(self.list_name))

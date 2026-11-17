@@ -600,7 +600,8 @@ capacity **500** still leaves **100**: capacity status can be severe while outpu
 is unchanged. The controlled yield-200 positive control instead offers **140**,
 falls to **100**, and reduces EU feed-distributor output **320 → 288**. These
 are model mechanics, not calibrated congestion predictions. Fixed route weights,
-no shipment queue/backlog and no transit delay remain model limitations; the
+no port queue or backlog remain model limitations; the sea transit delay
+added in #86 is not part of these numbers. The
 recording change does not alter the equations. See the
 [full investigation](economic-models.md#santos-capacity-investigation-issue-84).
 Unsubmitted configurator edits do not affect recorded colors.
