@@ -269,6 +269,21 @@ class SupplyChainModel(Model):
         link = self._links.get((id(source), id(buyer)))
         return link[2] if link else 0.0
 
+    def spare_for(self, source, buyer) -> float:
+        """The part of `source`'s spare this tick that falls to `buyer`, split by what
+        each buyer ordered from it, equally when nobody ordered."""
+        spare = getattr(source, "_spare", 0.0)
+        if spare <= 0:
+            return 0.0
+        orders = [(other, quantity) for other, quantity in self._orders.get(id(source), [])
+                  if other.active]
+        total = sum(quantity for _, quantity in orders)
+        if total > 0:
+            ordered = sum(quantity for other, quantity in orders if other is buyer)
+            return spare * ordered / total
+        buyers = {id(other) for other, _ in orders}
+        return spare / len(buyers) if id(buyer) in buyers else 0.0
+
     def place_order(self, buyer, source, quantity: float) -> None:
         """Record what `buyer` orders from `source` for the next tick."""
         self._next_orders.setdefault(id(source), []).append((buyer, quantity))

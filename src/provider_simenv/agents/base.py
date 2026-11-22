@@ -75,15 +75,15 @@ class SupplyChainAgent(Agent):
 
     def _apply_result(self, result, sources=None):
         for name, value in result.items():
-            if name not in ("upstream_updates", "received", "deliveries", "orders"):
+            if name not in ("upstream_updates", "received", "deliveries", "orders", "spare"):
                 setattr(self, name, value)
         for entry in result.get("received", []):
             self.model.book_delivery((sources or {})[entry["key"]], entry["quantity"], self)
         if "deliveries" in result:
             for entry in result["deliveries"]:
                 self.model.book_delivery(self, entry["quantity"], self._step_buyers[entry["key"]])
-            self._spare = max(0.0, self.quantity_available - sum(
-                entry["quantity"] for entry in result["deliveries"]))
+            self._spare = result.get("spare", max(0.0, self.quantity_available - sum(
+                entry["quantity"] for entry in result["deliveries"])))
         for entry in result.get("orders", []):
             self.model.place_order(self, (sources or {})[entry["key"]], entry["quantity"])
             self.orders_placed += entry["quantity"]
@@ -106,7 +106,7 @@ class SupplyChainAgent(Agent):
                 "key": key, "quantity_available": source.quantity_available,
                 "unit_price": source.unit_price,
                 "delivered": self.model.delivered(source, self),
-                "spare": getattr(source, "_spare", 0.0),
+                "spare": self.model.spare_for(source, self),
             }
             if hasattr(source, "base_yield"):
                 record["base_yield"] = source.base_yield
