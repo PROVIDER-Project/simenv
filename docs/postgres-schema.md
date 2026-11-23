@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS sim_agent (
 | `entity_id` | `text` | PDL entity id, e.g. `brazil_farms`. `environment` for the environment row. |
 | `role` | `text` | `producer`, `consumer`, `wholesaler`, `processor`, `feed_manufacturer`, `feed_trader`, `land_transport`, `sea_transport`, or `environment`. |
 | `agent_id` | `integer` | Index of the agent within its own entity list, zero-based. **Unique only within `entity_id`**, never globally. `0` for the environment. |
+| `product` | `text` | What the agent ships, from the roster's `products` section. Transports carry their sources' product. `NULL` when the roster has no `products` section, for consumers, and for the environment. Existing tables get the column through `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. |
 
 **What identifies an agent is `(run_id, entity_id, agent_id)`.** `agent_key` is a shorthand for
 that triple so each `sim_tick` row does not repeat it. Its values are specific to one database

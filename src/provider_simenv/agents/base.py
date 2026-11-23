@@ -110,6 +110,8 @@ class SupplyChainAgent(Agent):
             }
             if hasattr(source, "base_yield"):
                 record["base_yield"] = source.base_yield
+            if source.product:
+                record["product"] = source.product
             if isinstance(source, Transport):
                 record.update(is_transport=True, capacity=source.capacity,
                               effects=source._effects())

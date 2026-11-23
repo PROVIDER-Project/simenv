@@ -105,6 +105,7 @@ class SupplyChainModel(Model):
         from .topology import build_flow_adjacency, execution_order
         self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
         self._execution_order: list[str] = execution_order(self._flow_adjacency)
+        self._inherit_products()
         self._deliveries: dict[int, list] = {}
         self._shipped: dict[int, float] | None = None
         self._links: dict[tuple[int, int], list] = {}
@@ -137,6 +138,22 @@ class SupplyChainModel(Model):
             for dst, sources in self._flow_adjacency.items()
             if name in sources
         )
+
+    def _inherit_products(self) -> None:
+        """Give every transport the product of its sources, in flow order so a chain of
+        transports passes it on. Sources with different products are an error."""
+        from .agents import Transport
+        for name in self._execution_order:
+            agents = getattr(self, name).agents
+            if not agents or not isinstance(agents[0], Transport):
+                continue
+            products = {source.product for source_name in self._flow_adjacency.get(name, ())
+                        for source in getattr(self, source_name).agents if source.product}
+            if len(products) > 1:
+                raise ValueError(f"transport {name!r} would carry {sorted(products)}, "
+                                 f"one product per link")
+            for agent in agents:
+                agent.product = next(iter(products), "")
 
     def _warm_up(self) -> None:
         """Run one tick on the take rules without shocks or recording, keep what each

@@ -1,7 +1,6 @@
 """Guard derived s1-soja topology against accidental drift (step 8b)."""
 
 import logging
-import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -90,7 +89,13 @@ def _shipped_pdl_with_second_mill(tmp_path, hamburg_stages):
     text = text.replace(_HAMBURG_STAGE, hamburg_stages, 1)
     pdl = tmp_path / PDL_PATH.name
     pdl.write_text(text, encoding="utf-8")
-    shutil.copy(PDL_PATH.with_name("s1-soja.roster.yaml"), tmp_path)
+    roster = PDL_PATH.with_name("s1-soja.roster.yaml").read_text(encoding="utf-8")
+    roster = roster.replace(
+        "  eu_feed_trader: compound_feed\n",
+        "  eu_feed_trader: compound_feed\n"
+        "  de_oil_mills: {ships: soybean_meal, takes: soybean}\n",
+    )
+    (tmp_path / "s1-soja.roster.yaml").write_text(roster, encoding="utf-8")
     return pdl
 
 

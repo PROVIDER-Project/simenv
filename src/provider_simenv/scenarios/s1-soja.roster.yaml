@@ -115,3 +115,14 @@ economics:
   eu_oil_mills:
     bindings:
       energy: [gas_supply, price]
+
+products:
+  brazil_farms: soybean
+  argentina_farms: soybean
+  us_farms: soybean
+  brazil_wholesaler: soybean
+  argentina_wholesaler: soybean
+  us_wholesaler: soybean
+  eu_oil_mills: {ships: soybean_meal, takes: soybean}
+  feed_mills: {ships: compound_feed, takes: soybean_meal}
+  eu_feed_trader: compound_feed

@@ -180,6 +180,7 @@ DDL = (
         UNIQUE (run_id, entity_id, agent_id)
     )
     """,
+    "ALTER TABLE sim_agent ADD COLUMN IF NOT EXISTS product text",
     """
     CREATE TABLE IF NOT EXISTS sim_metric (
         metric_id   integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

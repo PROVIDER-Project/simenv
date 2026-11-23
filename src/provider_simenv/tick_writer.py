@@ -76,7 +76,7 @@ class TickWriter:
         sim_agent = table(
             SIM_AGENT_TABLE,
             column("agent_key"), column("run_id"), column("entity_id"),
-            column("role"), column("agent_id"),
+            column("role"), column("agent_id"), column("product"),
         )
         sim_tick = table(
             SIM_TICK_TABLE,
@@ -268,6 +268,7 @@ class TickWriter:
             for agent in agent_list.agents:
                 agent_key = self._agent_key(
                     conn, run_id, node_id, entry.archetype.role, agent.id,
+                    getattr(agent, "product", "") or None,
                 )
                 rows.extend(
                     self._value_rows(agent, props, agent_key, id_scenario, t)
@@ -317,6 +318,7 @@ class TickWriter:
 
     def _agent_key(
         self, conn, run_id: str, entity_id: str, role: str, agent_id: int,
+        product: str | None = None,
     ) -> int:
         """
         The agent's sim_agent key, registering it the first time it is seen
@@ -334,6 +336,7 @@ class TickWriter:
                     "entity_id": entity_id,
                     "role": role,
                     "agent_id": agent_id,
+                    "product": product,
                 },
             ).scalar_one()
             self._agent_keys[key] = agent_key

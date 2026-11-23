@@ -71,6 +71,14 @@ def _two_feed_chains(tmp_path: Path) -> Path:
         "  - [de_feed_mills, de_feed_trader]\n"
         "  - [de_feed_trader, dairy_farms]\n",
     )
+    roster = _replace_once(
+        roster,
+        "  eu_feed_trader: compound_feed\n",
+        "  eu_feed_trader: compound_feed\n"
+        "  de_oil_mills: {ships: soybean_meal, takes: soybean}\n"
+        "  de_feed_mills: {ships: compound_feed, takes: soybean_meal}\n"
+        "  de_feed_trader: compound_feed\n",
+    )
     path = tmp_path / PDL.name
     path.write_text(pdl, encoding="utf-8")
     (tmp_path / ROSTER.name).write_text(roster, encoding="utf-8")
