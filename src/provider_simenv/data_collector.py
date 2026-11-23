@@ -24,12 +24,15 @@ from .agents import (
 
 TRANSPORT_PROPS = (
     "quantity_available", "unit_price", "utilisation", "capacity", "active",
-    "effective_capacity",
+    "effective_capacity", "orders_placed", "stock",
 )
 
 _PROPS_BY_ROLE = {
     ROLE_PRODUCER: ("quantity_available", "unit_price", "active", "stock"),
-    ROLE_CONSUMER: ("feed_received", "livestock_output", "active", "orders_placed"),
+    ROLE_CONSUMER: (
+        "feed_received", "livestock_output", "active", "orders_placed",
+        "stock",
+    ),
     ROLE_WHOLESALER: (
         "quantity_available", "unit_price", "storage_utilization", "stock",
         "orders_placed",

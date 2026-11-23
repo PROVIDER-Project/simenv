@@ -231,9 +231,9 @@ section 4 explains why they never change in place.
 | `input_received` | processor, feed_manufacturer | input units per period | Input delivered by suppliers this period. |
 | `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
 | `unused_input` | processor, feed_manufacturer | input units per period | Input left after processing this period. It carries into the next period as stock. |
-| `stock` | producer, wholesaler, processor, feed_manufacturer, feed_trader | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. |
-| `orders_placed` | consumer, wholesaler, processor, feed_manufacturer, feed_trader | units ordered per period | What the agent ordered from its suppliers this period, to be delivered in the next one. |
-| `utilisation` | land_transport, sea_transport | ratio, usually 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. On orders a transport passes on everything that arrives, so it can exceed 1.0 for a tick. |
+| `stock` | producer, consumer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. A consumer holds feed beyond its baseline need; a transport holds what arrived while none of its buyers ordered. |
+| `orders_placed` | consumer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | units ordered per period | What the agent ordered from its suppliers this period, to be delivered in the next one. |
+| `utilisation` | land_transport, sea_transport | ratio, usually 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. On orders a transport passes on everything that arrives and keeps what arrives while none of its buyers orders, so it can exceed 1.0. |
 | `capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity before the current supply effect. |
 | `effective_capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity multiplied by its resolved supply effect. |
 
@@ -313,13 +313,13 @@ One view per role, each with one column per metric that role carries:
 | View | Metric columns |
 |---|---|
 | `sim_producer_view` | `quantity_available`, `unit_price`, `active`, `stock` |
-| `sim_consumer_view` | `feed_received`, `livestock_output`, `active`, `orders_placed` |
+| `sim_consumer_view` | `feed_received`, `livestock_output`, `active`, `orders_placed`, `stock` |
 | `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization`, `stock`, `orders_placed` |
 | `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
 | `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
 | `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock`, `orders_placed` |
-| `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
-| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
+| `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity`, `orders_placed`, `stock` |
+| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity`, `orders_placed`, `stock` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,

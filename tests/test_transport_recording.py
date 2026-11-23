@@ -132,7 +132,7 @@ def test_tick_writer_records_individual_port_and_sea_measurements():
         assert agent_key is not None, f"missing recorded transport {entity}"
         values = {db_schema.METRICS[row["metric_id"]].name: row["value"]
                   for row in rows if row["agent_key"] == agent_key}
-        assert set(values) == set(TRANSPORT_PROPS)
+        assert set(values) == {*TRANSPORT_PROPS, "orders_placed", "stock"}
         assert values["quantity_available"] == 70.
         assert values["effective_capacity"] == expected
 
@@ -332,3 +332,42 @@ def test_live_transport_views_and_playback_preserve_individuals(playback_db):
     assert next(a for a in agents if a.entity_id == SEA).values[
         "effective_capacity"
     ] == 1000.
+
+
+def rotterdam_closed(ticks, closed=range(1, 4)):
+    model: Any = SupplyChainModel(
+        cast(Any, SimpleNamespace()), SupplyChainScenario(1),
+    )
+    model._setup()
+    port = model.rotterdam_port.agents[0]
+    lane = getattr(model, SEA).agents[0]
+    held = []
+    for tick in range(ticks):
+        port.active = tick not in closed
+        model._do_step(tick)
+        held.append(lane.stock)
+    return model, lane, held
+
+
+def test_a_sea_lane_keeps_its_cargo_while_rotterdam_is_closed():
+    _, lane, held = rotterdam_closed(6)
+    assert held == [0., 70., 140., 140., 140., 0.]
+    assert lane.utilisation == pytest.approx(.14)
+
+
+def test_tick_writer_records_held_cargo_orders_and_consumer_stock():
+    model, lane, _ = rotterdam_closed(3)
+    writer = TickWriter(None)
+    writer._metric_ids = {m.name: i for i, m in enumerate(db_schema.METRICS)}
+    rows = writer._agent_rows(FakeConnection(), model, 1, "closed", 2)
+
+    def recorded(entity, role):
+        agent_key = writer._agent_keys[(entity, role, 0)]
+        return {db_schema.METRICS[row["metric_id"]].name: row["value"]
+                for row in rows if row["agent_key"] == agent_key}
+
+    sea = recorded(SEA, "sea_transport")
+    assert (sea["stock"], sea["orders_placed"]) == (140., lane.orders_placed)
+    farm = recorded("poultry_farms", "consumer")
+    assert farm["stock"] == model.poultry_farms.agents[0].stock
+
