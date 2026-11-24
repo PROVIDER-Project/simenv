@@ -56,6 +56,10 @@ export interface Node {
   placements: EntityPlacement[]
   /** Whether this component has measurements in this recording. */
   hasRecordedData: boolean
+  /** Product this component ships; transports carry their sources' product. Null when the run declares no products. */
+  product: string | null
+  /** Product a processing component takes in; null for every other role. */
+  inputProduct: string | null
 }
 
 /**
@@ -72,6 +76,8 @@ export interface Edge {
   target: string
   /** True when this edge is an ocean crossing (a materialised sea-lane). */
   isSeaCrossing: boolean
+  /** Product carried on this flow (the source's product); null when the run declares no products. */
+  product: string | null
 }
 
 /**

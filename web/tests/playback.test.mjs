@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { readFile } from 'node:fs/promises'
 
-await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/staticPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
+await build({ entryPoints: ['src/playback/buffer.ts', 'src/playback/frame.ts', 'src/playback/reference.ts', 'src/playback/referenceLoader.ts', 'src/data/httpPlaybackSource.ts', 'src/data/staticPlaybackSource.ts', 'src/data/presentation.ts', 'src/data/gazetteer.ts', 'src/data/staticJsonSource.ts'], outdir: '.test-build', bundle: true, platform: 'node', format: 'esm' })
 const { createPlaybackBuffer } = await import('../.test-build/playback/buffer.js')
 const { projectFrame } = await import('../.test-build/playback/frame.js')
 const { parseFramePage, createHttpPlaybackSource } = await import('../.test-build/data/httpPlaybackSource.js')
@@ -12,6 +12,7 @@ const { referenceCompatibility } = await import('../.test-build/playback/referen
 const { createReferenceLoader } = await import('../.test-build/playback/referenceLoader.js')
 const { presentScene, entityDisplayName } = await import('../.test-build/data/presentation.js')
 const { resolveScene } = await import('../.test-build/data/gazetteer.js')
+const { parseBundle } = await import('../.test-build/data/staticJsonSource.js')
 
 test('buffer deduplicates, aligns seeks, evicts and rejects stale loads', async () => {
   const requests = []
@@ -129,8 +130,8 @@ test('connections inherit source only; day-zero baseline and raw measurements st
   assert.equal(reference[0].values.quantity_available, 100)
 })
 
-const component = (id, role = 'producer', hasRecordedData = true) => ({ id, label: id, role, hasRecordedData, entityIds: [id], placements: [] })
-const connection = (source, target) => ({ id: `${source}->${target}`, source, target, isSeaCrossing: false })
+const component = (id, role = 'producer', hasRecordedData = true) => ({ id, label: id, role, hasRecordedData, entityIds: [id], placements: [], product: null, inputProduct: null })
+const connection = (source, target) => ({ id: `${source}->${target}`, source, target, isSeaCrossing: false, product: null })
 
 const seaConnection = (source, target, id = `${source}->${target}`) => ({ ...connection(source, target), id, isSeaCrossing: true })
 const displayFixture = () => ({ nodes: [component('a', 'wholesaler'), component('port', 'land_transport', false), component('x', 'land_transport', false)],
@@ -362,4 +363,22 @@ test('English presentation covers legacy identities, placements and pooled label
   assert.equal(resolveScene(display.nodes, display.edges).edges[0].label, 'EU oil mills → EU poultry farms / EU pig farms / EU dairy farms')
   assert.deepEqual(display.nodes.map(n => [n.id, n.entityIds, n.role, n.hasRecordedData]), original.nodes.map(n => [n.id, n.entityIds, n.role, n.hasRecordedData]))
   assert.equal(referenceCompatibility({ ...raw, scenario_id: 1 }, { ...display, scenario_id: 0 }), null)
+})
+
+test('products parse from new scenes, default to null in old ones and reject malformed ids', () => {
+  const base = { meta: {}, ticks: [], env: [] }
+  const mill = { id: 'mill', label: 'Mill', role: 'processor', entityIds: ['mill'] }
+  const old = parseBundle({ ...base, nodes: [mill], edges: [{ id: 'mill->x', source: 'mill', target: 'x' }] })
+  assert.deepEqual([old.nodes[0].product, old.nodes[0].inputProduct, old.edges[0].product], [null, null, null])
+  const tagged = parseBundle({ ...base, nodes: [{ ...mill, product: 'soybean_meal', inputProduct: 'soybean' }],
+    edges: [{ id: 'mill->x', source: 'mill', target: 'x', product: 'soybean_meal' }] })
+  assert.deepEqual([tagged.nodes[0].product, tagged.nodes[0].inputProduct, tagged.edges[0].product], ['soybean_meal', 'soybean', 'soybean_meal'])
+  for (const product of ['', 1, {}]) {
+    assert.throws(() => parseBundle({ ...base, nodes: [{ ...mill, product }], edges: [] }), /nodes\[\]\.product/)
+    assert.throws(() => parseBundle({ ...base, nodes: [], edges: [{ id: 'a->b', source: 'a', target: 'b', product }] }), /edges\[\]\.product/)
+  }
+  const resolved = resolveScene([component('santos_port', 'land_transport'), component('rotterdam_port', 'land_transport')],
+    [{ ...seaConnection('santos_port', 'rotterdam_port'), product: 'soybean' }])
+  assert.equal(resolved.edges[0].product, 'soybean')
+  assert.equal(resolved.edges[0].label, 'santos_port → rotterdam_port')
 })

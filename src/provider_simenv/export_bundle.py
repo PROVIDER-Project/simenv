@@ -164,7 +164,33 @@ def _entity_placement(entity_id: str, entity: dict) -> dict | None:
     }
 
 
-def _node_metadata(entry, entities: dict[str, dict]) -> dict:
+def _shipped_products(roster, adjacency: dict[str, tuple[str, ...]]) -> dict[str, str | None]:
+    """What each roster list ships. Transports carry their sources' product, the same
+    rule the model applies when it builds the agents."""
+    declared = {
+        entry.archetype.name: entry.archetype.params.get("attrs", {}).get("product")
+        for entry in roster
+    }
+    transports = {entry.archetype.name for entry in roster
+                  if entry.archetype.agent_class is Transport}
+    resolved: dict[str, str | None] = {}
+
+    def product(name: str) -> str | None:
+        if name not in resolved:
+            if name not in transports:
+                resolved[name] = declared.get(name)
+            else:
+                carried = {p for source in adjacency.get(name, ()) if (p := product(source))}
+                if len(carried) > 1:
+                    raise ValueError(f"transport {name!r} would carry {sorted(carried)}, "
+                                     f"one product per link")
+                resolved[name] = carried.pop() if carried else None
+        return resolved[name]
+
+    return {name: product(name) for name in declared}
+
+
+def _node_metadata(entry, entities: dict[str, dict], products: dict[str, str | None]) -> dict:
     node_id = entry.archetype.name
     entity_ids = list(entry.entity_ids)
     labels: list[str] = []
@@ -193,11 +219,14 @@ def _node_metadata(entry, entities: dict[str, dict]) -> dict:
         "entityIds": entity_ids,
         "placements": placements,
         "hasRecordedData": entry.archetype.role in EXPORT_PROPS_BY_ROLE,
+        "product": products.get(node_id),
+        "inputProduct": entry.archetype.params.get("attrs", {}).get("input_product"),
     }
 
 
 def _collapsed_edges(
     adjacency: dict[str, tuple[str, ...]], sea_transports: set[str], node_ids: set[str],
+    products: dict[str, str | None],
 ) -> list[dict]:
     downstream_transports = {
         source
@@ -226,6 +255,7 @@ def _collapsed_edges(
             "source": source,
             "target": target,
             "isSeaCrossing": is_sea,
+            "product": products.get(source),
         })
 
     for target, sources in adjacency.items():
@@ -380,6 +410,7 @@ def build_bundle(
     roster = build_roster(pdl_path)
     adjacency = build_flow_adjacency(pdl_path)
     entities = _entity_metadata(pdl_path)
+    products = _shipped_products(roster, adjacency)
     sea_transports = {
         entry.archetype.name
         for entry in roster
@@ -393,7 +424,7 @@ def build_bundle(
         node_id = entry.archetype.name
         if node_id in sea_transports:
             continue
-        node = _node_metadata(entry, entities)
+        node = _node_metadata(entry, entities, products)
         node["hasRecordedData"] = False
         nodes.append(node)
 
@@ -411,7 +442,7 @@ def build_bundle(
         ).items():
             ticks.append({"period": period, "nodeId": node_id, "values": values})
 
-    edges = _collapsed_edges(adjacency, sea_transports, {node["id"] for node in nodes})
+    edges = _collapsed_edges(adjacency, sea_transports, {node["id"] for node in nodes}, products)
 
     # Environment series.
     env: list[dict] = []

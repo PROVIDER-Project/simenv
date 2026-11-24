@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS sim_agent (
 | `entity_id` | `text` | PDL entity id, e.g. `brazil_farms`. `environment` for the environment row. |
 | `role` | `text` | `producer`, `consumer`, `wholesaler`, `processor`, `feed_manufacturer`, `feed_trader`, `land_transport`, `sea_transport`, or `environment`. |
 | `agent_id` | `integer` | Index of the agent within its own entity list, zero-based. **Unique only within `entity_id`**, never globally. `0` for the environment. |
+| `product` | `text` | What the agent ships, from the roster's `products` section. Transports carry their sources' product. `NULL` when the roster has no `products` section, for consumers, and for the environment. Existing tables get the column through `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. |
 
 **What identifies an agent is `(run_id, entity_id, agent_id)`.** `agent_key` is a shorthand for
 that triple so each `sim_tick` row does not repeat it. Its values are specific to one database
@@ -123,7 +124,7 @@ collide with the environment's own row. The unique constraint surfaces that as a
 than merging them silently, but no PDL should use the name.
 
 **Land-transport (including port) and sea-transport agents are recorded in new
-runs.** Each gets its own `sim_agent` identity and six metrics on both the database
+runs.** Each gets its own `sim_agent` identity and eight metrics on both the database
 and CSV paths. Derived sea entities use names such as
 `sea_transport_santos_port__rotterdam_port`. They need no separate map node to
 have raw measurements. Historical runs that omitted these roles remain without
@@ -204,8 +205,8 @@ has no such metric", not as a gap in the data.
 
 **The row count is proportional to the PDL and recorded metrics.** Each period
 adds one value per recorded property of each recorded agent, plus environment
-properties. Processing roles carry five metrics and transport roles carry six;
-the catalogue has 19 metrics. Actor counts derive from the loaded roster.
+properties. Processing roles carry seven metrics and transport roles carry eight.
+The catalogue has 21 metrics. Actor counts derive from the loaded roster.
 
 ---
 
@@ -224,13 +225,15 @@ section 4 explains why they never change in place.
 | `quantity_available` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | output units per period | How much of its output good the agent has ready this period; transport output available after handling/admission, not queued shipments. |
 | `unit_price` | producer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | currency per output unit | The agent's output asking price this period. `0.0` when it has nothing to sell; not a transaction price. |
 | `storage_utilization` | wholesaler | ratio, 0.0-1.0 | Stock divided by storage capacity. |
-| `feed_received` | consumer | feed units per period | Feed collected from upstream traders, split evenly across active consumers. |
-| `livestock_output` | consumer | output units per period | Livestock produced, proportional to `feed_received`. |
+| `feed_received` | consumer | feed units per period | Feed delivered by upstream traders this period. |
+| `livestock_output` | consumer | output units per period | Livestock produced from the feed used this period, at most the consumer's baseline need. |
 | `active` | producer, consumer, land_transport, sea_transport | flag, 1.0 or 0.0 | Whether the agent is still in the market. See the boolean note in section 8. |
-| `input_received` | processor, feed_manufacturer | input units per period | Equal-share upstream input offer; not settled purchases. |
+| `input_received` | processor, feed_manufacturer | input units per period | Input delivered by suppliers this period. |
 | `input_processed` | processor, feed_manufacturer | input units per period | Input actually transformed under the throughput constraint. |
-| `unused_input` | processor, feed_manufacturer | input units per period | Offered input not processed this period; not carried inventory. |
-| `utilisation` | land_transport, sea_transport | ratio, 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. |
+| `unused_input` | processor, feed_manufacturer | input units per period | Input left after processing this period. It carries into the next period as stock. |
+| `stock` | producer, consumer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | units held | What the agent holds this period before passing anything on. Processes hold input units, all other roles their output good. A consumer holds feed beyond its baseline need; a transport holds what arrived while none of its buyers ordered. |
+| `orders_placed` | consumer, wholesaler, processor, feed_manufacturer, feed_trader, land_transport, sea_transport | units ordered per period | What the agent ordered from its suppliers this period, to be delivered in the next one. |
+| `utilisation` | land_transport, sea_transport | ratio, usually 0.0-1.0 | Transport output divided by effective capacity; zero when effective capacity is zero. On orders a transport passes on everything that arrives and keeps what arrives while none of its buyers orders, so it can exceed 1.0. |
 | `capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity before the current supply effect. |
 | `effective_capacity` | land_transport, sea_transport | output units per period | Nominal transport capacity multiplied by its resolved supply effect. |
 
@@ -309,14 +312,14 @@ One view per role, each with one column per metric that role carries:
 
 | View | Metric columns |
 |---|---|
-| `sim_producer_view` | `quantity_available`, `unit_price`, `active` |
-| `sim_consumer_view` | `feed_received`, `livestock_output`, `active` |
-| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization` |
-| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
-| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input` |
-| `sim_feed_trader_view` | `quantity_available`, `unit_price` |
-| `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
-| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity` |
+| `sim_producer_view` | `quantity_available`, `unit_price`, `active`, `stock` |
+| `sim_consumer_view` | `feed_received`, `livestock_output`, `active`, `orders_placed`, `stock` |
+| `sim_wholesaler_view` | `quantity_available`, `unit_price`, `storage_utilization`, `stock`, `orders_placed` |
+| `sim_processor_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
+| `sim_feed_manufacturer_view` | `quantity_available`, `unit_price`, `input_received`, `input_processed`, `unused_input`, `stock`, `orders_placed` |
+| `sim_feed_trader_view` | `quantity_available`, `unit_price`, `stock`, `orders_placed` |
+| `sim_land_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity`, `orders_placed`, `stock` |
+| `sim_sea_transport_view` | `quantity_available`, `unit_price`, `utilisation`, `capacity`, `active`, `effective_capacity`, `orders_placed`, `stock` |
 | `sim_environment_view` | `soy_price`, `feed_price`, `shock_scale`, `drought_severity`, `total_soy_supply`, `transport_utilisation`, `current_step` |
 
 Every agent role view starts with `run_id`, `id_scenario`, `period`, `entity_id`, `agent_id`,

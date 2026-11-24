@@ -13,6 +13,7 @@ __all__ = ["ROLE_FEED_MANUFACTURER", "ROLE_PROCESSOR", "Process"]
 
 class Process(SupplyChainAgent):
     agent_type = ProcessProviderAgent
+    input_product: str
 
     def _step_input(self):
         upstream, _ = self._sources(self.model.upstream(self.list_name))

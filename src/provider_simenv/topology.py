@@ -41,6 +41,7 @@ from .agents import (
 )
 from .economic_config import resolve_economics
 from .pdl_loader import PDLLoader
+from .products import resolve_products, validate_roster_products
 from .scenario import SupplyChainScenario
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ class RosterSidecar:
     edges: tuple[tuple[str, str], ...]
     dependencies: tuple[Mapping[str, Any], ...]
     economics: Mapping[str, Any] = field(default_factory=dict)
+    products: Mapping[str, Any] = field(default_factory=dict)
 
 
 def sidecar_path(pdl_path: str | Path) -> Path:
@@ -141,6 +143,7 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
         raise ValueError(  # noqa: TRY004 -- invalid configuration document
             "roster sidecar must be a mapping",
         )
+    validate_roster_products(doc)
     pdl_ids = {e.get("id") for e in (PDLLoader(pdl_path)._doc.get("entities") or [])}
 
     entities = tuple(doc.get("entities") or [])
@@ -158,6 +161,7 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
         edges=tuple((e[0], e[1]) for e in (doc.get("edges") or [])),
         dependencies=tuple(doc.get("dependencies") or []),
         economics=doc.get("economics", {}),
+        products=doc.get("products", {}),
     )
 
 # ---------------------------------------------------------------------------
@@ -439,9 +443,10 @@ def build_roster(pdl_path: str | Path) -> list[RosterEntry]:
             ids_by_arc[arc] = []
 
     roster = [RosterEntry(arc, tuple(ids_by_arc[arc])) for arc in order]
-    return resolve_economics(
+    roster = resolve_economics(
         roster, sidecar.economics, {entity["id"] for entity in entities},
     )
+    return resolve_products(roster, sidecar.products)
 
 
 # ---------------------------------------------------------------------------
