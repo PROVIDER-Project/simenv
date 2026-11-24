@@ -81,10 +81,12 @@ class SupplyChainAgent(Agent):
         return data, self._step_sources
 
     def _apply_result(self, result, sources=None):
-        from ..products import validate_delivery_product
-
         for entry in result.get("deliveries", []):
-            validate_delivery_product(entry, self.product)
+            if ("product" in entry or self.product) and entry.get("product") != self.product:
+                raise ValueError(
+                    f"invalid delivery product from {self.list_name}: "
+                    f"expected {self.product!r}, got {entry.get('product')!r}",
+                )
         for name, value in result.items():
             if name not in ("upstream_updates", "received", "deliveries", "orders", "spare"):
                 setattr(self, name, value)
