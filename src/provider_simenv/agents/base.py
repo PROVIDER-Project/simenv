@@ -17,6 +17,7 @@ class SupplyChainAgent(Agent):
     model: "SupplyChainModel"
     scenario: "SupplyChainScenario"
     list_name: str
+    product: str
 
     def setup(self):
         self._implementation = self.agent_type()

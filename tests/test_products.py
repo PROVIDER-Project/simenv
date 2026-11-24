@@ -99,6 +99,43 @@ def test_a_transport_with_sources_of_two_products_is_rejected(tmp_path, monkeypa
         model(pdl, monkeypatch)
 
 
+def pdl_with_products(tmp_path, changes):
+    pdl = tmp_path / SHIPPED.name
+    pdl.write_text(SHIPPED.read_text(encoding="utf-8"), encoding="utf-8")
+    roster = sidecar_path(SHIPPED).read_text(encoding="utf-8")
+    for old, new in changes.items():
+        assert roster.count(old) == 1
+        roster = roster.replace(old, new)
+    sidecar_path(pdl).write_text(roster, encoding="utf-8")
+    return pdl
+
+
+@pytest.mark.parametrize(("changes", "message"), [
+    ({"  brazil_farms: soybean\n": "  brazil_farms: corn\n"},
+     "'brazil_wholesaler' takes 'soybean', but 'brazil_farms' ships 'corn'"),
+    ({"  eu_feed_trader: compound_feed\n": "  eu_feed_trader: soybean_meal\n"},
+     ("'eu_feed_trader' takes 'soybean_meal', but 'feed_mills' ships "
+      "'compound_feed'")),
+])
+def test_a_trader_whose_supplier_ships_another_product_is_rejected(
+    tmp_path, monkeypatch, changes, message,
+):
+    with pytest.raises(ValueError, match=message):
+        model(pdl_with_products(tmp_path, changes), monkeypatch)
+
+
+def test_a_process_whose_supplier_ships_another_product_is_rejected(
+    tmp_path, monkeypatch,
+):
+    pdl = pdl_with_products(tmp_path, {
+        "takes: soybean}": "takes: corn}",
+    })
+    with pytest.raises(
+        ValueError, match=r"'eu_oil_mills' takes 'corn', but '\w+_port' ships 'soybean'",
+    ):
+        model(pdl, monkeypatch)
+
+
 def test_without_a_products_section_nothing_is_named(monkeypatch):
     m = model(WITHOUT_PRODUCTS, monkeypatch)
     agents = [agent for entry in m._roster for agent in getattr(m, entry.archetype.name).agents]
@@ -156,6 +193,26 @@ def test_supplier_rejects_a_mismatched_routed_order(monkeypatch, product):
     }]
     with pytest.raises(ValueError, match="Order for"):
         m._do_step(1)
+
+
+def test_an_order_without_a_product_is_rejected_before_it_is_booked(
+    monkeypatch,
+):
+    m = model(SHIPPED, monkeypatch)
+    supplier = m.brazil_farms.agents[0]
+    buyer = m.brazil_wholesaler.agents[0]
+    original_step = buyer._implementation.step
+
+    def unlabelled_order(data):
+        result = original_step(data)
+        for order in result["orders"]:
+            del order["product"]
+        return result
+
+    monkeypatch.setattr(buyer._implementation, "step", unlabelled_order)
+    with pytest.raises(ValueError, match="names no product, expected 'soybean'"):
+        m._do_step(0)
+    assert id(supplier) not in m._next_orders
 
 
 def test_routed_orders_without_products_remain_untagged(monkeypatch):

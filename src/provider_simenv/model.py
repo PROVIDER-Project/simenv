@@ -116,6 +116,7 @@ class SupplyChainModel(Model):
         self._flow_adjacency = build_flow_adjacency(self._roster_pdl_path())
         self._execution_order: list[str] = execution_order(self._flow_adjacency)
         self._inherit_products()
+        self._check_products()
         self._deliveries: dict[int, list] = {}
         self._shipped: dict[int, float] | None = None
         self._links: dict[tuple[int, int], list] = {}
@@ -164,6 +165,29 @@ class SupplyChainModel(Model):
                                  f"one product per link")
             for agent in agents:
                 agent.product = next(iter(products), "")
+
+    def _check_products(self) -> None:
+        """Every supplier of a trader ships the trader's product and every supplier
+        of a process ships what it takes. Only a process turns one product into
+        another."""
+        from .agents import Process, Trader
+        for name, sources in self._flow_adjacency.items():
+            agents = getattr(self, name).agents
+            if not agents or not isinstance(agents[0], (Trader, Process)):
+                continue
+            if isinstance(agents[0], Process):
+                expected = agents[0].input_product
+            else:
+                expected = agents[0].product
+            if not expected:
+                continue
+            for source_name in sources:
+                for source in getattr(self, source_name).agents:
+                    if source.product and source.product != expected:
+                        raise ValueError(
+                            f"{name!r} takes {expected!r}, but {source_name!r} "
+                            f"ships {source.product!r}",
+                        )
 
     def _warm_up(self) -> None:
         """Run one tick on the take rules without shocks or recording, keep what each
@@ -316,7 +340,7 @@ class SupplyChainModel(Model):
         spare = getattr(source, "_spare", 0.0)
         if spare <= 0:
             return 0.0
-        orders = [(other, quantity) for other, quantity in self.orders_for(source)
+        orders = [(other, quantity) for other, quantity in self.orders_for(source) or []
                   if other.active]
         total = sum(quantity for _, quantity in orders)
         if total > 0:
@@ -328,12 +352,16 @@ class SupplyChainModel(Model):
     def place_order(
         self, buyer, source, quantity: float, product: str | None = None,
     ) -> None:
-        """Record the quantity and product ordered for the next tick."""
+        """Record the quantity and product ordered for the next tick. An order to a
+        supplier that ships a product has to name one, so a missing label is never
+        filled in from the supplier."""
+        if product is None and source.product:
+            raise ValueError(
+                f"order from {buyer.list_name} to {source.list_name} names no "
+                f"product, expected {source.product!r}",
+            )
         self._next_orders.setdefault(id(source), []).append(
-            _Order(
-                buyer, quantity,
-                source.product if product is None else product,
-            ),
+            _Order(buyer, quantity, product or ""),
         )
 
     def orders_for(self, agent) -> list | None:
