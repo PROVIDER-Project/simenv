@@ -81,6 +81,8 @@ export interface ResolvedEdge {
   isSeaCrossing: boolean
   /** "Source → Target" in English, for the edge annotation. */
   label: string
+  /** Product carried on this flow, shown beside the label; null when the run declares none. */
+  product: string | null
 }
 
 /** A node/edge that could not be placed, with the reason (for logging/UI). */
@@ -157,6 +159,7 @@ export function resolveScene(nodes: Node[], edges: Edge[]): Scene {
       endLng: t.lng,
       isSeaCrossing: e.isSeaCrossing,
       label: `${nameById.get(e.source) ?? e.source} → ${nameById.get(e.target) ?? e.target}`,
+      product: e.product,
     })
   }
 

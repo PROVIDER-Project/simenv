@@ -8,10 +8,13 @@ from test_economic_config import SHIPPED, model_for
 from test_tick_writer import FakeConnection
 
 from provider_simenv import db_schema
+from provider_simenv.export_bundle import _shipped_products
 from provider_simenv.model import SupplyChainModel
 from provider_simenv.products import resolve_products
+from provider_simenv.scene import build_scene
 from provider_simenv.tick_writer import TickWriter
 from provider_simenv.topology import (
+    build_flow_adjacency,
     build_roster,
     load_roster_sidecar,
     sidecar_path,
@@ -222,3 +225,32 @@ def test_untagged_deliveries_remain_supported(monkeypatch):
     assert all("product" not in record for record in records)
     for source in sources.values():
         assert m.delivered_product(source, buyer) == ""
+
+
+def test_scene_names_what_each_component_ships():
+    scene = build_scene(SHIPPED)
+    nodes = {node["id"]: node for node in scene["nodes"]}
+    assert (nodes["brazil_farms"]["product"], nodes["brazil_farms"]["inputProduct"]) == ("soybean", None)
+    assert (nodes["eu_oil_mills"]["product"], nodes["eu_oil_mills"]["inputProduct"]) == (
+        "soybean_meal", "soybean")
+    assert nodes["rotterdam_port"]["product"] == "soybean"
+    assert nodes["pig_farms"]["product"] is None
+    edges = {edge["id"]: edge["product"] for edge in scene["edges"]}
+    assert edges["santos_port->rotterdam_port"] == "soybean"
+    assert edges["eu_oil_mills->feed_mills"] == "soybean_meal"
+
+
+def test_scene_without_a_products_section_names_nothing():
+    scene = build_scene(WITHOUT_PRODUCTS)
+    assert {node["product"] for node in scene["nodes"]} == {None}
+    assert {node["inputProduct"] for node in scene["nodes"]} == {None}
+    assert {edge["product"] for edge in scene["edges"]} == {None}
+
+
+def test_exported_products_match_the_model(monkeypatch):
+    m = model(SHIPPED, monkeypatch)
+    exported = _shipped_products(build_roster(SHIPPED), build_flow_adjacency(SHIPPED))
+    for entry in m._roster:
+        agents = getattr(m, entry.archetype.name).agents
+        if agents:
+            assert exported[entry.archetype.name] == (agents[0].product or None), entry.archetype.name

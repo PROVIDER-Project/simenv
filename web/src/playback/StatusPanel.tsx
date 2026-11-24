@@ -35,6 +35,13 @@ export default function StatusPanel({ scene, projected, period, selected, onSele
         : 'Responsible metric: unavailable comparison evidence.'}</p>
       <p>Aggregation: strongest individual status across {status.agents.length} recorded agents; values below remain separate.</p>
       {node.entityIds.length > 1 && <p>Pooled component: {node.entityIds.map(id => entityDisplayName(node, id)).join(', ')}. Its geographic markers share this assessment.</p>}
+      {node.product && <p className="sim-status-product">{
+        node.role === 'land_transport' || node.role === 'sea_transport'
+          ? `Carries: ${node.product} (from its sources)`
+          : node.inputProduct
+            ? `Product: ${node.product} · takes ${node.inputProduct}`
+            : `Product: ${node.product}`
+      }</p>}
       {node.placements.some(item => item.illustrative) && <p>Illustrative geographic placement (not a simulation-status indicator).</p>}
       <p className="sim-reference-note">{reference}</p>
       {status.agents.map(agent => <details key={JSON.stringify(agent.agent)} open={status.agents.length === 1}>

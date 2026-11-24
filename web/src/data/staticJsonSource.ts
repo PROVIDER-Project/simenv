@@ -37,6 +37,12 @@ function requireFiniteNumber(value: unknown, field: string): number {
   return value
 }
 
+/** A product id, or null when the producer declared none (absent in older bundles and scenes). */
+function optionalProduct(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null
+  return requireString(value, field)
+}
+
 function parsePlacement(value: unknown, nodeId: string): EntityPlacement {
   if (!isObject(value)) throw new Error('bundle.nodes[].placements[] must be objects')
   const entityId = requireString(value.entityId, 'nodes[].placements[].entityId')
@@ -80,6 +86,8 @@ export function parseBundle(input: unknown): Bundle {
       entityIds,
       placements,
       hasRecordedData: Boolean(n.hasRecordedData),
+      product: optionalProduct(n.product, 'nodes[].product'),
+      inputProduct: optionalProduct(n.inputProduct, 'nodes[].inputProduct'),
     }
   })
 
@@ -90,6 +98,7 @@ export function parseBundle(input: unknown): Bundle {
       source: String(e.source),
       target: String(e.target),
       isSeaCrossing: Boolean(e.isSeaCrossing),
+      product: optionalProduct(e.product, 'edges[].product'),
     }
   })
 

@@ -137,7 +137,7 @@ export default function GlobeView({
         lat: apex.lat,
         lng: apex.lng,
         alt: apex.alt,
-        text: edge.label,
+        text: edge.product ? `${edge.product} · ${edge.label}` : edge.label,
         kind: 'edge',
         illustrative: false,
       })

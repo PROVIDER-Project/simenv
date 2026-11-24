@@ -430,6 +430,13 @@ topology snapshots in PostgreSQL and remain playable if inputs change or
 disappear. Legacy runs can use shipped scenarios only when PDL and roster hashes
 match; otherwise their unavailability is explained in the selector.
 
+Scene nodes carry `product` (what the component ships; transports carry their
+sources' product) and `inputProduct` (what a processing component takes in); edges
+carry `product` (the source's product). All three come from the roster's
+`products:` section and are `null` when a run declares none. Scenes stored before
+products existed lack the fields; the browser reads them as `null`. Product ids
+are display-only and never enter status scoring or reference matching.
+
 Errors: unknown run/scenario 404; unavailable/incomplete run 409; invalid range
 422; database outage 503; corrupt/incomplete committed measurements 500. No
 missing values are invented and database credentials are not returned.
