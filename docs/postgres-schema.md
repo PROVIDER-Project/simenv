@@ -124,7 +124,7 @@ collide with the environment's own row. The unique constraint surfaces that as a
 than merging them silently, but no PDL should use the name.
 
 **Land-transport (including port) and sea-transport agents are recorded in new
-runs.** Each gets its own `sim_agent` identity and six metrics on both the database
+runs.** Each gets its own `sim_agent` identity and eight metrics on both the database
 and CSV paths. Derived sea entities use names such as
 `sea_transport_santos_port__rotterdam_port`. They need no separate map node to
 have raw measurements. Historical runs that omitted these roles remain without
@@ -205,8 +205,8 @@ has no such metric", not as a gap in the data.
 
 **The row count is proportional to the PDL and recorded metrics.** Each period
 adds one value per recorded property of each recorded agent, plus environment
-properties. Processing roles carry five metrics and transport roles carry six;
-the catalogue has 19 metrics. Actor counts derive from the loaded roster.
+properties. Processing roles carry seven metrics and transport roles carry eight.
+The catalogue has 21 metrics. Actor counts derive from the loaded roster.
 
 ---
 

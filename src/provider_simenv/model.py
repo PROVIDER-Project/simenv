@@ -22,12 +22,22 @@ import logging
 from copy import deepcopy
 from Melodie import Model
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, NamedTuple
 from .event_tracker import EventTracker
 from .topology import build_roster
 from .environment import SupplyChainEnvironment
 from .data_collector import SupplyChainDataCollector
 from .tick_writer import TickWriter
+
+if TYPE_CHECKING:
+    from .agents.base import SupplyChainAgent
+
+
+class _Order(NamedTuple):
+    buyer: "SupplyChainAgent"
+    quantity: float
+    product: str
+
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +174,11 @@ class SupplyChainModel(Model):
         for name in self._execution_order:
             getattr(self, name).method_foreach('step', ())
         self._warming = False
-        for source, buyer, quantity in self._links.values():
+        for source, buyer, quantity, product in self._links.values():
             self._baseline.setdefault(id(buyer), []).append((source, quantity))
-            self._orders.setdefault(id(source), []).append((buyer, quantity))
+            self._orders.setdefault(id(source), []).append(
+                _Order(buyer, quantity, product),
+            )
         for agent, state in zip(agents, before):
             for name, value in state.items():
                 setattr(agent, name, value)
@@ -273,12 +285,20 @@ class SupplyChainModel(Model):
             '─' * 63,
         )
 
-    def book_delivery(self, source, quantity: float, buyer=None) -> None:
-        """Record that a buyer took `quantity` from `source` in the current tick."""
+    def book_delivery(
+        self, source, quantity: float, buyer=None, product: str | None = None,
+    ) -> None:
+        """Record the quantity and product delivered in the current tick."""
         booked = self._deliveries.setdefault(id(source), [source, 0.0])
         booked[1] += quantity
         if buyer is not None:
-            link = self._links.setdefault((id(source), id(buyer)), [source, buyer, 0.0])
+            link = self._links.setdefault(
+                (id(source), id(buyer)),
+                [
+                    source, buyer, 0.0,
+                    source.product if product is None else product,
+                ],
+            )
             link[2] += quantity
 
     def delivered(self, source, buyer) -> float:
@@ -286,13 +306,17 @@ class SupplyChainModel(Model):
         link = self._links.get((id(source), id(buyer)))
         return link[2] if link else 0.0
 
+    def delivered_product(self, source, buyer) -> str | None:
+        link = self._links.get((id(source), id(buyer)))
+        return link[3] if link else None
+
     def spare_for(self, source, buyer) -> float:
         """The part of `source`'s spare this tick that falls to `buyer`, split by what
         each buyer ordered from it, equally when nobody ordered."""
         spare = getattr(source, "_spare", 0.0)
         if spare <= 0:
             return 0.0
-        orders = [(other, quantity) for other, quantity in self._orders.get(id(source), [])
+        orders = [(other, quantity) for other, quantity in self.orders_for(source)
                   if other.active]
         total = sum(quantity for _, quantity in orders)
         if total > 0:
@@ -301,16 +325,36 @@ class SupplyChainModel(Model):
         buyers = {id(other) for other, _ in orders}
         return spare / len(buyers) if id(buyer) in buyers else 0.0
 
-    def place_order(self, buyer, source, quantity: float) -> None:
-        """Record what `buyer` orders from `source` for the next tick."""
-        self._next_orders.setdefault(id(source), []).append((buyer, quantity))
+    def place_order(
+        self, buyer, source, quantity: float, product: str | None = None,
+    ) -> None:
+        """Record the quantity and product ordered for the next tick."""
+        self._next_orders.setdefault(id(source), []).append(
+            _Order(
+                buyer, quantity,
+                source.product if product is None else product,
+            ),
+        )
 
     def orders_for(self, agent) -> list | None:
         """What each buyer ordered from `agent` in the previous tick as (buyer, quantity),
         or None during the warm-up."""
         if self._warming:
             return None
-        return self._orders.get(id(agent), [])
+        return [
+            (order.buyer, order.quantity)
+            for order in self._orders.get(id(agent), [])
+        ]
+
+    def order_product_for(self, source, buyer) -> str:
+        return next(
+            (
+                order.product
+                for order in self._orders.get(id(source), [])
+                if order.buyer is buyer
+            ),
+            "",
+        )
 
     def baseline_orders(self, buyer) -> list:
         """What `buyer` took from each supplier in the warm-up, as (supplier, quantity)."""

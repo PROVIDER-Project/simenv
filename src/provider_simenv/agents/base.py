@@ -54,8 +54,15 @@ class SupplyChainAgent(Agent):
         orders = self.model.orders_for(self)
         if orders is not None:
             self._step_buyers = {buyer.key: buyer for buyer, _ in orders if buyer.active}
-            data["orders"] = [{"key": buyer.key, "quantity": quantity}
-                              for buyer, quantity in orders if buyer.active]
+            data["orders"] = []
+            for buyer, quantity in orders:
+                if not buyer.active:
+                    continue
+                order = {"key": buyer.key, "quantity": quantity}
+                product = self.model.order_product_for(self, buyer)
+                if product or self.product:
+                    order["product"] = product
+                data["orders"].append(order)
         return data
 
     def step(self):
@@ -74,6 +81,10 @@ class SupplyChainAgent(Agent):
         return data, self._step_sources
 
     def _apply_result(self, result, sources=None):
+        from ..products import validate_delivery_product
+
+        for entry in result.get("deliveries", []):
+            validate_delivery_product(entry, self.product)
         for name, value in result.items():
             if name not in ("upstream_updates", "received", "deliveries", "orders", "spare"):
                 setattr(self, name, value)
@@ -81,11 +92,18 @@ class SupplyChainAgent(Agent):
             self.model.book_delivery((sources or {})[entry["key"]], entry["quantity"], self)
         if "deliveries" in result:
             for entry in result["deliveries"]:
-                self.model.book_delivery(self, entry["quantity"], self._step_buyers[entry["key"]])
+                self.model.book_delivery(
+                    self, entry["quantity"],
+                    self._step_buyers[entry["key"]],
+                    product=entry.get("product"),
+                )
             self._spare = result.get("spare", max(0.0, self.quantity_available - sum(
                 entry["quantity"] for entry in result["deliveries"])))
         for entry in result.get("orders", []):
-            self.model.place_order(self, (sources or {})[entry["key"]], entry["quantity"])
+            self.model.place_order(
+                self, (sources or {})[entry["key"]],
+                entry["quantity"], product=entry.get("product"),
+            )
             self.orders_placed += entry["quantity"]
         for update in result.get("upstream_updates", []):
             source = (sources or {})[update["key"]]
@@ -110,8 +128,11 @@ class SupplyChainAgent(Agent):
             }
             if hasattr(source, "base_yield"):
                 record["base_yield"] = source.base_yield
-            if source.product:
-                record["product"] = source.product
+            product = self.model.delivered_product(source, self)
+            if product is None:
+                product = source.product
+            if product:
+                record["product"] = product
             if isinstance(source, Transport):
                 record.update(is_transport=True, capacity=source.capacity,
                               effects=source._effects())

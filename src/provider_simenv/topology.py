@@ -41,7 +41,7 @@ from .agents import (
 )
 from .economic_config import resolve_economics
 from .pdl_loader import PDLLoader
-from .products import resolve_products
+from .products import resolve_products, validate_roster_products
 from .scenario import SupplyChainScenario
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,7 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
         raise ValueError(  # noqa: TRY004 -- invalid configuration document
             "roster sidecar must be a mapping",
         )
+    validate_roster_products(doc)
     pdl_ids = {e.get("id") for e in (PDLLoader(pdl_path)._doc.get("entities") or [])}
 
     entities = tuple(doc.get("entities") or [])
@@ -160,7 +161,7 @@ def load_roster_sidecar(pdl_path: str | Path) -> RosterSidecar:
         edges=tuple((e[0], e[1]) for e in (doc.get("edges") or [])),
         dependencies=tuple(doc.get("dependencies") or []),
         economics=doc.get("economics", {}),
-        products=doc.get("products") or {},
+        products=doc.get("products", {}),
     )
 
 # ---------------------------------------------------------------------------

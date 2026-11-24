@@ -2,6 +2,8 @@
 
 from dataclasses import replace
 
+from jsonschema import ValidationError, validate
+
 from .agents import (
     ROLE_CONSUMER,
     ROLE_FEED_MANUFACTURER,
@@ -12,6 +14,36 @@ from .agents import (
 
 _TRANSPORTS = {ROLE_LAND_TRANSPORT, ROLE_SEA_TRANSPORT}
 _PROCESSES = {ROLE_PROCESSOR, ROLE_FEED_MANUFACTURER}
+
+_ROSTER_PRODUCTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "products": {"type": "object", "minProperties": 1},
+    },
+}
+
+
+def validate_roster_products(doc):
+    try:
+        validate(doc, _ROSTER_PRODUCTS_SCHEMA)
+    except ValidationError as exc:
+        raise ValueError(
+            f"invalid products section: {exc.message}",
+        ) from exc
+
+
+def validate_delivery_product(delivery, expected):
+    schema = {
+        "type": "object",
+        "properties": {"product": {"const": expected}},
+        "required": ["product"] if expected else [],
+    }
+    try:
+        validate(delivery, schema)
+    except ValidationError as exc:
+        raise ValueError(
+            f"invalid delivery product: {exc.message}",
+        ) from exc
 
 
 def _ids(value, name, role):
